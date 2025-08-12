@@ -1,0 +1,8 @@
+* Asteroid Music <2025-08-12 Tue>
+
+This project will define an internet radio station with the express
+purpose of streaming Asteroid Music to the hackers of the world. This
+project is imagined as a shared endeavour undertaken among the
+denizens of the [[https://www.twitch.tv/systemcrafters][#systemcrafters community]] on twitch and the libera
+chat IRC network.
+
