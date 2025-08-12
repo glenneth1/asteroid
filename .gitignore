@@ -16,3 +16,7 @@
 *.wx64fsl
 *.wx32fsl
 /slime.lisp
+asteroid
+buildapp
+quicklisp-manifest.txt
+
