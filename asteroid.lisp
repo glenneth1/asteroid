@@ -1,11 +1,9 @@
 ;; -*-lisp-*-
-(defpackage :asteroid
-            (:use :cl :radiance)
-            (:use :asteroid.app-utils)
-            (:export :-main
-                     :start-server
-                     :stop-server
-                     :run-server))
+;; (defpackage :asteroid
+;;   (:use :cl :radiance)
+;;   (:use :asteroid.app-utils)
+
+;;   (:export :-main :start-server :stop-server :run-server))
 
 (in-package :asteroid)
 
