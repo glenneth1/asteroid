@@ -9,14 +9,11 @@
   :version "0.0.0"
   :defsystem-depends-on (:radiance)
   :class "radiance:virtual-module"
-  
   :depends-on (:radiance
                :r-clip
                :spinneret
                :cl-json
-               ;; :com.inuoe.jzon
-               :dexador
-               )
+               :dexador)
   :pathname "./"
   :components ((:file "app-utils")
                (:file "module")

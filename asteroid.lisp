@@ -172,7 +172,7 @@
       (stop-server))))
 
 (defun -main (&optional args)
-  (declare (ignore args))
+  (declare (ignorable args))
   (format t "~%🎵 ASTEROID RADIO - Music for Hackers 🎵~%")
   (format t "Starting RADIANCE web server...~%")
   (run-server))
