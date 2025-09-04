@@ -5,7 +5,7 @@ OUT=asteroid
 ENTRY=-main
 
 .PHONY: $(OUT)
-$(OUT): *.lisp
+$(OUT): clean
 	sbcl --load build-executable.lisp
 
 quicklisp-manifest.txt: *.asd
