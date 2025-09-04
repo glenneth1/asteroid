@@ -1,4 +1,4 @@
-#!/usr/bin/sbcl --script
+#!/usr/local/bin/sbcl --script
 ;; -*-lisp-*-
 
 (load "~/quicklisp/setup.lisp")
