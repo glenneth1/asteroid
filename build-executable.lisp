@@ -1,4 +1,3 @@
-#!/usr/local/bin/sbcl --script
 ;; -*-lisp-*-
 
 ;; we require quicklisp to load our transitive dependencies.
