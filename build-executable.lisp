@@ -1,6 +1,7 @@
 #!/usr/local/bin/sbcl --script
 ;; -*-lisp-*-
 
+;; we require quicklisp to load our transitive dependencies.
 (load "~/quicklisp/setup.lisp")
 
 ;; Build script for creating asteroid executable using save-lisp-and-die
