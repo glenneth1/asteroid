@@ -4,13 +4,9 @@ PACKAGEUTILS=asteroid.app-utils
 OUT=asteroid
 ENTRY=-main
 
-$(OUT): buildapp *.lisp quicklisp-manifest.txt
-	./buildapp  --manifest-file quicklisp-manifest.txt \
-				--load-system asdf \
-				--eval '(push "$(ROOT_DIR)/" asdf:*central-registry*)' \
-				--load-system $(PACKAGE) \
-				--eval '($(PACKAGEUTILS)::internal-disable-debugger)' \
-				--output $(OUT) --entry $(PACKAGE):$(ENTRY)
+.PHONY: $(OUT)
+$(OUT): *.lisp
+	sbcl --load build-executable.lisp
 
 quicklisp-manifest.txt: *.asd
 	sbcl --non-interactive \
@@ -18,8 +14,8 @@ quicklisp-manifest.txt: *.asd
 		--eval '(ql:quickload "$(PACKAGE)")'\
 		--eval '(ql:write-asdf-manifest-file "quicklisp-manifest.txt")'
 
-buildapp:
-	sbcl --eval '(ql:quickload "buildapp")' --eval '(buildapp:build-buildapp)' --non-interactive
+# buildapp:
+# 	sbcl --eval '(ql:quickload "buildapp")' --eval '(buildapp:build-buildapp)' --non-interactive
 
 clean:
 	rm -f *.fasl $(OUT) buildapp quicklisp-manifest.txt
