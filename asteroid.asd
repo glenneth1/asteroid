@@ -13,9 +13,10 @@
                :r-clip
                :spinneret
                :cl-json
-               :dexador)
+               ;; :com.inuoe.jzon
+               :dexador
+               :lass)
   :pathname "./"
   :components ((:file "app-utils")
                (:file "module")
                (:file "asteroid")))
-

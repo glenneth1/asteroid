@@ -9,11 +9,34 @@
 
 ;; Define as RADIANCE module
 (define-module asteroid
-  (:use #:cl #:radiance)
+  (:use #:cl #:radiance #:lass)
   (:domain "asteroid"))
 
 ;; Configuration
 (defparameter *server-port* 8080)
+
+;; Read and compile LASS from file
+(defun generate-css ()
+  "Generate CSS by reading LASS from static/asteroid.lass file"
+  (let ((lass-file (merge-pathnames "static/asteroid.lass")))
+    (lass:compile-and-write
+     (with-open-file (in lass-file)
+       (read in)))))
+
+;; Generate CSS file using LASS
+(defun compile-styles ()
+  "Generate CSS file using LASS"
+  (ensure-directories-exist "static/")
+  (let ((css-file (merge-pathnames "static/asteroid.css")))
+    (with-open-file (out css-file
+                         :direction :output
+                         :if-exists :supersede)
+      (write-string (generate-css) out))))
+
+;; Configure static file serving for other files
+(define-page static #@"/static/(.*)" (:uri-groups (path))
+  (serve-file (merge-pathnames (concatenate 'string "static/" path) 
+                               (asdf:system-source-directory :asteroid))))
 
 ;; RADIANCE route handlers
 (define-page index #@"/" ()
@@ -24,23 +47,7 @@
       (:title "🎵 ASTEROID RADIO 🎵")
       (:meta :charset "utf-8")
       (:meta :name "viewport" :content "width=device-width, initial-scale=1")
-      (:style "
-        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; margin: 0; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #ff6600; text-align: center; font-size: 2.5em; margin-bottom: 30px; }
-        h2 { color: #ff6600; }
-        .status { background: #1a1a1a; padding: 20px; border: 1px solid #333; margin: 20px 0; }
-        .panel { background: #1a1a1a; padding: 20px; border: 1px solid #333; margin: 20px 0; }
-        .nav { margin: 20px 0; }
-        .nav a { color: #00ff00; text-decoration: none; margin: 0 15px; padding: 10px 20px; border: 1px solid #333; background: #1a1a1a; display: inline-block; }
-        .nav a:hover { background: #333; }
-        .controls { margin: 20px 0; }
-        .controls button { background: #1a1a1a; color: #00ff00; border: 1px solid #333; padding: 10px 20px; margin: 5px; cursor: pointer; }
-        .controls button:hover { background: #333; }
-        .now-playing { background: #1a1a1a; padding: 20px; border: 1px solid #333; margin: 20px 0; }
-        .back { color: #00ff00; text-decoration: none; margin-bottom: 20px; display: inline-block; }
-        .back:hover { text-decoration: underline; }
-      "))
+      (:link :rel "stylesheet" :type "text/css" :href "/static/asteroid.css"))
      (:body
       (:div.container
        (:h1 "🎵 ASTEROID RADIO 🎵")
@@ -67,15 +74,7 @@
      (:head
       (:title "Asteroid Radio - Admin Dashboard")
       (:meta :charset "utf-8")
-      (:style "
-        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; margin: 0; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #ff6600; }
-        .panel { background: #1a1a1a; padding: 20px; border: 1px solid #333; margin: 20px 0; }
-        button { background: #333; color: #00ff00; border: 1px solid #555; padding: 10px 20px; margin: 5px; cursor: pointer; }
-        button:hover { background: #555; }
-        .back { color: #00ff00; text-decoration: none; }
-      "))
+      (:link :rel "stylesheet" :type "text/css" :href "/static/asteroid.css"))
      (:body
       (:div.container
        (:a.back :href "/" "← Back to Main")
@@ -110,14 +109,7 @@
      (:head
       (:title "Asteroid Radio - Web Player")
       (:meta :charset "utf-8")
-      (:style "
-        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; margin: 0; padding: 20px; text-align: center; }
-        .player { background: #1a1a1a; padding: 40px; border: 1px solid #333; margin: 40px auto; max-width: 600px; }
-        .now-playing { font-size: 1.5em; margin: 20px 0; color: #ff6600; }
-        .controls button { background: #333; color: #00ff00; border: 1px solid #555; padding: 15px 30px; margin: 10px; font-size: 1.2em; cursor: pointer; }
-        .controls button:hover { background: #555; }
-        .back { color: #00ff00; text-decoration: none; }
-      "))
+      (:link :rel "stylesheet" :type "text/css" :href "/static/asteroid.css"))
      (:body
       (:a.back :href "/" "← Back to Main")
       (:div.player
@@ -151,6 +143,7 @@
 (defun start-server (&key (port *server-port*))
   "Start the Asteroid Radio RADIANCE server"
   (format t "Starting Asteroid Radio RADIANCE server on port ~a~%"  port)
+  (compile-styles)  ; Generate CSS file using LASS
   (radiance:startup)
   (format t "Server started! Visit http://localhost:~a/asteroid/~%" port))
 

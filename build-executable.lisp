@@ -1,16 +1,13 @@
-#!/usr/local/bin/sbcl --script 
+#!/usr/bin/sbcl --script
 ;; -*-lisp-*-
 
 (load "~/quicklisp/setup.lisp")
 
 ;; Build script for creating asteroid executable using save-lisp-and-die
-(require :asdf)
-;; Add project directory to ASDF
-;; (push #P"/home/fade/SourceCode/lisp/asteroid/" asdf:*central-registry*)
+;; ASDF will automatically find the project via source-registry.conf
 
 ;; Load the system
-(ql:quickload "asteroid")
-;; (asdf:load-system :asteroid)
+(ql:quickload :asteroid)
 
 ;; Define the main function for the executable
 (defun main ()
