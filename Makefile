@@ -14,8 +14,5 @@ quicklisp-manifest.txt: *.asd
 		--eval '(ql:quickload "$(PACKAGE)")'\
 		--eval '(ql:write-asdf-manifest-file "quicklisp-manifest.txt")'
 
-# buildapp:
-# 	sbcl --eval '(ql:quickload "buildapp")' --eval '(buildapp:build-buildapp)' --non-interactive
-
 clean:
 	rm -f *.fasl $(OUT) buildapp quicklisp-manifest.txt
