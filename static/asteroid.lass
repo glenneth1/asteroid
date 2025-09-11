@@ -97,6 +97,293 @@
     :margin "10px"
     :font-size "1.2em")))
 
+ ;; Web Player Widget Styles
+ (.player-section
+  :background "#1a1a1a"
+  :padding "25px"
+  :border "1px solid #333"
+  :margin "20px 0"
+  :border-radius "5px")
+
+ (.track-browser
+  :margin "15px 0")
+
+ (.search-input
+  :width "100%"
+  :padding "12px"
+  :background "#0a0a0a"
+  :color "#00ff00"
+  :border "1px solid #333"
+  :font-family "Courier New, monospace"
+  :font-size "14px"
+  :margin-bottom "15px")
+
+ (.track-list
+  :max-height "400px"
+  :overflow-y auto
+  :border "1px solid #333"
+  :background "#0a0a0a")
+
+ (.track-item
+  :display flex
+  :justify-content space-between
+  :align-items center
+  :padding "12px 15px"
+  :border-bottom "1px solid #333"
+  :transition "background-color 0.2s"
+  (:hover
+   :background "#1a1a1a"))
+
+ (.track-info
+  :flex 1
+  (.track-title
+   :color "#00ff00"
+   :font-weight bold
+   :margin-bottom "4px")
+  (.track-meta
+   :color "#888"
+   :font-size "0.9em"))
+
+ (.track-actions
+  :display flex
+  :gap "8px")
+
+ (.audio-player
+  :text-align center)
+
+ (.track-art
+  :font-size "3em"
+  :margin-right "20px"
+  :color "#ff6600")
+
+ (.track-details
+  (.track-title
+   :font-size "1.4em"
+   :color "#00ff00"
+   :margin-bottom "5px")
+  (.track-artist
+   :font-size "1.1em"
+   :color "#ff6600"
+   :margin-bottom "3px")
+  (.track-album
+   :color "#888"))
+
+ (.player-controls
+  :margin "20px 0"
+  :display flex
+  :justify-content center
+  :gap "10px"
+  :flex-wrap wrap)
+
+ (.player-info
+  :display flex
+  :justify-content space-between
+  :align-items center
+  :margin-top "15px"
+  :padding "10px"
+  :background "#0a0a0a"
+  :border "1px solid #333"
+  :border-radius "3px")
+
+ (.time-display
+  :color "#00ff00"
+  :font-family "Courier New, monospace")
+
+ (.volume-control
+  :display flex
+  :align-items center
+  :gap "10px"
+  (label
+   :color "#ff6600"))
+
+ (.volume-slider
+  :width "100px"
+  :height "5px"
+  :background "#333"
+  :outline none
+  :border-radius "3px")
+
+ ;; Button styles
+ (.btn
+  :background "#333"
+  :color "#00ff00"
+  :border "1px solid #555"
+  :padding "8px 16px"
+  :margin "3px"
+  :cursor pointer
+  :font-family "Courier New, monospace"
+  :font-size "14px"
+  :border-radius "3px"
+  :transition "all 0.2s"
+  (:hover
+   :background "#555"
+   :border-color "#777"))
+
+ (.btn-primary
+  :background "#0066cc"
+  :border-color "#0088ff"
+  (:hover
+   :background "#0088ff"))
+
+ (.btn-success
+  :background "#006600"
+  :border-color "#00aa00"
+  (:hover
+   :background "#00aa00"))
+
+ (.btn-danger
+  :background "#cc0000"
+  :border-color "#ff0000"
+  (:hover
+   :background "#ff0000"))
+
+ (.btn-info
+  :background "#006666"
+  :border-color "#00aaaa"
+  (:hover
+   :background "#00aaaa"))
+
+ (.btn-warning
+  :background "#cc6600"
+  :border-color "#ff8800"
+  (:hover
+   :background "#ff8800"))
+
+ (.btn-secondary
+  :background "#444"
+  :border-color "#666"
+  (:hover
+   :background "#666"))
+
+ (.btn-sm
+  :padding "4px 8px"
+  :font-size "12px")
+
+ (.btn.active
+  :background "#ff6600"
+  :border-color "#ff8800"
+  :color "#000")
+
+ ;; Playlist and Queue styles
+ (.playlist-controls
+  :margin-bottom "15px"
+  :display flex
+  :gap "10px"
+  :align-items center)
+
+ (.playlist-input
+  :flex 1
+  :padding "8px 12px"
+  :background "#0a0a0a"
+  :color "#00ff00"
+  :border "1px solid #333"
+  :font-family "Courier New, monospace")
+
+ (.playlist-list
+  :border "1px solid #333"
+  :background "#0a0a0a"
+  :min-height "100px"
+  :padding "10px")
+
+ (.queue-controls
+  :margin-bottom "15px"
+  :display flex
+  :gap "10px")
+
+ (.play-queue
+  :border "1px solid #333"
+  :background "#0a0a0a"
+  :min-height "150px"
+  :max-height "300px"
+  :overflow-y auto
+  :padding "10px")
+
+ (.queue-item
+  :display flex
+  :justify-content space-between
+  :align-items center
+  :padding "8px 10px"
+  :border-bottom "1px solid #333"
+  :margin-bottom "5px"
+  (:last-child
+   :border-bottom none
+   :margin-bottom 0))
+
+ (.empty-queue
+  :text-align center
+  :color "#666"
+  :padding "20px"
+  :font-style italic)
+
+ (.no-tracks
+  :text-align center
+  :color "#666"
+  :padding "20px"
+  :font-style italic)
+
+ (.no-playlists
+  :text-align center
+  :color "#666"
+  :padding "20px"
+  :font-style italic)
+
+ (.loading
+  :text-align center
+  :color "#ff6600"
+  :padding "20px")
+
+ (.error
+  :text-align center
+  :color "#ff0000"
+  :padding "20px"
+  :font-weight bold)
+
+ ;; Upload interface styles
+ (.upload-section
+  :margin "20px 0"
+  :padding "20px"
+  :background "#0a0a0a"
+  :border "1px solid #333"
+  :border-radius "5px")
+
+ (.upload-controls
+  :display flex
+  :gap "15px"
+  :align-items center
+  :margin-bottom "15px")
+
+ (.upload-info
+  :color "#888"
+  :font-size "0.9em")
+
+ (.upload-progress
+  :margin-top "10px"
+  :padding "10px"
+  :background "#1a1a1a"
+  :border "1px solid #333"
+  :border-radius "3px")
+
+ (.progress-bar
+  :height "20px"
+  :background "#ff6600"
+  :border-radius "3px"
+  :transition "width 0.3s ease"
+  :width "0%")
+
+ (.progress-text
+  :display block
+  :margin-top "5px"
+  :color "#00ff00"
+  :font-size "0.9em")
+
+ (input
+  :padding "8px 12px"
+  :background "#1a1a1a"
+  :color "#00ff00"
+  :border "1px solid #333"
+  :border-radius "3px"
+  :font-family "Courier New, monospace")
+
  ;; Center alignment for player page
  (body.player-page
   :text-align center))

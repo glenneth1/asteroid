@@ -11,7 +11,6 @@
   :class "radiance:virtual-module"
   :depends-on (:radiance
                :r-clip
-               :spinneret
                :cl-json
                :dexador
                :lass
