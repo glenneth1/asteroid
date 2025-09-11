@@ -1,0 +1,305 @@
+#+TITLE: Asteroid Radio - Internet Streaming Implementation
+#+AUTHOR: Database Implementation Branch
+#+DATE: 2025-09-11
+
+* Overview
+
+This branch implements a complete internet radio streaming system for Asteroid Radio, transforming it from a simple web interface into a fully functional streaming radio station with live broadcasting capabilities.
+
+* Key Features
+
+** Live Internet Radio Streaming
+- Continuous MP3 streaming at 128kbps stereo
+- Professional audio processing with crossfading and normalization
+- Icecast2 streaming server integration
+- Liquidsoap audio pipeline for reliable broadcasting
+
+** Music Library Management
+- Database-backed track storage with metadata extraction
+- Support for MP3, FLAC, OGG, and WAV formats
+- Automatic metadata extraction using taglib
+- Track search, filtering, and sorting capabilities
+
+** Web Interface
+- RADIANCE framework with CLIP templating
+- Admin dashboard for library management
+- Web player with HTML5 audio controls
+- Live stream integration with embedded player
+
+** Network Broadcasting
+- WSL-compatible networking for internal network access
+- Professional streaming URLs for media players
+- Multi-listener support via Icecast2
+
+* Architecture Changes
+
+** Framework Migration
+- Migrated from Hunchentoot to RADIANCE web framework
+- Implemented proper domain routing (=/asteroid/=)
+- CLIP templating system for dynamic content
+- Database abstraction layer for track storage
+
+** Streaming Stack
+- *Icecast2*: Streaming server (port 8000)
+- *Liquidsoap*: Audio processing and streaming pipeline
+- *RADIANCE*: Web server and API (port 8080)
+- *Database*: Track metadata and playlist storage
+
+** File Structure
+#+BEGIN_SRC
+asteroid/
+├── asteroid.lisp              # Main server with RADIANCE routes
+├── asteroid.asd               # System definition with dependencies
+├── asteroid-radio.liq         # Liquidsoap streaming configuration
+├── playlist.m3u               # Generated playlist for streaming
+├── start-asteroid-radio.sh    # Launch script for all services
+├── stop-asteroid-radio.sh     # Stop script for all services
+├── template/                  # CLIP HTML templates
+│   ├── front-page.chtml       # Main page with live stream
+│   ├── admin.chtml            # Admin dashboard
+│   └── player.chtml           # Web player interface
+├── static/                    # CSS and assets
+│   └── asteroid.lass          # LASS stylesheet
+└── music/                     # Music library
+    ├── incoming/              # Upload staging area
+    └── library/               # Processed music files
+#+END_SRC
+
+* Track Upload Workflow
+
+** Current Implementation (Manual Upload)
+1. *Copy files to staging*: Place MP3/FLAC files in =music/incoming/=
+2. *Access admin panel*: Navigate to =http://[IP]:8080/asteroid/admin=
+3. *Process files*: Click "Copy Files from Incoming" button
+4. *Database update*: Files are moved to =music/library/= and metadata extracted
+5. *Automatic playlist*: =playlist.m3u= is regenerated for streaming
+
+** File Processing Steps
+1. Files copied from =music/incoming/= to =music/library/=
+2. Metadata extracted using taglib (title, artist, album, duration, bitrate)
+3. Database record created with file path and metadata
+4. Playlist file updated for Liquidsoap streaming
+5. Files immediately available for on-demand streaming
+
+** Supported Formats
+- *MP3*: Primary format, best compatibility
+- *FLAC*: Lossless audio, high quality
+- *OGG*: Open source format
+- *WAV*: Uncompressed audio
+
+* Icecast2 Integration
+
+** Configuration
+- *Server*: localhost:8000
+- *Mount point*: =/asteroid.mp3=
+- *Password*: =b3l0wz3r0= (configured in Liquidsoap)
+- *Format*: MP3 128kbps stereo
+
+** Installation (Ubuntu/Debian)
+#+BEGIN_SRC bash
+sudo apt update
+sudo apt install icecast2
+sudo systemctl enable icecast2
+sudo systemctl start icecast2
+#+END_SRC
+
+** Stream Access
+- *Direct URL*: =http://[IP]:8000/asteroid.mp3=
+- *Admin interface*: =http://[IP]:8000/admin/=
+- *Statistics*: =http://[IP]:8000/status.xsl=
+
+* Liquidsoap Integration
+
+** Configuration File: =asteroid-radio.liq=
+#+BEGIN_SRC liquidsoap
+#!/usr/bin/liquidsoap
+
+# Set log level for debugging
+settings.log.level := 4
+
+# Create playlist from directory
+radio = playlist(mode="randomize", reload=3600, "/path/to/music/library/")
+
+# Add audio processing
+radio = amplify(1.0, radio)
+
+# Fallback with sine wave for debugging
+radio = fallback(track_sensitive=false, [radio, sine(440.0)])
+
+# Output to Icecast2
+output.icecast(
+  %mp3(bitrate=128),
+  host="localhost",
+  port=8000,
+  password="b3l0wz3r0",
+  mount="asteroid.mp3",
+  name="Asteroid Radio",
+  description="Music for Hackers - Streaming from the Asteroid",
+  genre="Electronic/Alternative",
+  url="http://localhost:8080/asteroid/",
+  radio
+)
+#+END_SRC
+
+** Installation (Ubuntu/Debian)
+#+BEGIN_SRC bash
+sudo apt update
+sudo apt install liquidsoap
+#+END_SRC
+
+** Features
+- *Random playlist*: Shuffles music library continuously
+- *Auto-reload*: Playlist refreshes every hour
+- *Audio processing*: Amplification and normalization
+- *Fallback*: Sine tone if no music available (debugging)
+- *Metadata*: Station info broadcast to listeners
+
+* Network Access
+
+** Local Development
+- *Web Interface*: =http://localhost:8080/asteroid/=
+- *Live Stream*: =http://localhost:8000/asteroid.mp3=
+- *Admin Panel*: =http://localhost:8080/asteroid/admin=
+
+** WSL Network Access
+- *WSL IP*: Check with =ip addr show eth0=
+- *Web Interface*: =http://[WSL-IP]:8080/asteroid/=
+- *Live Stream*: =http://[WSL-IP]:8000/asteroid.mp3=
+
+** Internal Network Broadcasting
+- Services bind to all interfaces (0.0.0.0)
+- Accessible from any device on local network
+- Compatible with media players (VLC, iTunes, etc.)
+
+* Usage Instructions
+
+** Starting the Radio Station
+#+BEGIN_SRC bash
+# Launch all services
+./start-asteroid-radio.sh
+#+END_SRC
+
+** Stopping the Radio Station
+#+BEGIN_SRC bash
+# Stop all services
+./stop-asteroid-radio.sh
+#+END_SRC
+
+** Adding Music
+1. Copy MP3/FLAC files to =music/incoming/=
+2. Visit admin panel: =http://[IP]:8080/asteroid/admin=
+3. Click "Copy Files from Incoming"
+4. Files are processed and added to streaming playlist
+
+** Listening to the Stream
+- *Web Browser*: Visit main page for embedded player
+- *Media Player*: Open =http://[IP]:8000/asteroid.mp3=
+- *Mobile Apps*: Use internet radio apps with stream URL
+
+* API Endpoints
+
+** Track Management
+- =GET /api/tracks= - List all tracks with metadata
+- =GET /tracks/{id}/stream= - Stream individual track
+- =POST /api/scan-library= - Scan and update music library
+- =POST /api/copy-files= - Process files from incoming directory
+
+** Player Control
+- =POST /api/player/play= - Start playback
+- =POST /api/player/pause= - Pause playback
+- =POST /api/player/stop= - Stop playback
+- =GET /api/status= - Get server status
+
+** Search and Filter
+- =GET /api/tracks?search={query}= - Search tracks
+- =GET /api/tracks?sort={field}= - Sort by field
+- =GET /api/tracks?artist={name}= - Filter by artist
+
+* Database Schema
+
+** Tracks Collection
+#+BEGIN_SRC lisp
+(db:create "tracks" '((title :text)
+                      (artist :text)
+                      (album :text)
+                      (duration :integer)
+                      (file-path :text)
+                      (format :text)
+                      (bitrate :integer)
+                      (added-date :integer)
+                      (play-count :integer)))
+#+END_SRC
+
+** Playlists Collection (Future)
+#+BEGIN_SRC lisp
+(db:create "playlists" '((name :text)
+                         (description :text)
+                         (created-date :integer)
+                         (track-ids :text)))
+#+END_SRC
+
+* Dependencies
+
+** Lisp Dependencies (asteroid.asd)
+- =:radiance= - Web framework
+- =:r-clip= - Templating system
+- =:lass= - CSS generation
+- =:cl-json= - JSON handling
+- =:alexandria= - Utilities
+- =:local-time= - Time handling
+
+** System Dependencies
+- =icecast2= - Streaming server
+- =liquidsoap= - Audio processing
+- =taglib= - Metadata extraction (via audio-streams)
+
+* Development Notes
+
+** RADIANCE Configuration
+- Domain: "asteroid"
+- Routes use =#@= syntax for URL patterns
+- Database abstraction via =db:= functions
+- CLIP templates with =data-text= attributes
+
+** Database Queries
+- Use quoted symbols for field names: =(:= '_id id)=
+- RADIANCE returns hash tables with string keys
+- Primary key is "_id" internally, "id" in JSON responses
+
+** Streaming Considerations
+- MP3 files with spaces in names require playlist.m3u approach
+- Liquidsoap fallback prevents stream silence
+- Icecast2 mount points must match Liquidsoap configuration
+
+* Future Enhancements
+
+** Planned Features
+- Playlist creation and management interface
+- Now-playing status tracking and display
+- Direct browser file uploads with progress
+- Listener statistics and analytics
+- Scheduled programming and automation
+
+** Technical Improvements
+- WebSocket integration for real-time updates
+- Advanced audio processing options
+- Multi-bitrate streaming support
+- Mobile-responsive interface enhancements
+
+* Troubleshooting
+
+** Common Issues
+- *No audio in stream*: Check Liquidsoap logs, verify MP3 files
+- *Database errors*: Ensure proper field name quoting in queries
+- *Network access*: Verify WSL IP and firewall settings
+- *File upload issues*: Check permissions on music directories
+
+** Debugging
+- Enable Liquidsoap debug logging: =settings.log.level := 4=
+- Check Icecast admin interface for stream status
+- Monitor RADIANCE logs for web server issues
+- Verify database connectivity and collections
+
+* License
+
+This implementation maintains compatibility with the original Asteroid Radio project license while adding comprehensive streaming capabilities for internet radio broadcasting.

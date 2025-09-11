@@ -120,6 +120,372 @@ body .player .controls button{
     font-size: 1.2em;
 }
 
+body .player-section{
+    background: #1a1a1a;
+    padding: 25px;
+    border: 1px solid #333;
+    margin: 20px 0;
+    border-radius: 5px;
+}
+
+body .track-browser{
+    margin: 15px 0;
+}
+
+body .search-input{
+    width: 100%;
+    padding: 12px;
+    background: #0a0a0a;
+    color: #00ff00;
+    border: 1px solid #333;
+    font-family: Courier New, monospace;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+body .track-list{
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #333;
+    background: #0a0a0a;
+}
+
+body .track-item{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #333;
+    -moz-transition: background-color 0.2s;
+    -o-transition: background-color 0.2s;
+    -webkit-transition: background-color 0.2s;
+    -ms-transition: background-color 0.2s;
+    transition: background-color 0.2s;
+}
+
+body .track-item :hover{
+    background: #1a1a1a;
+}
+
+body .track-info{
+    flex: 1;
+}
+
+body .track-info .track-title{
+    color: #00ff00;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+body .track-info .track-meta{
+    color: #888;
+    font-size: 0.9em;
+}
+
+body .track-actions{
+    display: flex;
+    gap: 8px;
+}
+
+body .audio-player{
+    text-align: center;
+}
+
+body .track-art{
+    font-size: 3em;
+    margin-right: 20px;
+    color: #ff6600;
+}
+
+
+
+body .track-details .track-title{
+    font-size: 1.4em;
+    color: #00ff00;
+    margin-bottom: 5px;
+}
+
+body .track-details .track-artist{
+    font-size: 1.1em;
+    color: #ff6600;
+    margin-bottom: 3px;
+}
+
+body .track-details .track-album{
+    color: #888;
+}
+
+body .player-controls{
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+body .player-info{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    padding: 10px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 3px;
+}
+
+body .time-display{
+    color: #00ff00;
+    font-family: Courier New, monospace;
+}
+
+body .volume-control{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+body .volume-control label{
+    color: #ff6600;
+}
+
+body .volume-slider{
+    width: 100px;
+    height: 5px;
+    background: #333;
+    outline: none;
+    border-radius: 3px;
+}
+
+body .btn{
+    background: #333;
+    color: #00ff00;
+    border: 1px solid #555;
+    padding: 8px 16px;
+    margin: 3px;
+    cursor: pointer;
+    font-family: Courier New, monospace;
+    font-size: 14px;
+    border-radius: 3px;
+    -moz-transition: all 0.2s;
+    -o-transition: all 0.2s;
+    -webkit-transition: all 0.2s;
+    -ms-transition: all 0.2s;
+    transition: all 0.2s;
+}
+
+body .btn :hover{
+    background: #555;
+    border-color: #777;
+}
+
+body .btn-primary{
+    background: #0066cc;
+    border-color: #0088ff;
+}
+
+body .btn-primary :hover{
+    background: #0088ff;
+}
+
+body .btn-success{
+    background: #006600;
+    border-color: #00aa00;
+}
+
+body .btn-success :hover{
+    background: #00aa00;
+}
+
+body .btn-danger{
+    background: #cc0000;
+    border-color: #ff0000;
+}
+
+body .btn-danger :hover{
+    background: #ff0000;
+}
+
+body .btn-info{
+    background: #006666;
+    border-color: #00aaaa;
+}
+
+body .btn-info :hover{
+    background: #00aaaa;
+}
+
+body .btn-warning{
+    background: #cc6600;
+    border-color: #ff8800;
+}
+
+body .btn-warning :hover{
+    background: #ff8800;
+}
+
+body .btn-secondary{
+    background: #444;
+    border-color: #666;
+}
+
+body .btn-secondary :hover{
+    background: #666;
+}
+
+body .btn-sm{
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+body .btn.active{
+    background: #ff6600;
+    border-color: #ff8800;
+    color: #000;
+}
+
+body .playlist-controls{
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+body .playlist-input{
+    flex: 1;
+    padding: 8px 12px;
+    background: #0a0a0a;
+    color: #00ff00;
+    border: 1px solid #333;
+    font-family: Courier New, monospace;
+}
+
+body .playlist-list{
+    border: 1px solid #333;
+    background: #0a0a0a;
+    min-height: 100px;
+    padding: 10px;
+}
+
+body .queue-controls{
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+body .play-queue{
+    border: 1px solid #333;
+    background: #0a0a0a;
+    min-height: 150px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+body .queue-item{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid #333;
+    margin-bottom: 5px;
+}
+
+body .queue-item :last-child{
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+body .empty-queue{
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+body .no-tracks{
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+body .no-playlists{
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-style: italic;
+}
+
+body .loading{
+    text-align: center;
+    color: #ff6600;
+    padding: 20px;
+}
+
+body .error{
+    text-align: center;
+    color: #ff0000;
+    padding: 20px;
+    font-weight: bold;
+}
+
+body .upload-section{
+    margin: 20px 0;
+    padding: 20px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-radius: 5px;
+}
+
+body .upload-controls{
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+body .upload-info{
+    color: #888;
+    font-size: 0.9em;
+}
+
+body .upload-progress{
+    margin-top: 10px;
+    padding: 10px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 3px;
+}
+
+body .progress-bar{
+    height: 20px;
+    background: #ff6600;
+    border-radius: 3px;
+    -moz-transition: width 0.3s ease;
+    -o-transition: width 0.3s ease;
+    -webkit-transition: width 0.3s ease;
+    -ms-transition: width 0.3s ease;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+body .progress-text{
+    display: block;
+    margin-top: 5px;
+    color: #00ff00;
+    font-size: 0.9em;
+}
+
+body input{
+    padding: 8px 12px;
+    background: #1a1a1a;
+    color: #00ff00;
+    border: 1px solid #333;
+    border-radius: 3px;
+    font-family: Courier New, monospace;
+}
+
 body body.player-page{
     text-align: center;
 }

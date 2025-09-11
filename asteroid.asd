@@ -11,11 +11,16 @@
   :class "radiance:virtual-module"
   :depends-on (:radiance
                :r-clip
-               :spinneret
                :cl-json
                :dexador
-               :lass)
+               :lass
+               :r-data-model
+               :cl-fad
+               :local-time
+               :taglib)
   :pathname "./"
   :components ((:file "app-utils")
                (:file "module")
+               (:file "database")
+               (:file "stream-media")
                (:file "asteroid")))

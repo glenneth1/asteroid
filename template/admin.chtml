@@ -11,26 +11,322 @@
     <h1>🎛️ ADMIN DASHBOARD</h1>
     <div class="nav">
       <a href="/">← Back to Main</a>
-      <a href="/player">Web Player</a>
+      <a href="/player/">Web Player</a>
     </div>
-    <div class="admin-grid">
-      <div class="status-card">
-        <h3>Server Status</h3>
-        <p class="status-good" data-text="server-status">🟢 Running</p>
+    
+    <!-- System Status -->
+    <div class="admin-section">
+      <h2>System Status</h2>
+      <div class="admin-grid">
+        <div class="status-card">
+          <h3>Server Status</h3>
+          <p class="status-good" data-text="server-status">🟢 Running</p>
+        </div>
+        <div class="status-card">
+          <h3>Database Status</h3>
+          <p class="status-good" data-text="database-status">🟢 Connected</p>
+        </div>
+        <div class="status-card">
+          <h3>Liquidsoap Status</h3>
+          <p class="status-error" data-text="liquidsoap-status">🔴 Not Running</p>
+        </div>
+        <div class="status-card">
+          <h3>Icecast Status</h3>
+          <p class="status-error" data-text="icecast-status">🔴 Not Running</p>
+        </div>
       </div>
-      <div class="status-card">
-        <h3>Database Status</h3>
-        <p class="status-warning" data-text="database-status">🟡 Not Connected</p>
+    </div>
+
+    <!-- Music Library Management -->
+    <div class="admin-section">
+      <h2>Music Library Management</h2>
+      
+      <!-- File Upload -->
+      <div class="upload-section">
+        <h3>Add Music Files</h3>
+        <div class="upload-info">
+          <p><strong>To add your own MP3 files:</strong></p>
+          <ol>
+            <li>Copy your MP3/FLAC/OGG/WAV files to: <code>/home/glenn/Projects/Code/asteroid/music/incoming/</code></li>
+            <li>Click "Copy Files to Library" below</li>
+            <li>Files will be moved to the library and added to the database</li>
+          </ol>
+          <p><em>Supported formats: MP3, FLAC, OGG, WAV</em></p>
+        </div>
+        <div class="upload-controls">
+          <button id="copy-files" class="btn btn-success">📁 Copy Files to Library</button>
+          <button id="open-incoming" class="btn btn-info">📂 Open Incoming Folder</button>
+        </div>
       </div>
-      <div class="status-card">
-        <h3>Liquidsoap Status</h3>
-        <p class="status-error" data-text="liquidsoap-status">🔴 Not Running</p>
+      
+      <div class="admin-controls">
+        <button id="scan-library" class="btn btn-primary">🔍 Scan Library</button>
+        <button id="refresh-tracks" class="btn btn-secondary">🔄 Refresh Track List</button>
       </div>
-      <div class="status-card">
-        <h3>Icecast Status</h3>
-        <p class="status-error" data-text="icecast-status">🔴 Not Running</p>
+      
+      <div class="track-stats">
+        <p>Total Tracks: <span id="track-count" data-text="track-count">0</span></p>
+        <p>Library Path: <span data-text="library-path">/music/library/</span></p>
+      </div>
+    </div>
+
+    <!-- Track Management -->
+    <div class="admin-section">
+      <h2>Track Management</h2>
+      <div class="track-controls">
+        <input type="text" id="track-search" placeholder="Search tracks..." class="search-input">
+        <select id="sort-tracks" class="sort-select">
+          <option value="title">Sort by Title</option>
+          <option value="artist">Sort by Artist</option>
+          <option value="album">Sort by Album</option>
+          <option value="added-date">Sort by Date Added</option>
+        </select>
+      </div>
+      
+      <div id="tracks-container" class="tracks-list">
+        <div class="loading">Loading tracks...</div>
+      </div>
+    </div>
+
+    <!-- Player Control -->
+    <div class="admin-section">
+      <h2>Player Control</h2>
+      <div class="player-controls">
+        <button id="player-play" class="btn btn-success">▶️ Play</button>
+        <button id="player-pause" class="btn btn-warning">⏸️ Pause</button>
+        <button id="player-stop" class="btn btn-danger">⏹️ Stop</button>
+        <button id="player-resume" class="btn btn-info">▶️ Resume</button>
+      </div>
+      
+      <div class="player-status">
+        <p>Status: <span id="player-state">Stopped</span></p>
+        <p>Current Track: <span id="current-track">None</span></p>
+        <p>Position: <span id="current-position">0</span>s</p>
       </div>
     </div>
   </div>
+
+  <script>
+    // Admin Dashboard JavaScript
+    let tracks = [];
+    let currentTrackId = null;
+
+    // Load tracks on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      loadTracks();
+      updatePlayerStatus();
+      
+      // Setup event listeners
+      document.getElementById('scan-library').addEventListener('click', scanLibrary);
+      document.getElementById('refresh-tracks').addEventListener('click', loadTracks);
+      document.getElementById('track-search').addEventListener('input', filterTracks);
+      document.getElementById('sort-tracks').addEventListener('change', sortTracks);
+      document.getElementById('copy-files').addEventListener('click', copyFiles);
+      document.getElementById('open-incoming').addEventListener('click', openIncomingFolder);
+      
+      // Player controls
+      document.getElementById('player-play').addEventListener('click', () => playTrack(currentTrackId));
+      document.getElementById('player-pause').addEventListener('click', pausePlayer);
+      document.getElementById('player-stop').addEventListener('click', stopPlayer);
+      document.getElementById('player-resume').addEventListener('click', resumePlayer);
+    });
+
+    // Load tracks from API
+    async function loadTracks() {
+      try {
+        const response = await fetch('/admin/tracks');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          tracks = data.tracks || [];
+          document.getElementById('track-count').textContent = tracks.length;
+          displayTracks(tracks);
+        }
+      } catch (error) {
+        console.error('Error loading tracks:', error);
+        document.getElementById('tracks-container').innerHTML = '<div class="error">Error loading tracks</div>';
+      }
+    }
+
+    // Display tracks in the UI
+    function displayTracks(trackList) {
+      const container = document.getElementById('tracks-container');
+      
+      if (trackList.length === 0) {
+        container.innerHTML = '<div class="no-tracks">No tracks found. Click "Scan Library" to add tracks.</div>';
+        return;
+      }
+
+      const tracksHtml = trackList.map(track => `
+        <div class="track-item" data-track-id="${track.id}">
+          <div class="track-info">
+            <div class="track-title">${track.title[0] || 'Unknown Title'}</div>
+            <div class="track-artist">${track.artist[0] || 'Unknown Artist'}</div>
+            <div class="track-album">${track.album[0] || 'Unknown Album'}</div>
+          </div>
+          <div class="track-actions">
+            <button onclick="playTrack(${track.id})" class="btn btn-sm btn-success">▶️ Play</button>
+            <button onclick="streamTrack(${track.id})" class="btn btn-sm btn-info">🎵 Stream</button>
+            <button onclick="deleteTrack(${track.id})" class="btn btn-sm btn-danger">🗑️ Delete</button>
+          </div>
+        </div>
+      `).join('');
+      
+      container.innerHTML = tracksHtml;
+    }
+
+    // Scan music library
+    async function scanLibrary() {
+      const statusEl = document.getElementById('scan-status');
+      const scanBtn = document.getElementById('scan-library');
+      
+      statusEl.textContent = 'Scanning...';
+      scanBtn.disabled = true;
+      
+      try {
+        const response = await fetch('/admin/scan-library', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          statusEl.textContent = `✅ Added ${data['tracks-added']} tracks`;
+          loadTracks(); // Refresh track list
+        } else {
+          statusEl.textContent = '❌ Scan failed';
+        }
+      } catch (error) {
+        statusEl.textContent = '❌ Scan error';
+        console.error('Scan error:', error);
+      } finally {
+        scanBtn.disabled = false;
+        setTimeout(() => statusEl.textContent = '', 3000);
+      }
+    }
+
+    // Filter tracks based on search
+    function filterTracks() {
+      const query = document.getElementById('track-search').value.toLowerCase();
+      const filtered = tracks.filter(track => 
+        (track.title[0] || '').toLowerCase().includes(query) ||
+        (track.artist[0] || '').toLowerCase().includes(query) ||
+        (track.album[0] || '').toLowerCase().includes(query)
+      );
+      displayTracks(filtered);
+    }
+
+    // Sort tracks
+    function sortTracks() {
+      const sortBy = document.getElementById('sort-tracks').value;
+      const sorted = [...tracks].sort((a, b) => {
+        const aVal = a[sortBy] ? a[sortBy][0] : '';
+        const bVal = b[sortBy] ? b[sortBy][0] : '';
+        return aVal.localeCompare(bVal);
+      });
+      displayTracks(sorted);
+    }
+
+    // Player functions
+    async function playTrack(trackId) {
+      if (!trackId) {
+        alert('Please select a track to play');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/play?track-id=${trackId}`, { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          currentTrackId = trackId;
+          updatePlayerStatus();
+        } else {
+          alert('Error playing track: ' + data.message);
+        }
+      } catch (error) {
+        console.error('Play error:', error);
+        alert('Error playing track');
+      }
+    }
+
+    async function pausePlayer() {
+      try {
+        await fetch('/api/pause', { method: 'POST' });
+        updatePlayerStatus();
+      } catch (error) {
+        console.error('Pause error:', error);
+      }
+    }
+
+    async function stopPlayer() {
+      try {
+        await fetch('/api/stop', { method: 'POST' });
+        currentTrackId = null;
+        updatePlayerStatus();
+      } catch (error) {
+        console.error('Stop error:', error);
+      }
+    }
+
+    async function resumePlayer() {
+      try {
+        await fetch('/api/resume', { method: 'POST' });
+        updatePlayerStatus();
+      } catch (error) {
+        console.error('Resume error:', error);
+      }
+    }
+
+    async function updatePlayerStatus() {
+      try {
+        const response = await fetch('/api/player-status');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          const player = data.player;
+          document.getElementById('player-state').textContent = player.state;
+          document.getElementById('current-track').textContent = player['current-track'] || 'None';
+          document.getElementById('current-position').textContent = player.position;
+        }
+      } catch (error) {
+        console.error('Error updating player status:', error);
+      }
+    }
+
+    function streamTrack(trackId) {
+      window.open(`/asteroid/tracks/${trackId}/stream`, '_blank');
+    }
+
+    function deleteTrack(trackId) {
+      if (confirm('Are you sure you want to delete this track?')) {
+        // TODO: Implement track deletion API
+        alert('Track deletion not yet implemented');
+      }
+    }
+
+    // Copy files from incoming to library
+    async function copyFiles() {
+      try {
+        const response = await fetch('/admin/copy-files');
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          alert(`${data.message}`);
+          await loadTracks(); // Refresh track list
+        } else {
+          alert(`Error: ${data.message}`);
+        }
+      } catch (error) {
+        console.error('Error copying files:', error);
+        alert('Failed to copy files');
+      }
+    }
+
+    // Open incoming folder (for convenience)
+    function openIncomingFolder() {
+      alert('Copy your MP3 files to: /home/glenn/Projects/Code/asteroid/music/incoming/\n\nThen click "Copy Files to Library" to add them to your music collection.');
+    }
+
+    // Update player status every 5 seconds
+    setInterval(updatePlayerStatus, 5000);
+  </script>
 </body>
 </html>

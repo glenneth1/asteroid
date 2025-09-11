@@ -17,8 +17,20 @@
     </div>
     <div class="nav">
       <a href="/admin">Admin Dashboard</a>
-      <a href="/player">Web Player</a>
+      <a href="/player/">Web Player</a>
+      <a href="http://localhost:8000/asteroid.mp3" target="_blank">🎵 Live Stream</a>
       <a href="/status">API Status</a>
+    </div>
+    
+    <div class="live-stream">
+      <h2>🔴 LIVE STREAM</h2>
+      <p><strong>Stream URL:</strong> <code>http://localhost:8000/asteroid.mp3</code></p>
+      <p><strong>Format:</strong> MP3 128kbps Stereo</p>
+      <p><strong>Status:</strong> <span style="color: #00ff00;">● BROADCASTING</span></p>
+      <audio controls style="width: 100%; margin: 10px 0;">
+        <source src="http://localhost:8000/asteroid.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+      </audio>
     </div>
     <div>
       <h2>Now Playing</h2>
