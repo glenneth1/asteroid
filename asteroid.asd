@@ -21,4 +21,6 @@
   :pathname "./"
   :components ((:file "app-utils")
                (:file "module")
+               (:file "database")
+               (:file "stream-media")
                (:file "asteroid")))
