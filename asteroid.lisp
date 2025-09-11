@@ -14,6 +14,32 @@
 
 ;; Configuration
 (defparameter *server-port* 8080)
+(defparameter *music-library-path* 
+  (merge-pathnames "music/library/" 
+                   (asdf:system-source-directory :asteroid)))
+(defparameter *supported-formats* '("mp3" "flac" "ogg" "wav"))
+
+;; Database initialization - must be in db:connected trigger
+(define-trigger db:connected ()
+  "Initialize database collections when database connects"
+  (unless (db:collection-exists-p "tracks")
+    (db:create "tracks" '((title :text)
+                          (artist :text)
+                          (album :text)
+                          (duration :integer)
+                          (file-path :text)
+                          (format :text)
+                          (bitrate :integer)
+                          (added-date :integer)
+                          (play-count :integer))))
+  
+  (unless (db:collection-exists-p "playlists")
+    (db:create "playlists" '((name :text)
+                             (description :text)
+                             (created-date :integer)
+                             (track-ids :text))))
+  
+  (format t "Database collections initialized~%"))
 
 ;; Define CLIP attribute processor for data-text
 (clip:define-attribute-processor data-text (node value)
@@ -67,7 +93,9 @@
      (plump:parse (alexandria:read-file-into-string template-path))
      :title "Asteroid Radio - Admin Dashboard"
      :server-status "🟢 Running"
-     :database-status "🟡 Not Connected"
+     :database-status (handler-case 
+                        (if (db:connected-p) "🟢 Connected" "🔴 Disconnected")
+                        (error () "🔴 No Database Backend"))
      :liquidsoap-status "🔴 Not Running"
      :icecast-status "🔴 Not Running")))
 

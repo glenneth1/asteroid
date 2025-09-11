@@ -14,7 +14,8 @@
                :spinneret
                :cl-json
                :dexador
-               :lass)
+               :lass
+               :r-data-model)
   :pathname "./"
   :components ((:file "app-utils")
                (:file "module")
