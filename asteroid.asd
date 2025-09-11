@@ -15,7 +15,10 @@
                :cl-json
                :dexador
                :lass
-               :r-data-model)
+               :r-data-model
+               :cl-fad
+               :local-time
+               :taglib)
   :pathname "./"
   :components ((:file "app-utils")
                (:file "module")
