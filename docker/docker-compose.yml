@@ -5,7 +5,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./icecast.xml:/etc/icecast2/icecast.xml:ro
+      - ./icecast.xml:/etc/icecast.xml
     environment:
       - ICECAST_SOURCE_PASSWORD=H1tn31EhsyLrfRmo
       - ICECAST_ADMIN_PASSWORD=asteroid_admin_2024

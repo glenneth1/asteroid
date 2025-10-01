@@ -26,67 +26,12 @@
         <port>8000</port>
     </listen-socket>
 
-    <mount type="normal">
-        <mount-name>/asteroid.mp3</mount-name>
-        <username>source</username>
-        <password>H1tn31EhsyLrfRmo</password>
-        <max-listeners>100</max-listeners>
-        <dump-file>/tmp/asteroid-dump.mp3</dump-file>
-        <burst-size>65536</burst-size>
-        <fallback-mount>/silence.mp3</fallback-mount>
-        <fallback-override>1</fallback-override>
-        <fallback-when-full>1</fallback-when-full>
-        <intro>/intro.mp3</intro>
-        <hidden>0</hidden>
-        <public>1</public>
-        <stream-name>Asteroid Radio</stream-name>
-        <stream-description>Music for Hackers - Streaming from the Asteroid</stream-description>
-        <stream-url>http://localhost:8080/asteroid/</stream-url>
-        <genre>Electronic/Alternative</genre>
-        <bitrate>128</bitrate>
-        <type>audio/mpeg</type>
-        <subtype>mp3</subtype>
-    </mount>
-
-    <mount type="normal">
-        <mount-name>/asteroid.aac</mount-name>
-        <username>source</username>
-        <password>H1tn31EhsyLrfRmo</password>
-        <max-listeners>100</max-listeners>
-        <burst-size>65536</burst-size>
-        <hidden>0</hidden>
-        <public>1</public>
-        <stream-name>Asteroid Radio (AAC)</stream-name>
-        <stream-description>Music for Hackers - High efficiency AAC stream</stream-description>
-        <stream-url>http://localhost:8080/asteroid/</stream-url>
-        <genre>Electronic/Alternative</genre>
-        <bitrate>96</bitrate>
-        <type>audio/aac</type>
-        <subtype>aac</subtype>
-    </mount>
-
-    <mount type="normal">
-        <mount-name>/asteroid-low.mp3</mount-name>
-        <username>source</username>
-        <password>H1tn31EhsyLrfRmo</password>
-        <max-listeners>100</max-listeners>
-        <burst-size>65536</burst-size>
-        <hidden>0</hidden>
-        <public>1</public>
-        <stream-name>Asteroid Radio (Low Quality)</stream-name>
-        <stream-description>Music for Hackers - Low bandwidth stream</stream-description>
-        <stream-url>http://localhost:8080/asteroid/</stream-url>
-        <genre>Electronic/Alternative</genre>
-        <bitrate>64</bitrate>
-        <type>audio/mpeg</type>
-        <subtype>mp3</subtype>
-    </mount>
 
     <fileserve>1</fileserve>
 
     <paths>
         <basedir>/usr/share/icecast2</basedir>
-        <logdir>/var/log/icecast2</logdir>
+        <logdir>/var/log/icecast</logdir>
         <webroot>/usr/share/icecast2/web</webroot>
         <adminroot>/usr/share/icecast2/admin</adminroot>
         <alias source="/" destination="/status.xsl"/>
@@ -101,5 +46,9 @@
 
     <security>
         <chroot>0</chroot>
+        <changeowner>
+            <user>icecast</user>
+            <group>icecast</group>
+        </changeowner>
     </security>
 </icecast>
