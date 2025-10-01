@@ -23,6 +23,7 @@
                :babel
                :cl-fad
                :bordeaux-threads
+               (:interface :auth)
                (:interface :database)
                (:interface :user))
   :pathname "./"
