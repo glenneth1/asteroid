@@ -20,8 +20,18 @@
       <div class="live-player">
         <p><strong>Now Playing:</strong> <span id="live-now-playing">Loading...</span></p>
         <p><strong>Listeners:</strong> <span id="live-listeners">0</span></p>
-        <audio controls style="width: 100%; margin: 10px 0;">
-          <source src="http://localhost:8000/asteroid.mp3" type="audio/mpeg">
+        <!-- Stream Quality Selector -->
+        <div style="margin: 10px 0;">
+          <label for="live-stream-quality"><strong>Quality:</strong></label>
+          <select id="live-stream-quality" onchange="changeLiveStreamQuality()" style="margin-left: 10px; padding: 5px;">
+            <option value="aac">AAC 96kbps (Recommended)</option>
+            <option value="mp3">MP3 128kbps (Compatible)</option>
+            <option value="low">MP3 64kbps (Low Bandwidth)</option>
+          </select>
+        </div>
+        
+        <audio id="live-stream-audio" controls style="width: 100%; margin: 10px 0;">
+          <source id="live-stream-source" src="http://localhost:8000/asteroid.aac" type="audio/aac">
           Your browser does not support the audio element.
         </audio>
         <p><em>Listen to the live Asteroid Radio stream</em></p>
@@ -384,6 +394,46 @@
 
     // Initialize volume
     updateVolume();
+
+    // Stream quality configuration (same as front page)
+    const liveStreamConfig = {
+      aac: {
+        url: 'http://localhost:8000/asteroid.aac',
+        type: 'audio/aac',
+        mount: 'asteroid.aac'
+      },
+      mp3: {
+        url: 'http://localhost:8000/asteroid.mp3',
+        type: 'audio/mpeg',
+        mount: 'asteroid.mp3'
+      },
+      low: {
+        url: 'http://localhost:8000/asteroid-low.mp3',
+        type: 'audio/mpeg',
+        mount: 'asteroid-low.mp3'
+      }
+    };
+
+    // Change live stream quality
+    function changeLiveStreamQuality() {
+      const selector = document.getElementById('live-stream-quality');
+      const config = liveStreamConfig[selector.value];
+      
+      // Update audio player
+      const audioElement = document.getElementById('live-stream-audio');
+      const sourceElement = document.getElementById('live-stream-source');
+      
+      const wasPlaying = !audioElement.paused;
+      
+      sourceElement.src = config.url;
+      sourceElement.type = config.type;
+      audioElement.load();
+      
+      // Resume playback if it was playing
+      if (wasPlaying) {
+        audioElement.play().catch(e => console.log('Autoplay prevented:', e));
+      }
+    }
 
     // Live stream functionality
     function updateLiveStream() {

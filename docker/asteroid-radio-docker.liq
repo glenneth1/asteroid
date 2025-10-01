@@ -57,7 +57,22 @@ output.icecast(
   radio
 )
 
-# Optional: Add a second stream with different quality
+# AAC High Quality Stream (96kbps - better quality than 128kbps MP3)
+output.icecast(
+  %fdkaac(bitrate=96),
+  host="icecast",
+  port=8000,
+  password="H1tn31EhsyLrfRmo",
+  mount="asteroid.aac",
+  name="Asteroid Radio (AAC)",
+  description="Music for Hackers - High efficiency AAC stream",
+  genre="Electronic/Alternative",
+  url="http://localhost:8080/asteroid/",
+  public=true,
+  radio
+)
+
+# Low Quality MP3 Stream (for compatibility)
 output.icecast(
   %mp3(bitrate=64),
   host="icecast",
@@ -73,7 +88,8 @@ output.icecast(
 )
 
 print("🎵 Asteroid Radio Docker streaming started!")
-print("High Quality Stream: http://localhost:8000/asteroid.mp3")
-print("Low Quality Stream: http://localhost:8000/asteroid-low.mp3")
-print("Icecast Admin: http://localhost:8000/admin/")
-print("Telnet control: telnet localhost 1234")
+print("High Quality MP3:  http://localhost:8000/asteroid.mp3")
+print("High Quality AAC:  http://localhost:8000/asteroid.aac")
+print("Low Quality MP3:   http://localhost:8000/asteroid-low.mp3")
+print("Icecast Admin:     http://localhost:8000/admin/")
+print("Telnet control:    telnet localhost 1234")
