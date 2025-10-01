@@ -4,7 +4,7 @@
 
     <limits>
         <clients>100</clients>
-        <sources>2</sources>
+        <sources>5</sources>
         <queue-size>524288</queue-size>
         <client-timeout>30</client-timeout>
         <header-timeout>15</header-timeout>
@@ -44,6 +44,40 @@
         <stream-url>http://localhost:8080/asteroid/</stream-url>
         <genre>Electronic/Alternative</genre>
         <bitrate>128</bitrate>
+        <type>audio/mpeg</type>
+        <subtype>mp3</subtype>
+    </mount>
+
+    <mount type="normal">
+        <mount-name>/asteroid.aac</mount-name>
+        <username>source</username>
+        <password>H1tn31EhsyLrfRmo</password>
+        <max-listeners>100</max-listeners>
+        <burst-size>65536</burst-size>
+        <hidden>0</hidden>
+        <public>1</public>
+        <stream-name>Asteroid Radio (AAC)</stream-name>
+        <stream-description>Music for Hackers - High efficiency AAC stream</stream-description>
+        <stream-url>http://localhost:8080/asteroid/</stream-url>
+        <genre>Electronic/Alternative</genre>
+        <bitrate>96</bitrate>
+        <type>audio/aac</type>
+        <subtype>aac</subtype>
+    </mount>
+
+    <mount type="normal">
+        <mount-name>/asteroid-low.mp3</mount-name>
+        <username>source</username>
+        <password>H1tn31EhsyLrfRmo</password>
+        <max-listeners>100</max-listeners>
+        <burst-size>65536</burst-size>
+        <hidden>0</hidden>
+        <public>1</public>
+        <stream-name>Asteroid Radio (Low Quality)</stream-name>
+        <stream-description>Music for Hackers - Low bandwidth stream</stream-description>
+        <stream-url>http://localhost:8080/asteroid/</stream-url>
+        <genre>Electronic/Alternative</genre>
+        <bitrate>64</bitrate>
         <type>audio/mpeg</type>
         <subtype>mp3</subtype>
     </mount>
