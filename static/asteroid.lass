@@ -2,7 +2,10 @@
 ;; Hacker-themed green terminal styling
 
 (body
- :font-family "Courier New, monospace"
+ ;; :font-family "Courier New, monospace"
+ :font-family "VT323, monospace"
+ :font-weight 400
+ :font-style normal
  :background "#0a0a0a"
  :color "#00ff00"
  :margin 0
@@ -597,5 +600,5 @@
                 :margin-top 0.5rem)))
 
  ;; Center alignment for player page
- (body.player-page
-  :text-align center))
+ ;; (body.player-page
+ ;;  :text-align center)
