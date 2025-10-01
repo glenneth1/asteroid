@@ -15,9 +15,10 @@ This branch adds AAC (Advanced Audio Coding) streaming support to Asteroid Radio
 - **AAC set as default** (recommended option)
 
 ### ⚙️ **Technical Implementation**
+
 - **Liquidsoap real-time transcoding** from MP3 files to AAC
-- **FDK-AAC encoder** via `%fdkaac()` function
-- **Updated Docker image** to `savonet/liquidsoap:v2.2.5` for AAC support
+- **FDK-AAC encoder** via `%fdkaac()` function  
+- **Existing Docker image** `savonet/liquidsoap:792d8bf` already includes AAC support
 
 ## Stream URLs
 
@@ -76,10 +77,12 @@ output.icecast(
 )
 ```
 
-### **Docker Updates**
-- Updated base image from `savonet/liquidsoap:792d8bf` to `savonet/liquidsoap:v2.2.5`
-- Includes FDK-AAC encoder support
-- Maintains backward compatibility with existing MP3 streams
+### **Docker Configuration**
+
+- Uses existing `savonet/liquidsoap:792d8bf` image (Liquidsoap 2.4.1+git)
+- FDK-AAC encoder already included and supported
+- No Docker image changes required
+- Maintains full backward compatibility with existing MP3 streams
 
 ### **Web Interface Updates**
 - Added stream quality selector with JavaScript switching
