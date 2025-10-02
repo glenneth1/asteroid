@@ -283,7 +283,7 @@
      :track-count (format nil "~d" track-count)
      :library-path "/home/glenn/Projects/Code/asteroid/music/library/")))
 
-(define-page player #@"/player/" ()
+(define-page player #@"/player" ()
   (let ((template-path (merge-pathnames "template/player.chtml" 
                                        (asdf:system-source-directory :asteroid))))
     (clip:process-to-string 
@@ -307,7 +307,45 @@
                        ("artist" . "The Void")
                        ("album" . "Startup Sounds")))
      ("listeners" . 0)
-     ("stream-url" . "http://localhost:8000/asteroid"))))
+     ("stream-url" . "http://localhost:8000/asteroid.mp3")
+     ("stream-status" . "live"))))
+
+;; Live stream status from Icecast
+(define-page icecast-status #@"/api/icecast-status" ()
+  "Get live status from Icecast server"
+  (setf (radiance:header "Content-Type") "application/json")
+  (handler-case
+    (let* ((icecast-url "http://localhost:8000/admin/stats.xml")
+           (response (drakma:http-request icecast-url 
+                                         :want-stream nil
+                                         :basic-authorization '("admin" "asteroid_admin_2024"))))
+      (if response
+          (let ((xml-string (if (stringp response) 
+                                response 
+                                (babel:octets-to-string response :encoding :utf-8))))
+            ;; Simple XML parsing to extract source information
+            ;; Look for <source mount="/asteroid.mp3"> sections and extract title, listeners, etc.
+            (multiple-value-bind (match-start match-end)
+                (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string)
+              (if match-start
+                  (let* ((source-section (subseq xml-string match-start 
+                                                 (or (cl-ppcre:scan "</source>" xml-string :start match-start)
+                                                     (length xml-string))))
+                         (title (or (cl-ppcre:regex-replace-all ".*<title>(.*?)</title>.*" source-section "\\1") "Unknown"))
+                         (listeners (or (cl-ppcre:regex-replace-all ".*<listeners>(.*?)</listeners>.*" source-section "\\1") "0")))
+                    ;; Return JSON in format expected by frontend
+                    (cl-json:encode-json-to-string
+                     `(("icestats" . (("source" . (("listenurl" . "http://localhost:8000/asteroid.mp3")
+                                                   ("title" . ,title)
+                                                   ("listeners" . ,(parse-integer listeners :junk-allowed t)))))))))
+                  ;; No source found, return empty
+                  (cl-json:encode-json-to-string
+                   `(("icestats" . (("source" . nil))))))))
+          (cl-json:encode-json-to-string
+           `(("error" . "Could not connect to Icecast server")))))
+    (error (e)
+      (cl-json:encode-json-to-string
+       `(("error" . ,(format nil "Icecast connection failed: ~a" e)))))))
 
 
 ;; RADIANCE server management functions
