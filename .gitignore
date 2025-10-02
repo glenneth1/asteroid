@@ -65,3 +65,6 @@ Thumbs.db
 
 # Shell scripts (exclude from repository)
 *.sh
+# Exception: Docker utility scripts should be included
+!docker/start.sh
+!docker/stop.sh
