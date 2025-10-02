@@ -19,6 +19,8 @@ services:
       context: .
       dockerfile: Dockerfile.liquidsoap
     container_name: asteroid-liquidsoap
+    ports:
+      - "1234:1234"
     depends_on:
       - icecast
     volumes:
