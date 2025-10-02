@@ -62,3 +62,6 @@ logs/
 *.temp
 .DS_Store
 Thumbs.db
+
+# Shell scripts (exclude from repository)
+*.sh
