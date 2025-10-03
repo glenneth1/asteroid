@@ -1,0 +1,50 @@
+* Rundown to Launch. Still to do:
+
+** Server runtime configuration [0/1]
+- [ ] parameterize all configuration for runtime loading [0/2]
+  - [ ] strip hard coded configurations out of the system
+  - [ ] add configuration template file to the project
+
+** [ ] Database [0/2]
+- [ ] PostgresQL [0/3]
+   - [ ] Add a postgresql docker image to our docker-compose file.
+   - [ ] Configure radiance for postres.
+   - [ ] Migrate all schema to new database.
+
+** [ ] Templates: move our template hyrdration into the Clip machinery [0/4]
+- [ ] Admin Dashboard [0/2]
+  - [ ] System Status [0/4]
+    - [ ] Server Status
+    - [ ] Database Status
+    - [ ] Liquidsoap Status
+    - [ ] Icecast Status
+  
+  - [ ] Music Library Management [0/2]
+    - [ ] Add Music Files
+    - [ ] Track Management
+      This data needs to be paginated in some way, because the list
+      becomes very long.
+    - [ ] Player Control
+      play/pause/edit &etc
+    - [ ] User Management
+      This should be its own page
+
+      
+      
+- [ ] Live Stream
+  - [ ] Now Playing
+- [ ] Front Page [0/3]
+  - [ ] Station Status
+  - [ ] Live Stream
+  - [ ] Now Playing
+    Now Playing is currently broken on every page. I think this is in
+    the javascript supporting the feature. Fix here, fix everywhere.
+- [ ] Web Player [0/6]
+  - [ ] Live Radio Stream
+  - [ ] Now Playing
+    this currently has a bug where the Now Playing: info card is
+    soing raw HTML which may or may not be coming from liquidSoap. Investigate
+  - [ ] Personal Track Library
+  - [ ] Audio Player
+  - [ ] Playlists
+  - [ ] Play Queue
