@@ -187,9 +187,9 @@
       const tracksHtml = trackList.map(track => `
         <div class="track-item" data-track-id="${track.id}">
           <div class="track-info">
-            <div class="track-title">${track.title[0] || 'Unknown Title'}</div>
-            <div class="track-artist">${track.artist[0] || 'Unknown Artist'}</div>
-            <div class="track-album">${track.album[0] || 'Unknown Album'}</div>
+            <div class="track-title">${track.title || 'Unknown Title'}</div>
+            <div class="track-artist">${track.artist || 'Unknown Artist'}</div>
+            <div class="track-album">${track.album || 'Unknown Album'}</div>
           </div>
           <div class="track-actions">
             <button onclick="playTrack(${track.id})" class="btn btn-sm btn-success">▶️ Play</button>

@@ -30,7 +30,7 @@
           </select>
         </div>
         
-        <audio id="live-stream-audio" controls style="width: 100%; margin: 10px 0;">
+        <audio id="live-stream-audio" controls style="width: 80%; margin: 10px 0;">
           <source id="live-stream-source" src="http://localhost:8000/asteroid.aac" type="audio/aac">
           Your browser does not support the audio element.
         </audio>
