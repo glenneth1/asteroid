@@ -1,11 +1,13 @@
 * Rundown to Launch. Still to do:
 
-* Setup asteroid.radio server at Hetzner [5/5]
+* Setup asteroid.radio server at Hetzner [7/7]
 - [X] Provision a VPS
 - [X] Firewall
 - [X] Install user utilities
 - [X] Install base toolchain
 - [X] Install lisp
+- [X] Set up DNS
+- [X] Create user accounts
 
 * Server runtime configuration [0/1]
 - [ ] parameterize all configuration for runtime loading [0/2]
