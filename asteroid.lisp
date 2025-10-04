@@ -20,27 +20,6 @@
                    (asdf:system-source-directory :asteroid)))
 (defparameter *supported-formats* '("mp3" "flac" "ogg" "wav"))
 
-
-;; ;; Authentication functions
-;; (defun require-authentication ()
-;;   "Require user to be authenticated"
-;;   (handler-case
-;;       (unless (session:field "user-id")
-;;         (radiance:redirect "/asteroid/login"))
-;;     (error (e)
-;;       (format t "Authentication error: ~a~%" e)
-;;       (radiance:redirect "/asteroid/login"))))
-
-;; (defun require-role (role)
-;;   "Require user to have a specific role"
-;;   (handler-case
-;;       (let ((current-user (get-current-user)))
-;;         (unless (and current-user (user-has-role-p current-user role))
-;;           (radiance:redirect "/asteroid/login")))
-;;     (error (e)
-;;       (format t "Role check error: ~a~%" e)
-;;       (radiance:redirect "/asteroid/login"))))
-
 ;; API Routes
 (define-page admin-scan-library #@"/admin/scan-library" ()
   "API endpoint to scan music library"
