@@ -13,9 +13,8 @@
   (let ((playlist-data `(("user-id" ,user-id)
                          ("name" ,name)
                          ("description" ,(or description ""))
-                         ("tracks" ())
-                         ("created-date" ,(local-time:timestamp-to-unix (local-time:now)))
-                         ("modified-date" ,(local-time:timestamp-to-unix (local-time:now))))))
+                         ("track-ids" "")  ; Empty string for text field
+                         ("created-date" ,(local-time:timestamp-to-unix (local-time:now))))))
     (format t "Creating playlist with user-id: ~a (type: ~a)~%" user-id (type-of user-id))
     (format t "Playlist data: ~a~%" playlist-data)
     (db:insert "playlists" playlist-data)
@@ -62,47 +61,56 @@
   "Add a track to a playlist"
   (let ((playlist (get-playlist-by-id playlist-id)))
     (when playlist
-      (let* ((current-tracks (gethash "tracks" playlist))
-             (tracks-list (if (and current-tracks (listp current-tracks)) 
-                             current-tracks 
-                             (if current-tracks (list current-tracks) nil)))
-             (new-tracks (append tracks-list (list track-id))))
+      (let* ((current-track-ids-raw (gethash "track-ids" playlist))
+             ;; Handle database storing as list - extract string
+             (current-track-ids (if (listp current-track-ids-raw)
+                                   (first current-track-ids-raw)
+                                   current-track-ids-raw))
+             ;; Parse comma-separated string into list
+             (tracks-list (if (and current-track-ids 
+                                  (stringp current-track-ids)
+                                  (not (string= current-track-ids "")))
+                             (mapcar #'parse-integer 
+                                    (cl-ppcre:split "," current-track-ids))
+                             nil))
+             (new-tracks (append tracks-list (list track-id)))
+             ;; Convert back to comma-separated string
+             (track-ids-str (format nil "~{~a~^,~}" new-tracks)))
         (format t "Adding track ~a to playlist ~a~%" track-id playlist-id)
-        (format t "Current tracks: ~a~%" current-tracks)
+        (format t "Current track-ids raw: ~a (type: ~a)~%" current-track-ids-raw (type-of current-track-ids-raw))
+        (format t "Current track-ids: ~a~%" current-track-ids)
         (format t "Tracks list: ~a~%" tracks-list)
         (format t "New tracks: ~a~%" new-tracks)
-        
-        ;; Update using db:update with all fields
-        (let ((stored-id (gethash "_id" playlist))
-              (user-id (gethash "user-id" playlist))
-              (name (gethash "name" playlist))
-              (description (gethash "description" playlist))
-              (created-date (gethash "created-date" playlist)))
-          (format t "Updating playlist with stored ID: ~a~%" stored-id)
-          (format t "New tracks to save: ~a~%"  new-tracks)
-          ;; Update all fields including tracks
-          (db:update "playlists"
-                     (db:query :all)  ; Update all, then filter in Lisp
-                     `(("user-id" ,user-id)
-                       ("name" ,name)
-                       ("description" ,description)
-                       ("tracks" ,new-tracks)
-                       ("created-date" ,created-date)
-                       ("modified-date" ,(local-time:timestamp-to-unix (local-time:now)))))
-          (format t "Update complete~%"))
+        (format t "Track IDs string: ~a~%" track-ids-str)
+        ;; Update using track-ids field (defined in schema)
+        (db:update "playlists"
+                   (db:query (:= "_id" playlist-id))
+                   `(("track-ids" ,track-ids-str)))
+        (format t "Update complete~%")
         t))))
 
 (defun remove-track-from-playlist (playlist-id track-id)
   "Remove a track from a playlist"
   (let ((playlist (get-playlist-by-id playlist-id)))
     (when playlist
-      (let* ((current-tracks (gethash "tracks" playlist))
-             (tracks-list (if (listp current-tracks) current-tracks (list current-tracks)))
-             (new-tracks (remove track-id tracks-list :test #'equal)))
+      (let* ((current-track-ids-raw (gethash "track-ids" playlist))
+             ;; Handle database storing as list - extract string
+             (current-track-ids (if (listp current-track-ids-raw)
+                                   (first current-track-ids-raw)
+                                   current-track-ids-raw))
+             ;; Parse comma-separated string into list
+             (tracks-list (if (and current-track-ids 
+                                  (stringp current-track-ids)
+                                  (not (string= current-track-ids "")))
+                             (mapcar #'parse-integer 
+                                    (cl-ppcre:split "," current-track-ids))
+                             nil))
+             (new-tracks (remove track-id tracks-list :test #'equal))
+             ;; Convert back to comma-separated string
+             (track-ids-str (format nil "~{~a~^,~}" new-tracks)))
         (db:update "playlists"
                    (db:query (:= "_id" playlist-id))
-                   `(("tracks" ,new-tracks)
-                     ("modified-date" ,(local-time:timestamp-to-unix (local-time:now)))))
+                   `(("track-ids" ,track-ids-str)))
         t))))
 
 (defun delete-playlist (playlist-id)
@@ -114,4 +122,14 @@
   "Ensure playlists collection exists in database"
   (unless (db:collection-exists-p "playlists")
     (format t "Creating playlists collection...~%")
-    (db:create "playlists")))
+    (db:create "playlists"))
+  
+  ;; Debug: Print the actual structure
+  (format t "~%=== PLAYLISTS COLLECTION STRUCTURE ===~%")
+  (format t "Structure: ~a~%~%" (db:structure "playlists"))
+  
+  ;; Debug: Check existing playlists
+  (let ((playlists (db:select "playlists" (db:query :all))))
+    (when playlists
+      (format t "Sample playlist fields: ~{~a~^, ~}~%~%" 
+              (alexandria:hash-table-keys (first playlists))))))
