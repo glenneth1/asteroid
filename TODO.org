@@ -1,6 +1,13 @@
 * Rundown to Launch. Still to do:
 
-** Server runtime configuration [0/1]
+* Setup asteroid.radio server at Hetzner [5/5]
+- [X] Provision a VPS
+- [X] Firewall
+- [X] Install user utilities
+- [X] Install base toolchain
+- [X] Install lisp
+
+* Server runtime configuration [0/1]
 - [ ] parameterize all configuration for runtime loading [0/2]
   - [ ] strip hard coded configurations out of the system
   - [ ] add configuration template file to the project
@@ -26,8 +33,6 @@
     - [X] Player Control (Play/pause/stop working with HTML5 audio)
       play/pause/edit &etc
     - [X] User Management (Moved to separate /admin/users page)
-
-      
       
 - [X] Live Stream
   - [X] Now Playing (Working correctly - displays artist and track)
