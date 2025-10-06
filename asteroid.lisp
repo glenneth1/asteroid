@@ -384,7 +384,8 @@
    `(("status" . "success")
      ("player" . ,(get-player-status)))))
 
-;; Profile API Routes
+;; Profile API Routes - TEMPORARILY COMMENTED OUT
+#|
 (define-page api-user-profile #@"/api/user/profile" ()
   "Get current user profile information"
   (require-authentication)
@@ -452,6 +453,7 @@
   (cl-json:encode-json-to-string
    `(("status" . "success")
      ("message" . "Listening history cleared successfully"))))
+|#
 
 ;; Front page
 (define-page front-page #@"/" ()
@@ -528,7 +530,48 @@
      (plump:parse (alexandria:read-file-into-string template-path))
      :title "🎵 ASTEROID RADIO - User Management")))
 
-;; Helper functions for profile page
+;; User Profile page (requires authentication)
+(define-page user-profile #@"/profile" ()
+  "User profile page"
+  (require-authentication)
+  (let ((template-path (merge-pathnames "template/profile.chtml"
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎧 admin - Profile | Asteroid Radio"
+     :username "admin"
+     :user-role "admin"
+     :join-date "Unknown"
+     :last-active "Unknown"
+     :total-listen-time "0h 0m"
+     :tracks-played "0"
+     :session-count "0"
+     :favorite-genre "Unknown"
+     :recent-track-1-title ""
+     :recent-track-1-artist ""
+     :recent-track-1-duration ""
+     :recent-track-1-played-at ""
+     :recent-track-2-title ""
+     :recent-track-2-artist ""
+     :recent-track-2-duration ""
+     :recent-track-2-played-at ""
+     :recent-track-3-title ""
+     :recent-track-3-artist ""
+     :recent-track-3-duration ""
+     :recent-track-3-played-at ""
+     :top-artist-1 ""
+     :top-artist-1-plays ""
+     :top-artist-2 ""
+     :top-artist-2-plays ""
+     :top-artist-3 ""
+     :top-artist-3-plays ""
+     :top-artist-4 ""
+     :top-artist-4-plays ""
+     :top-artist-5 ""
+     :top-artist-5-plays "")))
+
+;; Helper functions for profile page - TEMPORARILY COMMENTED OUT
+#|
 (defun format-timestamp (stream timestamp &key format)
   "Format a timestamp for display"
   (declare (ignore stream format))
@@ -562,48 +605,42 @@
   (require-authentication)
   (let* ((current-user (auth:current-user))
          (username (gethash "username" current-user))
-         (user-role (gethash "role" current-user))
-         (join-date (gethash "created_at" current-user))
-         (last-active (gethash "last_active" current-user)))
-    (render-template-with-plist "profile"
-      :title (format nil "🎧 ~a - Profile | Asteroid Radio" username)
-      :username username
-      :user-role (or user-role "listener")
-      :join-date (if join-date 
-                     (format-timestamp nil join-date)
-                     "Unknown")
-      :last-active (if last-active
-                       (format-relative-time last-active)
-                       "Unknown")
-      ;; Default listening statistics (will be populated by JavaScript)
-      :total-listen-time "0h 0m"
-      :tracks-played "0"
-      :session-count "0"
-      :favorite-genre "Unknown"
-      ;; Default recent tracks (will be populated by JavaScript)
-      :recent-track-1-title ""
-      :recent-track-1-artist ""
-      :recent-track-1-duration ""
-      :recent-track-1-played-at ""
-      :recent-track-2-title ""
-      :recent-track-2-artist ""
-      :recent-track-2-duration ""
-      :recent-track-2-played-at ""
-      :recent-track-3-title ""
-      :recent-track-3-artist ""
-      :recent-track-3-duration ""
-      :recent-track-3-played-at ""
-      ;; Default top artists (will be populated by JavaScript)
-      :top-artist-1 ""
-      :top-artist-1-plays ""
-      :top-artist-2 ""
-      :top-artist-2-plays ""
-      :top-artist-3 ""
-      :top-artist-3-plays ""
-      :top-artist-4 ""
-      :top-artist-4-plays ""
-      :top-artist-5 ""
-      :top-artist-5-plays "")))
+         (template-path (merge-pathnames "template/profile.chtml"
+                                        (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title (format nil "🎧 ~a - Profile | Asteroid Radio" username)
+     :username (or username "Unknown User")
+     :user-role "listener"
+     :join-date "Unknown"
+     :last-active "Unknown"
+     :total-listen-time "0h 0m"
+     :tracks-played "0"
+     :session-count "0"
+     :favorite-genre "Unknown"
+     :recent-track-1-title ""
+     :recent-track-1-artist ""
+     :recent-track-1-duration ""
+     :recent-track-1-played-at ""
+     :recent-track-2-title ""
+     :recent-track-2-artist ""
+     :recent-track-2-duration ""
+     :recent-track-2-played-at ""
+     :recent-track-3-title ""
+     :recent-track-3-artist ""
+     :recent-track-3-duration ""
+     :recent-track-3-played-at ""
+     :top-artist-1 ""
+     :top-artist-1-plays ""
+     :top-artist-2 ""
+     :top-artist-2-plays ""
+     :top-artist-3 ""
+     :top-artist-3-plays ""
+     :top-artist-4 ""
+     :top-artist-4-plays ""
+     :top-artist-5 ""
+     :top-artist-5-plays "")))
+|#
 
 (define-page player #@"/player" ()
   (let ((template-path (merge-pathnames "template/player.chtml" 
