@@ -547,6 +547,120 @@
       :gap 1rem
       :justify-content center)
 
+    ;; Additional Profile Page Styles
+    (.artist-stats
+      :display flex
+      :flex-direction column
+      :gap 0.75rem)
+
+    (.artist-item
+      :display flex
+      :justify-content space-between
+      :align-items center
+      :padding "0.5rem 0"
+      :border-bottom "1px solid #2a3441")
+
+    ((:and .artist-item :last-child)
+      :border-bottom none)
+
+    (.artist-name
+      :color "#e0e6ed"
+      :font-weight 500)
+
+    (.artist-plays
+      :color "#8892b0"
+      :font-size 0.875rem)
+
+    (.track-item
+      :display flex
+      :justify-content space-between
+      :align-items center
+      :padding "0.75rem 0"
+      :border-bottom "1px solid #2a3441")
+
+    ((:and .track-item :last-child)
+      :border-bottom none)
+
+    (.track-info
+      :display flex
+      :flex-direction column
+      :gap 0.25rem)
+
+    (.track-title
+      :color "#e0e6ed"
+      :font-weight 500)
+
+    (.track-artist
+      :color "#8892b0"
+      :font-size 0.875rem)
+
+    (.track-meta
+      :display flex
+      :flex-direction column
+      :align-items flex-end
+      :gap 0.25rem
+      :text-align right)
+
+    (.track-duration
+      :color "#64ffda"
+      :font-size 0.875rem
+      :font-weight bold)
+
+    (.track-played-at
+      :color "#8892b0"
+      :font-size 0.75rem)
+
+    (.activity-chart
+      :text-align center)
+
+    (.chart-placeholder
+      :display flex
+      :align-items flex-end
+      :justify-content space-between
+      :height 120px
+      :margin "1rem 0"
+      :padding "0 1rem")
+
+    (.chart-bar
+      :width 8px
+      :background-color "#64ffda"
+      :border-radius "2px 2px 0 0"
+      :margin "0 1px"
+      :min-height 4px
+      :opacity 0.8)
+
+    ((:and .chart-bar :hover)
+      :opacity 1)
+
+    (.chart-note
+      :color "#8892b0"
+      :font-size 0.875rem
+      :margin-top 0.5rem)
+
+    (.stat-number
+      :color "#64ffda"
+      :font-size 1.5rem
+      :font-weight bold
+      :display block)
+
+    (.stat-text
+      :color "#e0e6ed"
+      :font-size 1.2rem
+      :font-weight 500
+      :display block)
+
+    ;; Toast notification styles
+    (.toast
+      :position fixed
+      :top 20px
+      :right 20px
+      :padding "12px 20px"
+      :border-radius 4px
+      :color white
+      :font-weight bold
+      :z-index 1000
+      :transition "opacity 0.3s ease")
+
     ;; User Management Styles
     (.user-management :margin-top 2rem)
 
