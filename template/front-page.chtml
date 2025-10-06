@@ -14,6 +14,7 @@
       <nav class="nav">
         <a href="/asteroid/">Home</a>
         <a href="/asteroid/player">Player</a>
+        <a href="/asteroid/profile">Profile</a>
         <a href="/asteroid/admin">Admin</a>
         <a href="/asteroid/status">Status</a>
         <a href="/asteroid/login">Login</a>
