@@ -9,15 +9,15 @@
 </head>
 <body>
   <div class="container">
-    <div class="profile-container">
-      <div class="nav">
-        <a href="/asteroid/">← Back to Main</a>
-        <a href="/asteroid/player/">Web Player</a>
-        <a href="/asteroid/admin/" data-show-if-admin>Admin</a>
-      </div>
+    <h1>👤 USER PROFILE</h1>
+    <div class="nav">
+      <a href="/asteroid/">← Back to Main</a>
+      <a href="/asteroid/player/">Web Player</a>
+      <a href="/asteroid/admin/" data-show-if-admin>Admin</a>
+    </div>
 
-      <!-- User Profile Header -->
-      <div class="profile-card">
+    <!-- User Profile Header -->
+    <div class="admin-section">
         <h2>🎧 User Profile</h2>
         <div class="profile-info">
           <div class="info-group">
@@ -39,8 +39,8 @@
         </div>
       </div>
 
-      <!-- Listening Statistics -->
-      <div class="profile-card">
+    <!-- Listening Statistics -->
+    <div class="admin-section">
         <h2>📊 Listening Statistics</h2>
         <div class="admin-grid">
           <div class="status-card">
@@ -62,8 +62,8 @@
         </div>
       </div>
 
-      <!-- Recently Played Tracks -->
-      <div class="profile-card">
+    <!-- Recently Played Tracks -->
+    <div class="admin-section">
         <h2>🎵 Recently Played</h2>
         <div class="tracks-list" id="recent-tracks">
           <div class="track-item">
@@ -102,8 +102,8 @@
         </div>
       </div>
 
-      <!-- Top Artists -->
-      <div class="profile-card">
+    <!-- Top Artists -->
+    <div class="admin-section">
         <h2>🎤 Top Artists</h2>
         <div class="artist-stats">
           <div class="artist-item">
@@ -129,8 +129,8 @@
         </div>
       </div>
 
-      <!-- Listening Activity Chart -->
-      <div class="profile-card">
+    <!-- Listening Activity Chart -->
+    <div class="admin-section">
         <h2>📈 Listening Activity</h2>
         <div class="activity-chart">
           <p>Activity over the last 30 days</p>
@@ -148,8 +148,8 @@
         </div>
       </div>
 
-      <!-- Profile Actions -->
-      <div class="profile-card">
+    <!-- Profile Actions -->
+    <div class="admin-section">
         <h2>⚙️ Profile Settings</h2>
         <div class="profile-actions">
           <button class="btn btn-primary" onclick="editProfile()">✏️ Edit Profile</button>
@@ -157,7 +157,6 @@
           <button class="btn btn-secondary" onclick="clearListeningHistory()">🗑️ Clear History</button>
         </div>
       </div>
-    </div>
   </div>
 
   <script>
