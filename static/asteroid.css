@@ -639,26 +639,6 @@ body .auth-link a:hover{
     text-decoration: underline;
 }
 
-body .profile-container{
-    max-width: 600px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-}
-
-body .profile-card{
-    background-color: #1a2332;
-    border: 1px solid #2a3441;
-    border-radius: 8px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
-
-body .profile-card h2{
-    color: #00ffff;
-    margin-bottom: 1.5rem;
-    text-align: center;
-}
-
 body .profile-info{
     margin-bottom: 2rem;
 }
