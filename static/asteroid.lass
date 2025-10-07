@@ -55,7 +55,28 @@
        :margin-left "0")
 
       ((:and a :hover)
-          :background "#2a3441"))
+          :background "#2a3441")
+      
+      ;; Logout button styling - subtle, not alarming
+      (.btn-logout
+       :background "#2a3441"
+       :border-color "#3a4551"
+       :color "#ff9999")
+      
+      ((:and .btn-logout :hover)
+       :background "#3a4551"
+       :border-color "#4a5561"
+       :color "#ffaaaa"))
+    
+    ;; Hide conditional auth elements by default (JavaScript will show them)
+    (|[data-show-if-logged-in]|
+     :display none)
+    
+    (|[data-show-if-logged-out]|
+     :display none)
+    
+    (|[data-show-if-admin]|
+     :display none)
 
     (.controls
      :margin "20px 0"

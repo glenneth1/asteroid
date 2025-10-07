@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script src="/asteroid/static/js/auth-ui.js"></script>
   <script src="/asteroid/static/js/player.js"></script>
 </head>
 <body>
@@ -12,7 +13,9 @@
     <h1>🎵 WEB PLAYER</h1>
     <div class="nav">
       <a href="/asteroid/">← Back to Main</a>
-      <a href="/asteroid/admin">Admin Dashboard</a>
+      <a href="/asteroid/profile" data-show-if-logged-in>Profile</a>
+      <a href="/asteroid/admin" data-show-if-admin>Admin Dashboard</a>
+      <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout">Logout</a>
     </div>
     
     <!-- Live Stream Section -->

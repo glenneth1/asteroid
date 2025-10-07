@@ -642,6 +642,78 @@
      :top-artist-5-plays "")))
 |#
 
+;; Auth status API endpoint
+(define-page api-auth-status #@"/api/auth-status" ()
+  "Check if user is logged in and their role"
+  (setf (radiance:header "Content-Type") "application/json")
+  (handler-case
+      (let* ((user-id (session:field "user-id"))
+             (user (when user-id (find-user-by-id user-id))))
+        (cl-json:encode-json-to-string
+         `(("loggedIn" . ,(if user t nil))
+           ("isAdmin" . ,(if (and user (user-has-role-p user :admin)) t nil))
+           ("username" . ,(if user 
+                             (let ((username (gethash "username" user)))
+                               (if (listp username) (first username) username))
+                             nil)))))
+    (error (e)
+      (cl-json:encode-json-to-string
+       `(("loggedIn" . nil)
+         ("isAdmin" . nil)
+         ("error" . ,(format nil "~a" e)))))))
+
+;; Register page (GET)
+(define-page register #@"/register" ()
+  "User registration page"
+  (let ((username (radiance:post-var "username"))
+        (email (radiance:post-var "email"))
+        (password (radiance:post-var "password"))
+        (confirm-password (radiance:post-var "confirm-password")))
+    (if (and username password)
+        ;; Handle registration form submission
+        (cond
+          ;; Validate passwords match
+          ((not (string= password confirm-password))
+           (render-template-with-plist "register"
+            :title "Asteroid Radio - Register"
+            :display-error "display: block;"
+            :display-success "display: none;"
+            :error-message "Passwords do not match"
+            :success-message ""))
+          
+          ;; Check if username already exists
+          ((find-user-by-username username)
+           (render-template-with-plist "register"
+            :title "Asteroid Radio - Register"
+            :display-error "display: block;"
+            :display-success "display: none;"
+            :error-message "Username already exists"
+            :success-message ""))
+          
+          ;; Create the user
+          (t
+           (if (create-user username email password :role :listener :active t)
+               (progn
+                 ;; Auto-login after successful registration
+                 (let ((user (find-user-by-username username)))
+                   (when user
+                     (let ((user-id (gethash "_id" user)))
+                       (setf (session:field "user-id") (if (listp user-id) (first user-id) user-id)))))
+                 (radiance:redirect "/asteroid/"))
+               (render-template-with-plist "register"
+                :title "Asteroid Radio - Register"
+                :display-error "display: block;"
+                :display-success "display: none;"
+                :error-message "Registration failed. Please try again."
+                :success-message ""))))
+        ;; Show registration form (no POST data)
+        (render-template-with-plist "register"
+         :title "Asteroid Radio - Register"
+         :display-error "display: none;"
+         :display-success "display: none;"
+         :error-message ""
+         :success-message ""))))
+
 (define-page player #@"/player" ()
   (let ((template-path (merge-pathnames "template/player.chtml" 
                                        (asdf:system-source-directory :asteroid))))
