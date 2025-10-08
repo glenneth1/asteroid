@@ -5,6 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script src="/asteroid/static/js/auth-ui.js"></script>
   <script src="/asteroid/static/js/admin.js"></script>
 </head>
 <body>
@@ -13,7 +14,9 @@
     <div class="nav">
       <a href="/asteroid/">← Back to Main</a>
       <a href="/asteroid/player/">Web Player</a>
+      <a href="/asteroid/profile">Profile</a>
       <a href="/asteroid/admin/users">👥 Users</a>
+      <a href="/asteroid/logout" class="btn-logout">Logout</a>
     </div>
     
     <!-- System Status -->

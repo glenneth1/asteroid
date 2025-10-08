@@ -121,28 +121,61 @@
       (format t "Error getting current user: ~a~%" e)
       nil)))
 
-(defun require-authentication ()
-  "Require user to be authenticated"
-  (handler-case
-      (unless (session:field "user-id")
-        (radiance:redirect "/asteroid/login"))
-    (error (e)
-      (format t "Authentication error: ~a~%" e)
-      (radiance:redirect "/asteroid/login"))))
+(defun require-authentication (&key (api nil))
+  "Require user to be authenticated. 
+   Returns T if authenticated, NIL if not (after emitting error response).
+   If :api t, returns JSON error (401). Otherwise redirects to login page.
+   Auto-detects API routes if not specified."
+  (let* ((user-id (session:field "user-id"))
+         (uri (uri-to-url (radiance:uri *request*) :representation :external))
+         ;; Use explicit flag if provided, otherwise auto-detect from URI
+         (is-api-request (if api t (search "/api/" uri))))
+    (format t "Authentication check - User ID: ~a, URI: ~a, Is API: ~a~%" 
+            user-id uri (if is-api-request "YES" "NO"))
+    (if user-id
+        t  ; Authenticated - return T to continue
+        ;; Not authenticated - emit error
+        (if is-api-request
+            ;; API request - emit JSON error and return the value from api-output
+            (progn
+              (format t "Authentication failed - returning JSON 401~%")
+              (radiance:api-output
+               '(("error" . "Authentication required"))
+               :status 401
+               :message "You must be logged in to access this resource"))
+            ;; Page request - redirect to login (redirect doesn't return)
+            (progn
+              (format t "Authentication failed - redirecting to login~%")
+              (radiance:redirect "/asteroid/login"))))))
 
-(defun require-role (role)
-  "Require user to have a specific role"
-  (handler-case
-      (let ((current-user (get-current-user)))
-        (format t "Current user for role check: ~a~%" (if current-user "FOUND" "NOT FOUND"))
-        (when current-user
-          (format t "User has role ~a: ~a~%" role (user-has-role-p current-user role)))
-        (unless (and current-user (user-has-role-p current-user role))
-          (format t "Role check failed - redirecting to login~%")
-          (radiance:redirect "/asteroid/login")))
-    (error (e)
-      (format t "Role check error: ~a~%" e)
-      (radiance:redirect "/asteroid/login"))))
+(defun require-role (role &key (api nil))
+  "Require user to have a specific role.
+   Returns T if authorized, NIL if not (after emitting error response).
+   If :api t, returns JSON error (403). Otherwise redirects to login page.
+   Auto-detects API routes if not specified."
+  (let* ((current-user (get-current-user))
+         (uri (uri-to-url (radiance:uri *request*) :representation :external))
+         ;; Use explicit flag if provided, otherwise auto-detect from URI
+         (is-api-request (if api t (search "/api/" uri))))
+    (format t "Current user for role check: ~a~%" (if current-user "FOUND" "NOT FOUND"))
+    (format t "Request URI: ~a, Is API: ~a~%" uri (if is-api-request "YES" "NO"))
+    (when current-user
+      (format t "User has role ~a: ~a~%" role (user-has-role-p current-user role)))
+    (if (and current-user (user-has-role-p current-user role))
+        t  ; Authorized - return T to continue
+        ;; Not authorized - emit error
+        (if is-api-request
+            ;; API request - emit JSON error and return the value from api-output
+            (progn
+              (format t "Role check failed - returning JSON 403~%")
+              (radiance:api-output
+               '(("error" . "Forbidden"))
+               :status 403
+               :message (format nil "You must be logged in with ~a role to access this resource" role)))
+            ;; Page request - redirect to login (redirect doesn't return)
+            (progn
+              (format t "Role check failed - redirecting to login~%")
+              (radiance:redirect "/asteroid/login"))))))
 
 (defun update-user-role (user-id new-role)
   "Update a user's role"

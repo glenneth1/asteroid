@@ -189,24 +189,29 @@
 ;; API endpoint to get all tracks (for web player)
 (define-page api-tracks #@"/api/tracks" ()
   "Get all tracks for web player"
-  (require-authentication)
-  (setf (radiance:header "Content-Type") "application/json")
-  (handler-case
-      (let ((tracks (db:select "tracks" (db:query :all))))
-        (cl-json:encode-json-to-string
-         `(("status" . "success")
-           ("tracks" . ,(mapcar (lambda (track)
-                                  `(("id" . ,(gethash "_id" track))
-                                    ("title" . ,(gethash "title" track))
-                                    ("artist" . ,(gethash "artist" track))
-                                    ("album" . ,(gethash "album" track))
-                                    ("duration" . ,(gethash "duration" track))
-                                    ("format" . ,(gethash "format" track))))
-                                tracks)))))
-    (error (e)
-      (cl-json:encode-json-to-string
-       `(("status" . "error")
-         ("message" . ,(format nil "Error retrieving tracks: ~a" e)))))))
+  (let ((auth-result (require-authentication)))
+    (if (eq auth-result t)
+        ;; Authenticated - return track data
+        (progn
+          (setf (radiance:header "Content-Type") "application/json")
+          (handler-case
+              (let ((tracks (db:select "tracks" (db:query :all))))
+                (cl-json:encode-json-to-string
+                 `(("status" . "success")
+                   ("tracks" . ,(mapcar (lambda (track)
+                                          `(("id" . ,(gethash "_id" track))
+                                            ("title" . ,(gethash "title" track))
+                                            ("artist" . ,(gethash "artist" track))
+                                            ("album" . ,(gethash "album" track))
+                                            ("duration" . ,(gethash "duration" track))
+                                            ("format" . ,(gethash "format" track))))
+                                        tracks)))))
+            (error (e)
+              (cl-json:encode-json-to-string
+               `(("status" . "error")
+                 ("message" . ,(format nil "Error retrieving tracks: ~a" e)))))))
+        ;; Auth failed - return the value from api-output
+        auth-result)))
 
 ;; API endpoint to get track by ID (for streaming)
 (define-page api-get-track-by-id #@"/api/tracks/(.*)" (:uri-groups (track-id))
@@ -384,6 +389,77 @@
    `(("status" . "success")
      ("player" . ,(get-player-status)))))
 
+;; Profile API Routes - TEMPORARILY COMMENTED OUT
+#|
+(define-page api-user-profile #@"/api/user/profile" ()
+  "Get current user profile information"
+  (require-authentication)
+  (setf (radiance:header "Content-Type") "application/json")
+  (let ((current-user (auth:current-user)))
+    (cl-json:encode-json-to-string
+     `(("status" . "success")
+       ("user" . (("username" . ,(gethash "username" current-user))
+                  ("role" . ,(gethash "role" current-user))
+                  ("created_at" . ,(gethash "created_at" current-user))
+                  ("last_active" . ,(get-universal-time))))))))
+
+(define-page api-user-listening-stats #@"/api/user/listening-stats" ()
+  "Get user listening statistics"
+  (require-authentication)
+  (setf (radiance:header "Content-Type") "application/json")
+  ;; TODO: Implement actual listening statistics from database
+  ;; For now, return mock data
+  (cl-json:encode-json-to-string
+   `(("status" . "success")
+     ("stats" . (("total_listen_time" . 0)
+                 ("tracks_played" . 0)
+                 ("session_count" . 0)
+                 ("favorite_genre" . "Unknown"))))))
+
+(define-page api-user-recent-tracks #@"/api/user/recent-tracks" ()
+  "Get user's recently played tracks"
+  (require-authentication)
+  (setf (radiance:header "Content-Type") "application/json")
+  ;; TODO: Implement actual recent tracks from database
+  ;; For now, return empty array
+  (cl-json:encode-json-to-string
+   `(("status" . "success")
+     ("tracks" . #()))))
+
+(define-page api-user-top-artists #@"/api/user/top-artists" ()
+  "Get user's top artists"
+  (require-authentication)
+  (setf (radiance:header "Content-Type") "application/json")
+  ;; TODO: Implement actual top artists from database
+  ;; For now, return empty array
+  (cl-json:encode-json-to-string
+   `(("status" . "success")
+     ("artists" . #()))))
+
+(define-page api-user-export-data #@"/api/user/export-data" ()
+  "Export user listening data"
+  (require-authentication)
+  (setf (radiance:header "Content-Type") "application/json")
+  (setf (radiance:header "Content-Disposition") "attachment; filename=listening-data.json")
+  ;; TODO: Implement actual data export
+  (cl-json:encode-json-to-string
+   `(("user" . ,(gethash "username" (auth:current-user)))
+     ("export_date" . ,(get-universal-time))
+     ("listening_history" . #())
+     ("statistics" . (("total_listen_time" . 0)
+                      ("tracks_played" . 0)
+                      ("session_count" . 0))))))
+
+(define-page api-user-clear-history #@"/api/user/clear-history" ()
+  "Clear user listening history"
+  (require-authentication)
+  (setf (radiance:header "Content-Type") "application/json")
+  ;; TODO: Implement actual history clearing
+  (cl-json:encode-json-to-string
+   `(("status" . "success")
+     ("message" . "Listening history cleared successfully"))))
+|#
+
 ;; Front page
 (define-page front-page #@"/" ()
   "Main front page"
@@ -458,6 +534,190 @@
     (clip:process-to-string 
      (plump:parse (alexandria:read-file-into-string template-path))
      :title "🎵 ASTEROID RADIO - User Management")))
+
+;; User Profile page (requires authentication)
+(define-page user-profile #@"/profile" ()
+  "User profile page"
+  (require-authentication)
+  (let ((template-path (merge-pathnames "template/profile.chtml"
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎧 admin - Profile | Asteroid Radio"
+     :username "admin"
+     :user-role "admin"
+     :join-date "Unknown"
+     :last-active "Unknown"
+     :total-listen-time "0h 0m"
+     :tracks-played "0"
+     :session-count "0"
+     :favorite-genre "Unknown"
+     :recent-track-1-title ""
+     :recent-track-1-artist ""
+     :recent-track-1-duration ""
+     :recent-track-1-played-at ""
+     :recent-track-2-title ""
+     :recent-track-2-artist ""
+     :recent-track-2-duration ""
+     :recent-track-2-played-at ""
+     :recent-track-3-title ""
+     :recent-track-3-artist ""
+     :recent-track-3-duration ""
+     :recent-track-3-played-at ""
+     :top-artist-1 ""
+     :top-artist-1-plays ""
+     :top-artist-2 ""
+     :top-artist-2-plays ""
+     :top-artist-3 ""
+     :top-artist-3-plays ""
+     :top-artist-4 ""
+     :top-artist-4-plays ""
+     :top-artist-5 ""
+     :top-artist-5-plays "")))
+
+;; Helper functions for profile page - TEMPORARILY COMMENTED OUT
+#|
+(defun format-timestamp (stream timestamp &key format)
+  "Format a timestamp for display"
+  (declare (ignore stream format))
+  (if timestamp
+      (multiple-value-bind (second minute hour date month year)
+          (decode-universal-time timestamp)
+        (format nil "~a ~d, ~d" 
+                (nth (1- month) '("January" "February" "March" "April" "May" "June"
+                                 "July" "August" "September" "October" "November" "December"))
+                date year))
+      "Unknown"))
+
+(defun format-relative-time (timestamp)
+  "Format a timestamp as relative time (e.g., '2 hours ago')"
+  (if timestamp
+      (let* ((now (get-universal-time))
+             (diff (- now timestamp))
+             (minutes (floor diff 60))
+             (hours (floor minutes 60))
+             (days (floor hours 24)))
+        (cond
+          ((< diff 60) "Just now")
+          ((< minutes 60) (format nil "~d minute~p ago" minutes minutes))
+          ((< hours 24) (format nil "~d hour~p ago" hours hours))
+          (t (format nil "~d day~p ago" days days))))
+      "Unknown"))
+
+;; User Profile page (requires authentication)
+(define-page user-profile #@"/profile" ()
+  "User profile page with listening statistics and track data"
+  (require-authentication)
+  (let* ((current-user (auth:current-user))
+         (username (gethash "username" current-user))
+         (template-path (merge-pathnames "template/profile.chtml"
+                                        (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title (format nil "🎧 ~a - Profile | Asteroid Radio" username)
+     :username (or username "Unknown User")
+     :user-role "listener"
+     :join-date "Unknown"
+     :last-active "Unknown"
+     :total-listen-time "0h 0m"
+     :tracks-played "0"
+     :session-count "0"
+     :favorite-genre "Unknown"
+     :recent-track-1-title ""
+     :recent-track-1-artist ""
+     :recent-track-1-duration ""
+     :recent-track-1-played-at ""
+     :recent-track-2-title ""
+     :recent-track-2-artist ""
+     :recent-track-2-duration ""
+     :recent-track-2-played-at ""
+     :recent-track-3-title ""
+     :recent-track-3-artist ""
+     :recent-track-3-duration ""
+     :recent-track-3-played-at ""
+     :top-artist-1 ""
+     :top-artist-1-plays ""
+     :top-artist-2 ""
+     :top-artist-2-plays ""
+     :top-artist-3 ""
+     :top-artist-3-plays ""
+     :top-artist-4 ""
+     :top-artist-4-plays ""
+     :top-artist-5 ""
+     :top-artist-5-plays "")))
+|#
+
+;; Auth status API endpoint
+(define-page api-auth-status #@"/api/auth-status" ()
+  "Check if user is logged in and their role"
+  (setf (radiance:header "Content-Type") "application/json")
+  (handler-case
+      (let* ((user-id (session:field "user-id"))
+             (user (when user-id (find-user-by-id user-id))))
+        (cl-json:encode-json-to-string
+         `(("loggedIn" . ,(if user t nil))
+           ("isAdmin" . ,(if (and user (user-has-role-p user :admin)) t nil))
+           ("username" . ,(if user 
+                             (let ((username (gethash "username" user)))
+                               (if (listp username) (first username) username))
+                             nil)))))
+    (error (e)
+      (cl-json:encode-json-to-string
+       `(("loggedIn" . nil)
+         ("isAdmin" . nil)
+         ("error" . ,(format nil "~a" e)))))))
+
+;; Register page (GET)
+(define-page register #@"/register" ()
+  "User registration page"
+  (let ((username (radiance:post-var "username"))
+        (email (radiance:post-var "email"))
+        (password (radiance:post-var "password"))
+        (confirm-password (radiance:post-var "confirm-password")))
+    (if (and username password)
+        ;; Handle registration form submission
+        (cond
+          ;; Validate passwords match
+          ((not (string= password confirm-password))
+           (render-template-with-plist "register"
+            :title "Asteroid Radio - Register"
+            :display-error "display: block;"
+            :display-success "display: none;"
+            :error-message "Passwords do not match"
+            :success-message ""))
+          
+          ;; Check if username already exists
+          ((find-user-by-username username)
+           (render-template-with-plist "register"
+            :title "Asteroid Radio - Register"
+            :display-error "display: block;"
+            :display-success "display: none;"
+            :error-message "Username already exists"
+            :success-message ""))
+          
+          ;; Create the user
+          (t
+           (if (create-user username email password :role :listener :active t)
+               (progn
+                 ;; Auto-login after successful registration
+                 (let ((user (find-user-by-username username)))
+                   (when user
+                     (let ((user-id (gethash "_id" user)))
+                       (setf (session:field "user-id") (if (listp user-id) (first user-id) user-id)))))
+                 (radiance:redirect "/asteroid/"))
+               (render-template-with-plist "register"
+                :title "Asteroid Radio - Register"
+                :display-error "display: block;"
+                :display-success "display: none;"
+                :error-message "Registration failed. Please try again."
+                :success-message ""))))
+        ;; Show registration form (no POST data)
+        (render-template-with-plist "register"
+         :title "Asteroid Radio - Register"
+         :display-error "display: none;"
+         :display-success "display: none;"
+         :error-message ""
+         :success-message ""))))
 
 (define-page player #@"/player" ()
   (let ((template-path (merge-pathnames "template/player.chtml" 

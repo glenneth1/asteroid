@@ -55,7 +55,28 @@
        :margin-left "0")
 
       ((:and a :hover)
-          :background "#2a3441"))
+          :background "#2a3441")
+      
+      ;; Logout button styling - subtle, not alarming
+      (.btn-logout
+       :background "#2a3441"
+       :border-color "#3a4551"
+       :color "#ff9999")
+      
+      ((:and .btn-logout :hover)
+       :background "#3a4551"
+       :border-color "#4a5561"
+       :color "#ffaaaa"))
+    
+    ;; Hide conditional auth elements by default (JavaScript will show them)
+    (|[data-show-if-logged-in]|
+     :display none)
+    
+    (|[data-show-if-logged-out]|
+     :display none)
+    
+    (|[data-show-if-admin]|
+     :display none)
 
     (.controls
      :margin "20px 0"
@@ -434,7 +455,7 @@
      :border-radius 8px
      :padding 2rem
      :width "100%"
-     :max-width 400px
+     :max-width 600px
      :box-shadow "0 4px 6px rgba(0, 0, 0, 0.3)"
     
      (h2 :color "#00ffff"
@@ -447,7 +468,7 @@
          :font-size 1.2rem))
 
     (.form-group
-     :margin-bottom 3rem
+     :margin-bottom 1.5rem
     
      (label :display block
             :color "#ccc"
@@ -501,22 +522,6 @@
       ((:and a :hover) :text-decoration underline))
 
     ;; Profile Styles
-    (.profile-container
-      :max-width 600px
-      :margin "2rem auto"
-      :padding 0 1rem)
-
-    (.profile-card
-      :background-color "#1a2332"
-      :border "1px solid #2a3441"
-      :border-radius 8px
-      :padding 2rem
-      :margin-bottom 2rem
-
-      (h2 :color "#00ffff"
-          :margin-bottom 1.5rem
-          :text-align center))
-
     (.profile-info
       :margin-bottom 2rem)
 
@@ -546,6 +551,120 @@
       :display flex
       :gap 1rem
       :justify-content center)
+
+    ;; Additional Profile Page Styles
+    (.artist-stats
+      :display flex
+      :flex-direction column
+      :gap 0.75rem)
+
+    (.artist-item
+      :display flex
+      :justify-content space-between
+      :align-items center
+      :padding "0.5rem 0"
+      :border-bottom "1px solid #2a3441")
+
+    ((:and .artist-item :last-child)
+      :border-bottom none)
+
+    (.artist-name
+      :color "#e0e6ed"
+      :font-weight 500)
+
+    (.artist-plays
+      :color "#8892b0"
+      :font-size 0.875rem)
+
+    (.track-item
+      :display flex
+      :justify-content space-between
+      :align-items center
+      :padding "0.75rem 0"
+      :border-bottom "1px solid #2a3441")
+
+    ((:and .track-item :last-child)
+      :border-bottom none)
+
+    (.track-info
+      :display flex
+      :flex-direction column
+      :gap 0.25rem)
+
+    (.track-title
+      :color "#e0e6ed"
+      :font-weight 500)
+
+    (.track-artist
+      :color "#8892b0"
+      :font-size 0.875rem)
+
+    (.track-meta
+      :display flex
+      :flex-direction column
+      :align-items flex-end
+      :gap 0.25rem
+      :text-align right)
+
+    (.track-duration
+      :color "#64ffda"
+      :font-size 0.875rem
+      :font-weight bold)
+
+    (.track-played-at
+      :color "#8892b0"
+      :font-size 0.75rem)
+
+    (.activity-chart
+      :text-align center)
+
+    (.chart-placeholder
+      :display flex
+      :align-items flex-end
+      :justify-content space-between
+      :height 120px
+      :margin "1rem 0"
+      :padding "0 1rem")
+
+    (.chart-bar
+      :width 8px
+      :background-color "#64ffda"
+      :border-radius "2px 2px 0 0"
+      :margin "0 1px"
+      :min-height 4px
+      :opacity 0.8)
+
+    ((:and .chart-bar :hover)
+      :opacity 1)
+
+    (.chart-note
+      :color "#8892b0"
+      :font-size 0.875rem
+      :margin-top 0.5rem)
+
+    (.stat-number
+      :color "#64ffda"
+      :font-size 1.5rem
+      :font-weight bold
+      :display block)
+
+    (.stat-text
+      :color "#e0e6ed"
+      :font-size 1.2rem
+      :font-weight 500
+      :display block)
+
+    ;; Toast notification styles
+    (.toast
+      :position fixed
+      :top 20px
+      :right 20px
+      :padding "12px 20px"
+      :border-radius 4px
+      :color white
+      :font-weight bold
+      :z-index 1000
+      :transition "opacity 0.3s ease")
 
     ;; User Management Styles
     (.user-management :margin-top 2rem)
