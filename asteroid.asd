@@ -27,6 +27,8 @@
                :cl-fad
                :bordeaux-threads
                :drakma
+               :usocket
+               :cl-ppcre
                (:interface :auth)
                (:interface :database)
                (:interface :user))
