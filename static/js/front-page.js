@@ -55,7 +55,7 @@ function changeStreamQuality() {
 // Update now playing info from Icecast
 async function updateNowPlaying() {
     try {
-        const response = await fetch('/asteroid/api/icecast-status')
+        const response = await fetch('/api/asteroid/icecast-status')
         const data = await response.json()
         if (data.icestats && data.icestats.source) {
             // Find the high quality stream (asteroid.mp3)

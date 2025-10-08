@@ -30,8 +30,11 @@ document.addEventListener('DOMContentLoaded', function() {
 // Load tracks from API
 async function loadTracks() {
     try {
-        const response = await fetch('/admin/tracks');
-        const data = await response.json();
+        const response = await fetch('/api/asteroid/admin/tracks');
+        const result = await response.json();
+        
+        // Handle Radiance API response format: {status: 200, message: "Ok", data: {...}}
+        const data = result.data || result;
 
         if (data.status === 'success') {
             tracks = data.tracks || [];
@@ -130,13 +133,15 @@ function changeTracksPerPage() {
 async function scanLibrary() {
     const statusEl = document.getElementById('scan-status');
     const scanBtn = document.getElementById('scan-library');
-
     statusEl.textContent = 'Scanning...';
     scanBtn.disabled = true;
 
     try {
-        const response = await fetch('/admin/scan-library', { method: 'POST' });
-        const data = await response.json();
+        const response = await fetch('/api/asteroid/admin/scan-library', { method: 'POST' });
+        const result = await response.json();
+        
+        // Handle Radiance API response format
+        const data = result.data || result;
 
         if (data.status === 'success') {
             statusEl.textContent = `✅ Added ${data['tracks-added']} tracks`;
@@ -146,7 +151,7 @@ async function scanLibrary() {
         }
     } catch (error) {
         statusEl.textContent = '❌ Scan error';
-        console.error('Scan error:', error);
+        console.error('Error scanning library:', error);
     } finally {
         scanBtn.disabled = false;
         setTimeout(() => statusEl.textContent = '', 3000);
@@ -155,7 +160,6 @@ async function scanLibrary() {
 
 // Filter tracks based on search
 function filterTracks() {
-    const query = document.getElementById('track-search').value.toLowerCase();
     const filtered = tracks.filter(track => 
         (track.title || '').toLowerCase().includes(query) ||
         (track.artist || '').toLowerCase().includes(query) ||
@@ -250,7 +254,7 @@ async function resumePlayer() {
 
 async function updatePlayerStatus() {
     try {
-        const response = await fetch('/asteroid/api/player-status');
+        const response = await fetch('/api/asteroid/player/status');
         const data = await response.json();
 
         if (data.status === 'success') {
