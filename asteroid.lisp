@@ -293,6 +293,68 @@
     ("position" . ,*current-position*)
     ("queue-length" . ,(length *play-queue*))))
 
+;; Liquidsoap Telnet Control Functions
+(defun liquidsoap-telnet-command (command)
+  "Send a command to Liquidsoap telnet server and return response"
+  (handler-case
+    (let ((socket (usocket:socket-connect "127.0.0.1" 1234)))
+      (unwind-protect
+        (progn
+          (format (usocket:socket-stream socket) "~A~%" command)
+          (force-output (usocket:socket-stream socket))
+          (let ((response-lines '())
+                (line nil))
+            ;; Read all lines until "END"
+            (loop while (and (setf line (read-line (usocket:socket-stream socket) nil))
+                            (not (string= line "END")))
+                  do (push line response-lines))
+            (format nil "~{~A~%~}" (reverse response-lines))))
+        (usocket:socket-close socket)))
+    (error (e)
+      (format t "Error communicating with Liquidsoap: ~A~%" e)
+      nil)))
+
+(defun liquidsoap-skip-track ()
+  "Skip to the next track in Liquidsoap"
+  (liquidsoap-telnet-command "music.skip"))
+
+(defun liquidsoap-reload-playlist ()
+  "Reload the playlist in Liquidsoap"
+  (liquidsoap-telnet-command "music.reload"))
+
+(defun liquidsoap-get-metadata ()
+  "Get current track metadata from Liquidsoap"
+  (let ((response (liquidsoap-telnet-command "output.icecast.metadata")))
+    (when response
+      (parse-liquidsoap-metadata response))))
+
+(defun liquidsoap-get-queue ()
+  "Get the current request queue from Liquidsoap"
+  (liquidsoap-telnet-command "request.all"))
+
+(defun liquidsoap-queue-track (file-path)
+  "Queue a specific track in Liquidsoap"
+  (liquidsoap-telnet-command (format nil "request.push ~A" file-path)))
+
+(defun parse-liquidsoap-metadata (metadata-string)
+  "Parse Liquidsoap metadata string into artist/title/album"
+  (let ((artist "Unknown Artist")
+        (title "Unknown Track")
+        (album "Unknown Album"))
+    (when metadata-string
+      ;; Parse the first track (most recent) from the metadata
+      ;; Format: --- 2 ---\nkey="value"\nkey="value"...
+      (let ((lines (cl-ppcre:split "\\n" metadata-string)))
+        (dolist (line lines)
+          (cond
+            ((cl-ppcre:scan "^artist=" line)
+             (setf artist (cl-ppcre:regex-replace "^artist=\"([^\"]+)\"" line "\\1")))
+            ((cl-ppcre:scan "^title=" line)
+             (setf title (cl-ppcre:regex-replace "^title=\"([^\"]+)\"" line "\\1")))
+            ((cl-ppcre:scan "^album=" line)
+             (setf album (cl-ppcre:regex-replace "^album=\"([^\"]+)\"" line "\\1")))))))
+    (list :artist artist :title title :album album)))
+
 
 ;; Define CLIP attribute processor for data-text
 (clip:define-attribute-processor data-text (node value)
@@ -368,6 +430,102 @@
   "Get current player status"
   (api-output `(("status" . "success")
                 ("player" . ,(get-player-status)))))
+
+;; DJ Control API Endpoints
+(define-api asteroid/dj/skip () ()
+  "Skip to the next track via Liquidsoap telnet"
+  (require-role :admin)  ; Only admins can use DJ controls
+  (handler-case
+      (let ((result (liquidsoap-skip-track)))
+        (if result
+            (api-output `(("status" . "success")
+                          ("message" . "Track skipped successfully")
+                          ("liquidsoap-response" . ,result)))
+            (api-output `(("status" . "error")
+                          ("message" . "Failed to communicate with Liquidsoap"))
+                        :status 503)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Skip error: ~a" e)))
+                  :status 500))))
+
+(define-api asteroid/dj/reload-playlist () ()
+  "Reload the playlist in Liquidsoap"
+  (require-role :admin)
+  (handler-case
+      (let ((result (liquidsoap-reload-playlist)))
+        (if result
+            (api-output `(("status" . "success")
+                          ("message" . "Playlist reloaded successfully")
+                          ("liquidsoap-response" . ,result)))
+            (api-output `(("status" . "error")
+                          ("message" . "Failed to communicate with Liquidsoap"))
+                        :status 503)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Reload error: ~a" e)))
+                  :status 500))))
+
+(define-api asteroid/dj/queue (track-id) ()
+  "Queue a specific track by ID"
+  (require-role :admin)
+  (handler-case
+      (let* ((id (parse-integer track-id :junk-allowed t))
+             (track (get-track-by-id id)))
+        (if track
+            (let* ((file-path (first (gethash "file-path" track)))
+                   (result (liquidsoap-queue-track file-path)))
+              (if result
+                  (api-output `(("status" . "success")
+                                ("message" . "Track queued successfully")
+                                ("track" . (("id" . ,id)
+                                           ("title" . ,(first (gethash "title" track)))
+                                           ("artist" . ,(first (gethash "artist" track)))))
+                                ("liquidsoap-response" . ,result)))
+                  (api-output `(("status" . "error")
+                                ("message" . "Failed to queue track in Liquidsoap"))
+                              :status 503)))
+            (api-output `(("status" . "error")
+                          ("message" . "Track not found"))
+                        :status 404)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Queue error: ~a" e)))
+                  :status 500))))
+
+(define-api asteroid/dj/queue-status () ()
+  "Get the current Liquidsoap request queue"
+  (require-role :admin)
+  (handler-case
+      (let ((result (liquidsoap-get-queue)))
+        (if result
+            (api-output `(("status" . "success")
+                          ("queue" . ,result)))
+            (api-output `(("status" . "error")
+                          ("message" . "Failed to get queue from Liquidsoap"))
+                        :status 503)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Queue status error: ~a" e)))
+                  :status 500))))
+
+(define-api asteroid/dj/metadata () ()
+  "Get enhanced metadata directly from Liquidsoap"
+  (require-authentication)  ; Any authenticated user can see metadata
+  (handler-case
+      (let ((metadata (liquidsoap-get-metadata)))
+        (if metadata
+            (api-output `(("status" . "success")
+                          ("metadata" . (("artist" . ,(getf metadata :artist))
+                                        ("title" . ,(getf metadata :title))
+                                        ("album" . ,(getf metadata :album))))))
+            (api-output `(("status" . "error")
+                          ("message" . "Failed to get metadata from Liquidsoap"))
+                        :status 503)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Metadata error: ~a" e)))
+                  :status 500))))
 
 ;; Profile API Routes - TEMPORARILY COMMENTED OUT
 #|
