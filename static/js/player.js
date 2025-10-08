@@ -52,7 +52,7 @@ function setupEventListeners() {
 
 async function loadTracks() {
     try {
-        const response = await fetch('/asteroid/api/tracks');
+        const response = await fetch('/api/asteroid/tracks');
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
@@ -177,7 +177,7 @@ function playTrack(index) {
     updatePlayerDisplay();
 
     // Update server-side player state
-    fetch(`/api/play?track-id=${currentTrack.id}`, { method: 'POST' })
+    fetch(`/api/asteroid/player/play?track-id=${currentTrack.id}`, { method: 'POST' })
         .catch(error => console.error('API update error:', error));
 }
 
@@ -327,7 +327,7 @@ async function createPlaylist() {
         formData.append('name', name);
         formData.append('description', '');
 
-        const response = await fetch('/asteroid/api/playlists/create', {
+        const response = await fetch('/api/asteroid/playlists/create', {
             method: 'POST',
             body: formData
         });
@@ -366,7 +366,7 @@ async function saveQueueAsPlaylist() {
         formData.append('name', name);
         formData.append('description', `Created from queue with ${playQueue.length} tracks`);
 
-        const createResponse = await fetch('/asteroid/api/playlists/create', {
+        const createResponse = await fetch('/api/asteroid/playlists/create', {
             method: 'POST',
             body: formData
         });
@@ -379,7 +379,7 @@ async function saveQueueAsPlaylist() {
             await new Promise(resolve => setTimeout(resolve, 500));
 
             // Get the new playlist ID by fetching playlists
-            const playlistsResponse = await fetch('/asteroid/api/playlists');
+            const playlistsResponse = await fetch('/api/asteroid/playlists');
             const playlistsResult = await playlistsResponse.json();
             console.log('Playlists result:', playlistsResult);
 
@@ -401,7 +401,7 @@ async function saveQueueAsPlaylist() {
                         addFormData.append('playlist-id', newPlaylist.id);
                         addFormData.append('track-id', trackId);
 
-                        const addResponse = await fetch('/asteroid/api/playlists/add-track', {
+                        const addResponse = await fetch('/api/asteroid/playlists/add-track', {
                             method: 'POST',
                             body: addFormData
                         });
@@ -433,7 +433,7 @@ async function saveQueueAsPlaylist() {
 
 async function loadPlaylists() {
     try {
-        const response = await fetch('/asteroid/api/playlists');
+        const response = await fetch('/api/asteroid/playlists');
         const result = await response.json();
 
         console.log('Load playlists result:', result);
@@ -475,7 +475,7 @@ function displayPlaylists(playlists) {
 
 async function loadPlaylist(playlistId) {
     try {
-        const response = await fetch(`/asteroid/api/playlists/${playlistId}`);
+        const response = await fetch(`/api/asteroid/playlists/get?playlist-id=${playlistId}`);
         const result = await response.json();
 
         console.log('Load playlist result:', result);
@@ -562,7 +562,7 @@ function changeLiveStreamQuality() {
 // Live stream functionality
 async function updateLiveStream() {
     try {
-        const response = await fetch('/asteroid/api/icecast-status')
+        const response = await fetch('/api/asteroid/icecast-status')
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }

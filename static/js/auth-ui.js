@@ -3,7 +3,7 @@
 // Check if user is logged in by calling the API
 async function checkAuthStatus() {
     try {
-        const response = await fetch('/asteroid/api/auth-status');
+        const response = await fetch('/api/asteroid/auth-status');
         const data = await response.json();
         return data;
     } catch (error) {
