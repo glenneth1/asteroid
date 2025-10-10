@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Development Guide
-#+AUTHOR: Development Team
-#+DATE: 2025-10-03
+#+AUTHOR: Glenn Thompson
+#+DATE: 2025-10-10
 
 * Development Setup
 
@@ -11,13 +11,46 @@
 - Quicklisp package manager
 - Git version control
 - Docker and Docker Compose
-- taglib for metadata extraction (for local development)
+- PostgreSQL (for production database)
+- taglib for metadata extraction
+
+*** Lisp Dependencies (via Quicklisp)
+
+All Lisp dependencies are automatically installed via Quicklisp when you run =(ql:quickload :asteroid)=:
+
+**** Core Framework
+- =radiance= - Web framework and module system
+- =slynk= - SLIME/SLY development server
+- =i-log4cl= - Logging interface
+- =r-clip= - CLIP template processor (Radiance)
+- =r-simple-rate= - Rate limiting (Radiance)
+- =r-simple-profile= - User profiles (Radiance)
+- =r-data-model= - Data modeling (Radiance)
+
+**** Utilities & Libraries
+- =lass= - CSS preprocessing in Lisp
+- =cl-json= - JSON encoding/decoding
+- =alexandria= - Common Lisp utilities
+- =local-time= - Time and date handling
+- =taglib= - Audio metadata extraction
+- =ironclad= - Cryptographic functions
+- =babel= - Character encoding conversion
+- =cl-fad= - File and directory operations
+- =bordeaux-threads= - Portable threading
+- =drakma= - HTTP client
+- =usocket= - Universal socket library
+- =cl-ppcre= - Perl-compatible regular expressions
+
+**** Radiance Interfaces
+- =:auth= - Authentication interface
+- =:database= - Database interface
+- =:user= - User management interface
 
 *** Ubuntu/Debian Installation
 #+BEGIN_SRC bash
 # Install system packages
 sudo apt update
-sudo apt install sbcl git docker.io docker compose
+sudo apt install sbcl git docker.io docker-compose postgresql libtagc0-dev
 
 # Add user to docker group
 sudo usermod -a -G docker $USER
@@ -26,6 +59,9 @@ sudo usermod -a -G docker $USER
 # Install Quicklisp (if not already installed)
 curl -O https://beta.quicklisp.org/quicklisp.lisp
 sbcl --load quicklisp.lisp --eval "(quicklisp-quickstart:install)" --quit
+
+# Note: PostgreSQL runs in Docker for development
+# See docs/POSTGRESQL-SETUP.org for database configuration
 #+END_SRC
 
 ** Project Setup
@@ -80,6 +116,9 @@ sbcl --eval "(ql:quickload :asteroid)" --eval "(asteroid:start-server)"
 *** Development URLs
 - *Web Interface*: http://localhost:8080/asteroid/
 - *Admin Panel*: http://localhost:8080/asteroid/admin
+- *User Management*: http://localhost:8080/asteroid/admin/users
+- *Web Player*: http://localhost:8080/asteroid/player
+- *API Base*: http://localhost:8080/api/asteroid/
 - *Live Stream*: http://localhost:8000/asteroid.mp3
 - *Icecast Admin*: http://localhost:8000/admin/ (admin/asteroid_admin_2024)
 
@@ -121,7 +160,7 @@ cp -r /path/to/your/music/* docker/music/
 ln -s /path/to/existing/music docker/music/collection
 
 # Trigger library scan via API
-curl -X POST http://localhost:8080/asteroid/api/scan-library
+curl -X POST http://localhost:8080/api/asteroid/admin/scan-library
 #+END_SRC
 
 ** Code Organization
@@ -157,10 +196,65 @@ curl -X POST http://localhost:8080/asteroid/api/scan-library
 (gethash "_id" track-record)
 #+END_SRC
 
-*** Template Development
-- Use CLIP templating with =data-text= attributes
+*** Template Development with CLIP
+
+Asteroid Radio uses CLIP (Common Lisp HTML Processor) for templating. Templates are in the =template/= directory.
+
+**** Custom =data-text= Attribute Processor
+
+We define a custom CLIP attribute processor in =template-utils.lisp= for dynamic text replacement:
+
+#+BEGIN_SRC lisp
+;; Defined in template-utils.lisp
+(clip:define-attribute-processor data-text (node value)
+  "Process data-text attribute - replaces node text content with clipboard value"
+  (plump:clear node)
+  (plump:make-text-node node (clip:clipboard value)))
+#+END_SRC
+
+**** Using =data-text= in Templates
+
+In your HTML templates (=.chtml= files):
+
+#+BEGIN_SRC html
+<!-- The data-text attribute gets replaced with the value from the plist -->
+<h1 data-text="page-title">Default Title</h1>
+<span data-text="username">Guest</span>
+<p data-text="status-message">Loading...</p>
+#+END_SRC
+
+**** Rendering Templates from Lisp
+
+In your route handlers:
+
+#+BEGIN_SRC lisp
+(define-page my-page #@"/my-page" ()
+  (render-template-with-plist "my-template"
+                              :page-title "My Page"
+                              :username (user:username (auth:current))
+                              :status-message "Ready"))
+#+END_SRC
+
+**** How It Works
+
+1. =render-template-with-plist= passes keyword arguments to CLIP
+2. CLIP processes the template and finds =data-text= attributes
+3. The custom processor replaces the node's text with the value from the "clipboard" (keyword args)
+4. Default text in the HTML is replaced with dynamic content
+
+**** CLIP Documentation
+
+- **CLIP GitHub**: https://github.com/Shinmera/clip
+- **Attribute Processors**: Custom processors extend CLIP's functionality
+- **Standard CLIP**: Uses =lquery= for more complex DOM manipulation
+- **Our Approach**: Simple =data-text= processor for most use cases
+
+**** Template Development Tips
+
 - Keep templates in =template/= directory
-- Test template changes with browser refresh
+- Use =data-text= for simple text replacement
+- Test template changes with browser refresh (templates are cached)
+- Clear cache during development: =(clear-template-cache)=
 - Maintain responsive design principles
 
 *** CSS Development with LASS
@@ -197,13 +291,33 @@ docker compose logs liquidsoap
 #+END_SRC
 
 *** API Testing
-#+BEGIN_SRC bash
-# Test track listing
-curl http://localhost:8080/asteroid/api/tracks
 
-# Test file processing
-curl -X POST http://localhost:8080/asteroid/api/copy-files
+Asteroid Radio includes a comprehensive automated test suite:
+
+#+BEGIN_SRC bash
+# Run full test suite
+./test-server.sh
+
+# Run with verbose output
+./test-server.sh -v
+
+# Test specific endpoints manually
+curl http://localhost:8080/api/asteroid/status
+curl http://localhost:8080/api/asteroid/tracks
+curl -X POST http://localhost:8080/api/asteroid/player/play -d "track-id=123"
 #+END_SRC
+
+See [[file:TESTING.org][Testing Guide]] for complete documentation.
+
+*** API Endpoint Structure
+
+All API endpoints use Radiance's =define-api= macro and follow this pattern:
+
+- Base URL: =/api/asteroid/=
+- Response format: JSON
+- Authentication: Session-based for protected endpoints
+
+See [[file:API-ENDPOINTS.org][API Endpoints Reference]] for complete API documentation.
 
 ** Debugging
 

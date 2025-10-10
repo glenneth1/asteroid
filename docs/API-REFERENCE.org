@@ -1,10 +1,16 @@
 #+TITLE: Asteroid Radio - Interface Reference
-#+AUTHOR: Interface Team  
-#+DATE: 2025-10-03
+#+AUTHOR: Glenn Thompson
+#+DATE: 2025-10-10
 
 * Current Interfaces
 
-Asteroid Radio currently operates as a Docker-based streaming platform using Icecast2 and Liquidsoap. The system provides streaming interfaces and control mechanisms rather than a traditional REST API.
+Asteroid Radio provides multiple interfaces for different purposes:
+
+1. **REST API** - JSON API for web application and programmatic access (see [[file:API-ENDPOINTS.org][API Endpoints Reference]])
+2. **Streaming Endpoints** - Direct audio stream access via Icecast2
+3. **Icecast Admin** - Web-based streaming server administration
+4. **Liquidsoap Control** - Telnet interface for DJ controls
+5. **Docker Management** - Container orchestration and management
 
 ** Available Interfaces
 
@@ -147,22 +153,38 @@ cp ~/path/to/music/*.flac docker/music/
 echo "request.queue" | nc localhost 1234
 #+END_SRC
 
-* Future Development
+* REST API
 
-** Potential REST API
-A REST API may be developed in the future if deemed necessary for:
-- **Web Interface**: Browser-based control panel
-- **Mobile Applications**: Native mobile apps
-- **Third-party Integration**: External service integration
-- **User Management**: Account and playlist management
+Asteroid Radio includes a comprehensive REST API built with Radiance's =define-api= framework.
 
-Such an API would likely be built using the RADIANCE Common Lisp web framework and would provide endpoints for:
-- Track and playlist management
-- User authentication and profiles  
-- Streaming control and statistics
-- System administration
+** API Documentation
 
-However, the current Docker streaming setup provides all essential functionality through existing interfaces (Icecast admin, Liquidsoap telnet, and direct stream access).
+For complete REST API documentation, see **[[file:API-ENDPOINTS.org][API Endpoints Reference]]**.
+
+The API provides:
+- **Authentication & User Management** - Login, registration, user administration
+- **Track Management** - Browse and search music library
+- **Playlist Operations** - Create, manage, and play playlists
+- **Player Control** - Play, pause, stop, resume playback
+- **Admin Functions** - Library scanning, system management
+
+** Quick API Examples
+
+#+BEGIN_SRC bash
+# Get server status
+curl http://localhost:8080/api/asteroid/status
+
+# Get authentication status
+curl http://localhost:8080/api/asteroid/auth-status
+
+# Get Icecast streaming status
+curl http://localhost:8080/api/asteroid/icecast-status
+
+# Get tracks (requires authentication)
+curl -b cookies.txt http://localhost:8080/api/asteroid/tracks
+#+END_SRC
+
+See **[[file:API-ENDPOINTS.org][API Endpoints Reference]]** for complete documentation of all 15+ endpoints.
 
 * Getting Help
 
@@ -172,5 +194,4 @@ For support with interfaces and streaming setup:
 - Join our IRC chat room: **#asteroid.music** on **irc.libera.chat**
 - Submit issues with detailed system information
 
-This interface reference covers all currently available methods for interacting with Asteroid Radio's streaming infrastructure.
-#+END_SRC
+This interface reference covers the streaming infrastructure interfaces. For the REST API, see **[[file:API-ENDPOINTS.org][API Endpoints Reference]]**.

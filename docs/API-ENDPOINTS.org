@@ -1,0 +1,484 @@
+#+TITLE: Asteroid Radio - API Endpoints Reference
+#+AUTHOR: Glenn Thompson
+#+DATE: 2025-10-10
+
+* Overview
+
+Asteroid Radio provides a comprehensive JSON API built with Radiance's =define-api= framework. All API endpoints return JSON responses and follow RESTful conventions.
+
+** Base URL
+
+All API endpoints are prefixed with =/api/asteroid/=
+
+** Authentication
+
+Protected endpoints require user authentication via session cookies. Unauthenticated requests to protected endpoints will return an error response.
+
+** Response Format
+
+All API responses follow this structure:
+
+#+BEGIN_SRC json
+{
+  "status": "success" | "error",
+  "message": "Human-readable message",
+  "data": { ... }  // Optional, endpoint-specific data
+}
+#+END_SRC
+
+* Status Endpoints
+
+** GET /api/asteroid/status
+
+Get server status and system information.
+
+*** Authentication
+Not required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "server": "asteroid-radio",
+  "version": "1.0",
+  "uptime": 3600
+}
+#+END_SRC
+
+** GET /api/asteroid/auth-status
+
+Check current authentication status.
+
+*** Authentication
+Not required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "loggedIn": true,
+  "username": "admin",
+  "role": "admin"
+}
+#+END_SRC
+
+** GET /api/asteroid/icecast-status
+
+Get Icecast streaming server status and current track information.
+
+*** Authentication
+Not required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "icestats": {
+    "source": {
+      "title": "Artist - Track Name",
+      "listeners": 5,
+      "genre": "Electronic",
+      "bitrate": 128
+    }
+  }
+}
+#+END_SRC
+
+* Track Endpoints
+
+** GET /api/asteroid/tracks
+
+Get list of all tracks in the music library.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "tracks": [
+    {
+      "id": "track-id-123",
+      "title": "Track Name",
+      "artist": "Artist Name",
+      "album": "Album Name",
+      "duration": 245,
+      "format": "mp3"
+    }
+  ]
+}
+#+END_SRC
+
+** GET /api/asteroid/admin/tracks
+
+Get administrative track listing (admin only).
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+Same as =/api/asteroid/tracks= but includes additional metadata for administration.
+
+* Player Control Endpoints
+
+** GET /api/asteroid/player/status
+
+Get current player status.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "player": {
+    "state": "playing" | "paused" | "stopped",
+    "currentTrack": {
+      "id": "track-id-123",
+      "title": "Track Name",
+      "artist": "Artist Name"
+    },
+    "position": 45,
+    "duration": 245
+  }
+}
+#+END_SRC
+
+** POST /api/asteroid/player/play
+
+Play a specific track.
+
+*** Authentication
+Required
+
+*** Parameters
+- =track-id= (required) - ID of the track to play
+
+*** Example Request
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/asteroid/player/play \
+  -d "track-id=track-id-123"
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playing track",
+  "player": {
+    "state": "playing",
+    "currentTrack": { ... }
+  }
+}
+#+END_SRC
+
+** POST /api/asteroid/player/pause
+
+Pause current playback.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playback paused",
+  "player": {
+    "state": "paused"
+  }
+}
+#+END_SRC
+
+** POST /api/asteroid/player/stop
+
+Stop current playback.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playback stopped",
+  "player": {
+    "state": "stopped"
+  }
+}
+#+END_SRC
+
+** POST /api/asteroid/player/resume
+
+Resume paused playback.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playback resumed",
+  "player": {
+    "state": "playing"
+  }
+}
+#+END_SRC
+
+* Playlist Endpoints
+
+** GET /api/asteroid/playlists
+
+Get all playlists for the current user.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "playlists": [
+    {
+      "id": "playlist-id-123",
+      "name": "My Playlist",
+      "description": "Favorite tracks",
+      "trackCount": 15,
+      "created": "2025-10-10T12:00:00Z"
+    }
+  ]
+}
+#+END_SRC
+
+** POST /api/asteroid/playlists/create
+
+Create a new playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =name= (required) - Playlist name
+- =description= (optional) - Playlist description
+
+*** Example Request
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/asteroid/playlists/create \
+  -d "name=My Playlist&description=Favorite tracks"
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playlist created successfully",
+  "playlist": {
+    "id": "playlist-id-123",
+    "name": "My Playlist",
+    "description": "Favorite tracks"
+  }
+}
+#+END_SRC
+
+** GET /api/asteroid/playlists/get
+
+Get details of a specific playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =playlist-id= (required) - ID of the playlist
+
+*** Example Request
+#+BEGIN_SRC bash
+curl "http://localhost:8080/api/asteroid/playlists/get?playlist-id=playlist-id-123"
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "playlist": {
+    "id": "playlist-id-123",
+    "name": "My Playlist",
+    "description": "Favorite tracks",
+    "tracks": [
+      {
+        "id": "track-id-123",
+        "title": "Track Name",
+        "artist": "Artist Name"
+      }
+    ]
+  }
+}
+#+END_SRC
+
+** POST /api/asteroid/playlists/add-track
+
+Add a track to a playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =playlist-id= (required) - ID of the playlist
+- =track-id= (required) - ID of the track to add
+
+*** Example Request
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/asteroid/playlists/add-track \
+  -d "playlist-id=playlist-id-123&track-id=track-id-456"
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Track added to playlist"
+}
+#+END_SRC
+
+* Admin Endpoints
+
+** POST /api/asteroid/admin/scan-library
+
+Scan the music library for new tracks.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Library scan initiated",
+  "tracksFound": 42
+}
+#+END_SRC
+
+* Error Responses
+
+All endpoints may return error responses in this format:
+
+#+BEGIN_SRC json
+{
+  "status": "error",
+  "message": "Description of the error"
+}
+#+END_SRC
+
+** Common HTTP Status Codes
+
+- =200= - Success
+- =400= - Bad Request (missing or invalid parameters)
+- =401= - Unauthorized (authentication required)
+- =403= - Forbidden (insufficient permissions)
+- =404= - Not Found (resource doesn't exist)
+- =500= - Internal Server Error
+
+* Testing API Endpoints
+
+** Using curl
+
+#+BEGIN_SRC bash
+# Get server status
+curl http://localhost:8080/api/asteroid/status
+
+# Get auth status
+curl http://localhost:8080/api/asteroid/auth-status
+
+# Get tracks (requires authentication)
+curl -b cookies.txt http://localhost:8080/api/asteroid/tracks
+
+# Play a track
+curl -X POST -b cookies.txt http://localhost:8080/api/asteroid/player/play \
+  -d "track-id=123"
+#+END_SRC
+
+** Using the Test Suite
+
+The project includes a comprehensive test suite:
+
+#+BEGIN_SRC bash
+./test-server.sh
+#+END_SRC
+
+See =docs/TESTING.org= for details.
+
+* Browser Detection
+
+API endpoints support a =browser= parameter for dual usage (API + browser):
+
+#+BEGIN_SRC bash
+# API usage - returns JSON
+curl -X POST http://localhost:8080/api/asteroid/playlists/create \
+  -d "name=Test"
+
+# Browser usage - redirects to page
+curl -X POST http://localhost:8080/api/asteroid/playlists/create \
+  -d "name=Test&browser=true"
+#+END_SRC
+
+When =browser=true= is passed, endpoints will redirect to appropriate pages instead of returning JSON.
+
+* Integration Examples
+
+** JavaScript/Fetch API
+
+#+BEGIN_SRC javascript
+// Get tracks
+fetch('/api/asteroid/tracks')
+  .then(response => response.json())
+  .then(data => {
+    console.log('Tracks:', data.tracks);
+  });
+
+// Play a track
+fetch('/api/asteroid/player/play', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  },
+  body: 'track-id=123'
+})
+  .then(response => response.json())
+  .then(data => {
+    console.log('Now playing:', data.player.currentTrack);
+  });
+#+END_SRC
+
+** Python
+
+#+BEGIN_SRC python
+import requests
+
+# Get server status
+response = requests.get('http://localhost:8080/api/asteroid/status')
+print(response.json())
+
+# Create playlist (with session)
+session = requests.Session()
+# ... login first ...
+response = session.post(
+    'http://localhost:8080/api/asteroid/playlists/create',
+    data={'name': 'My Playlist', 'description': 'Test'}
+)
+print(response.json())
+#+END_SRC
+
+* Rate Limiting
+
+API endpoints implement rate limiting to prevent abuse. Excessive requests may result in temporary blocking.
+
+* Future Enhancements
+
+Planned API improvements:
+
+- WebSocket support for real-time updates
+- Pagination for large result sets
+- Advanced search and filtering
+- Batch operations
+- API versioning
+- OAuth2 authentication option

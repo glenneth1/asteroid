@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Documentation Index
-#+AUTHOR: Documentation Team
-#+DATE: 2025-10-03
+#+AUTHOR: Glenn Thompson
+#+DATE: 2025-10-10
 
 * Welcome to Asteroid Radio Documentation
 
@@ -30,17 +30,44 @@ Complete guide to the Docker-based streaming infrastructure using Icecast2 and L
 *** [[file:DEVELOPMENT.org][Development Guide]]
 Development environment setup, contributing guidelines, coding standards, and debugging procedures for developers working on Asteroid Radio.
 
+*** [[file:API-ENDPOINTS.org][API Endpoints Reference]]
+Complete documentation of all REST API endpoints including authentication, tracks, playlists, player control, and admin functions.
+
 *** [[file:API-REFERENCE.org][Interface Reference]]
-Documentation of all available interfaces including streaming endpoints, Icecast admin interface, Liquidsoap telnet control, and Docker management commands.
+Documentation of streaming endpoints, Icecast admin interface, Liquidsoap telnet control, and Docker management commands.
+
+*** [[file:TESTING.org][Testing Guide]]
+Automated testing suite documentation, test script usage, and manual testing procedures.
+
+** Feature Documentation
+
+*** [[file:POSTGRESQL-SETUP.org][PostgreSQL Setup]]
+Database configuration, schema design, and migration guide for PostgreSQL backend.
+
+*** [[file:PLAYLIST-SYSTEM.org][Playlist System]]
+User playlist functionality including creation, management, and playback features.
+
+*** [[file:USER-MANAGEMENT-SYSTEM.org][User Management]]
+User administration system with role management, authentication, and access control.
+
+*** [[file:TRACK-PAGINATION-SYSTEM.org][Track Pagination]]
+Pagination system for efficient browsing of large music libraries.
 
 * Current System Status
 
 ** What's Working Now
+- **Web Application**: Full-featured web interface with authentication
+- **REST API**: JSON API with 15+ endpoints for programmatic access
+- **User Management**: Registration, login, roles, and profiles
+- **Music Library**: Track management with pagination and search
+- **Playlists**: User playlists with creation and playback
+- **Web Player**: Browser-based audio player with queue management
 - **Docker Streaming Infrastructure**: Icecast2 + Liquidsoap containers
 - **Three Quality Streams**: 128kbps MP3, 96kbps AAC, 64kbps MP3  
 - **Admin Interface**: Icecast web admin at http://localhost:8000/admin/
-- **Telnet Control**: Liquidsoap control via telnet localhost:1234
+- **Liquidsoap DJ Controls**: Telnet control via localhost:1234
 - **Professional Features**: Crossfading, normalization, metadata support
+- **PostgreSQL Database**: Persistent data storage with full CRUD operations
 
 ** Stream URLs (when running)
 - **High Quality MP3**: http://localhost:8000/asteroid.mp3 (128kbps)
@@ -56,8 +83,10 @@ Documentation of all available interfaces including streaming endpoints, Icecast
 
 ** Developers  
 1. Review the **[[file:DEVELOPMENT.org][Development Guide]]** for setup procedures
-2. Check the **[[file:API-REFERENCE.org][Interface Reference]]** for available controls
-3. Join our IRC channel: **#asteroid.music** on **irc.libera.chat**
+2. Check the **[[file:API-ENDPOINTS.org][API Endpoints Reference]]** for REST API documentation
+3. Review the **[[file:API-REFERENCE.org][Interface Reference]]** for streaming controls
+4. See **[[file:TESTING.org][Testing Guide]]** for automated testing
+5. Join our IRC channel: **#asteroid.music** on **irc.libera.chat**
 
 ** System Administrators
 1. Follow the **[[file:INSTALLATION.org][Installation Guide]]** production deployment section
@@ -112,5 +141,5 @@ For detailed technical information, see the **[[file:PROJECT-OVERVIEW.org][Proje
 
 ---
 
-*Last Updated: 2025-10-03*
-*Documentation Version: 1.0*
+*Last Updated: 2025-10-10*
+*Documentation Version: 2.0*
