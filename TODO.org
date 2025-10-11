@@ -14,11 +14,21 @@
   - [ ] strip hard coded configurations out of the system
   - [ ] add configuration template file to the project
 
-** [ ] Database [0/2]
-- [ ] PostgresQL [0/3]
-   - [ ] Add a postgresql docker image to our docker-compose file.
-   - [ ] Configure radiance for postres.
-   - [ ] Migrate all schema to new database.
+** [ ] Database [0/1]
+- [-] PostgresQL [1/3]
+  - [X] Add a postgresql docker image to our docker-compose file.
+  - [ ] Configure radiance for postres.
+  - [ ] Migrate all schema to new database.
+
+** Page Flow [0/0]
+- [ ] When a user logs in, their user profile page should become the
+  root node of the app in their view.
+- [ ] When the admin user logs in, their view should become the admin
+  profile page which should have panels for adminstering various
+  aspects of the station.
+note: these two flow items probably shouldn't affect the current state
+of the front-page, except where some front-page elements are not
+displayed based on the user and their associated permissions.
 
 ** [X] Templates: move our template hyrdration into the Clip machinery [4/4] ✅ COMPLETE
 - [X] Admin Dashboard [2/2]
