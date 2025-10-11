@@ -10,6 +10,7 @@
   :defsystem-depends-on (:radiance)
   :class "radiance:virtual-module"
   :depends-on (:slynk
+               :lparallel
                :radiance
                :i-log4cl
                :r-clip
