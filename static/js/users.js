@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadUserStats() {
     try {
-        const response = await fetch('/api/asteroid/users/stats');
+        const response = await fetch('/api/asteroid/user-stats');
         const result = await response.json();
 
         if (result.status === 'success') {
