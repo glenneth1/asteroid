@@ -7,28 +7,16 @@ async function loadUserStats() {
     try {
         const response = await fetch('/api/asteroid/user-stats');
         const result = await response.json();
+        
+        // api-output wraps response in {status, message, data}
+        const data = result.data || result;
 
-        if (result.status === 'success') {
-            // TODO: move this stats builder to server
-            // const stats = result.stats;
-            const stats = {
-                total: 0,
-                active: 0,
-                admins: 0,
-                djs: 0,
-            };
-            if (result.users) {
-                result.users.forEach((user) => {
-                    stats.total += 1;
-                    if (user.active) stats.active += 1;
-                    if (user.role == "admin") stats.admins += 1;
-                    if (user.role == "dj") stats.djs += 1;
-                })
-            }
-            document.getElementById('total-users').textContent = stats.total;
-            document.getElementById('active-users').textContent = stats.active;
-            document.getElementById('admin-users').textContent = stats.admins;
-            document.getElementById('dj-users').textContent = stats.djs;
+        if (data.status === 'success' && data.stats) {
+            const stats = data.stats;
+            document.getElementById('total-users').textContent = stats['total-users'] || 0;
+            document.getElementById('active-users').textContent = stats['active-users'] || 0;
+            document.getElementById('admin-users').textContent = stats['admins'] || 0;
+            document.getElementById('dj-users').textContent = stats['djs'] || 0;
         }
     } catch (error) {
         console.error('Error loading user stats:', error);
@@ -39,9 +27,12 @@ async function loadUsers() {
     try {
         const response = await fetch('/api/asteroid/users');
         const result = await response.json();
+        
+        // api-output wraps response in {status, message, data}
+        const data = result.data || result;
 
-        if (result.status === 'success') {
-            showUsersTable(result.users);
+        if (data.status === 'success') {
+            showUsersTable(data.users);
             document.getElementById('users-list-section').style.display = 'block';
         }
     } catch (error) {
@@ -201,14 +192,17 @@ async function createNewUser(event) {
         });
 
         const result = await response.json();
+        
+        // api-output wraps response in {status, message, data}
+        const data = result.data || result;
 
-        if (result.status === 'success') {
+        if (data.status === 'success') {
             alert(`User "${username}" created successfully!`);
             toggleCreateUserForm();
             loadUserStats();
             loadUsers();
         } else {
-            alert('Error creating user: ' + result.message);
+            alert('Error creating user: ' + (data.message || result.message));
         }
     } catch (error) {
         console.error('Error creating user:', error);

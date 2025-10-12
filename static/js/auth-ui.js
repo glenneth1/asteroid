@@ -4,7 +4,9 @@
 async function checkAuthStatus() {
     try {
         const response = await fetch('/api/asteroid/auth-status');
-        const data = await response.json();
+        const result = await response.json();
+        // api-output wraps response in {status, message, data}
+        const data = result.data || result;
         return data;
     } catch (error) {
         console.error('Error checking auth status:', error);

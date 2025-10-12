@@ -637,6 +637,49 @@
                     ("error" . ,(format nil "~a" e)))
                   :status 500))))
 
+;; User profile API endpoints
+(define-api asteroid/user/profile () ()
+  "Get current user profile information"
+  (require-authentication)
+  (handler-case
+      (let* ((user-id (session:field "user-id"))
+             (user (find-user-by-id user-id)))
+        (if user
+            (api-output `(("status" . "success")
+                          ("user" . (("username" . ,(first (gethash "username" user)))
+                                     ("email" . ,(first (gethash "email" user)))
+                                     ("role" . ,(first (gethash "role" user)))
+                                     ("created_at" . ,(first (gethash "created-date" user)))
+                                     ("last_active" . ,(first (gethash "last-login" user)))))))
+            (api-output `(("status" . "error")
+                          ("message" . "User not found"))
+                        :status 404)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Error loading profile: ~a" e)))
+                  :status 500))))
+
+(define-api asteroid/user/listening-stats () ()
+  "Get user listening statistics"
+  (require-authentication)
+  (api-output `(("status" . "success")
+                ("stats" . (("total_listen_time" . 0)
+                            ("tracks_played" . 0)
+                            ("session_count" . 0)
+                            ("favorite_genre" . "Unknown"))))))
+
+(define-api asteroid/user/recent-tracks (&optional (limit "3")) ()
+  "Get recently played tracks for user"
+  (require-authentication)
+  (api-output `(("status" . "success")
+                ("tracks" . ()))))
+
+(define-api asteroid/user/top-artists (&optional (limit "5")) ()
+  "Get top artists for user"
+  (require-authentication)
+  (api-output `(("status" . "success")
+                ("artists" . ()))))
+
 ;; Register page (GET)
 (define-page register #@"/register" ()
   "User registration page"
