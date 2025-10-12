@@ -334,7 +334,7 @@
 
 (defun liquidsoap-queue-track (file-path)
   "Queue a specific track in Liquidsoap"
-  (liquidsoap-telnet-command (format nil "request.push ~A" file-path)))
+  (liquidsoap-telnet-command (format nil "queue.push ~A" file-path)))
 
 (defun parse-liquidsoap-metadata (metadata-string)
   "Parse Liquidsoap metadata string into artist/title/album"

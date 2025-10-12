@@ -19,10 +19,13 @@ settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
 settings.server.telnet.bind_addr.set("0.0.0.0")
 
+# Create request queue for dynamic track queuing (DJ controls)
+queue = request.queue(id="queue")
+
 # Create playlist source from generated M3U file
 # This file is managed by Asteroid's stream control system
-# Falls back to directory scan if playlist file doesn't exist
-radio = playlist(
+playlist_managed = playlist(
+  id="managed_playlist",
   mode="normal",  # Play in order (not randomized)
   reload=30,      # Check for playlist updates every 30 seconds
   reload_mode="seconds",  # Reload every N seconds (prevents running out of tracks)
@@ -30,14 +33,19 @@ radio = playlist(
 )
 
 # Fallback to directory scan if playlist file is empty/missing
-radio_fallback = playlist.safe(
+playlist_fallback = playlist.safe(
+  id="music",
   mode="randomize",
   reload=3600,
   "/app/music/"
 )
 
-# Use main playlist, fall back to directory scan
-radio = fallback(track_sensitive=false, [radio, radio_fallback])
+# Combine sources: queue (highest priority), managed playlist, then fallback to directory scan
+radio = fallback(track_sensitive=true, [queue, playlist_managed, playlist_fallback])
+
+# Add some audio processing
+radio = amplify(1.0, radio)
+radio = normalize(radio)
 
 # Simple crossfade for smooth transitions
 radio = crossfade(
