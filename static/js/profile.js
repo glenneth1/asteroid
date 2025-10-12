@@ -11,7 +11,9 @@ function loadProfileData() {
     // Load user info
     fetch('/api/asteroid/user/profile')
         .then(response => response.json())
-        .then(data => {
+        .then(result => {
+            // api-output wraps response in {status, message, data}
+            const data = result.data || result;
             if (data.status === 'success') {
                 currentUser = data.user;
                 updateProfileDisplay(data.user);
@@ -52,7 +54,8 @@ function updateProfileDisplay(user) {
 function loadListeningStats() {
     fetch('/api/asteroid/user/listening-stats')
         .then(response => response.json())
-        .then(data => {
+        .then(result => {
+            const data = result.data || result;
             if (data.status === 'success') {
                 const stats = data.stats;
                 updateElement('total-listen-time', formatDuration(stats.total_listen_time || 0));
@@ -74,8 +77,9 @@ function loadListeningStats() {
 function loadRecentTracks() {
     fetch('/api/asteroid/user/recent-tracks?limit=3')
         .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success' && data.tracks.length > 0) {
+        .then(result => {
+            const data = result.data || result;
+            if (data.status === 'success' && data.tracks && data.tracks.length > 0) {
                 data.tracks.forEach((track, index) => {
                     const trackNum = index + 1;
                     updateElement(`recent-track-${trackNum}-title`, track.title || 'Unknown Track');
@@ -86,8 +90,8 @@ function loadRecentTracks() {
             } else {
                 // Hide empty track items
                 for (let i = 1; i <= 3; i++) {
-                    const trackItem = document.querySelector(`[data-text="recent-track-${i}-title"]`).closest('.track-item');
-                    if (trackItem && !data.tracks[i-1]) {
+                    const trackItem = document.querySelector(`[data-text="recent-track-${i}-title"]`)?.closest('.track-item');
+                    if (trackItem && (!data.tracks || !data.tracks[i-1])) {
                         trackItem.style.display = 'none';
                     }
                 }
@@ -101,8 +105,9 @@ function loadRecentTracks() {
 function loadTopArtists() {
     fetch('/api/asteroid/user/top-artists?limit=5')
         .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success' && data.artists.length > 0) {
+        .then(result => {
+            const data = result.data || result;
+            if (data.status === 'success' && data.artists && data.artists.length > 0) {
                 data.artists.forEach((artist, index) => {
                     const artistNum = index + 1;
                     updateElement(`top-artist-${artistNum}`, artist.name || 'Unknown Artist');
@@ -111,8 +116,8 @@ function loadTopArtists() {
             } else {
                 // Hide empty artist items
                 for (let i = 1; i <= 5; i++) {
-                    const artistItem = document.querySelector(`[data-text="top-artist-${i}"]`).closest('.artist-item');
-                    if (artistItem && !data.artists[i-1]) {
+                    const artistItem = document.querySelector(`[data-text="top-artist-${i}"]`)?.closest('.artist-item');
+                    if (artistItem && (!data.artists || !data.artists[i-1])) {
                         artistItem.style.display = 'none';
                     }
                 }
