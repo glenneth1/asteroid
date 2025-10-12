@@ -44,5 +44,6 @@ docker-compose.yml.backup.*
 *.log
 logs/
 performance-logs/
+test-results-*.log
 
 # Temporary files

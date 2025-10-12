@@ -15,6 +15,7 @@ NC='\033[0m' # No Color
 BASE_URL="${ASTEROID_URL:-http://localhost:8080}"
 API_BASE="${BASE_URL}/api/asteroid"
 VERBOSE="${VERBOSE:-0}"
+LOG_FILE="test-results-$(date +%Y%m%d-%H%M%S).log"
 
 # Test counters
 TESTS_RUN=0
@@ -22,28 +23,39 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 
 # Helper functions
+log_to_file() {
+    # Strip ANSI color codes for log file
+    echo "$1" | sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE"
+}
+
 print_header() {
+    local msg="\n========================================\n$1\n========================================\n"
     echo -e "\n${BLUE}========================================${NC}"
     echo -e "${BLUE}$1${NC}"
     echo -e "${BLUE}========================================${NC}\n"
+    log_to_file "$msg"
 }
 
 print_test() {
     echo -e "${YELLOW}TEST:${NC} $1"
+    log_to_file "TEST: $1"
 }
 
 print_pass() {
     echo -e "${GREEN}✓ PASS:${NC} $1"
+    log_to_file "✓ PASS: $1"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 print_fail() {
     echo -e "${RED}✗ FAIL:${NC} $1"
+    log_to_file "✗ FAIL: $1"
     TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
 print_info() {
     echo -e "${BLUE}INFO:${NC} $1"
+    log_to_file "INFO: $1"
 }
 
 # Test function wrapper
@@ -212,6 +224,66 @@ test_playlist_endpoints() {
     print_info "Note: Playlist creation requires authentication"
 }
 
+# Test DJ Control Endpoints (Liquidsoap telnet integration)
+test_dj_control_endpoints() {
+    print_header "Testing DJ Control Endpoints"
+    
+    print_info "Note: DJ control endpoints require admin authentication"
+    
+    # Test metadata endpoint (available to authenticated users)
+    test_api_endpoint "/dj/metadata" \
+        "DJ metadata endpoint" \
+        "metadata"
+    
+    # Test queue status endpoint
+    test_api_endpoint "/dj/queue-status" \
+        "DJ queue status endpoint" \
+        "queue"
+    
+    # Test skip track endpoint (requires admin)
+    run_test "DJ skip track endpoint"
+    local skip_response=$(curl -s -X POST "${API_BASE}/dj/skip")
+    if echo "$skip_response" | grep -q "status"; then
+        print_pass "DJ skip track endpoint responds"
+    else
+        print_fail "DJ skip track endpoint not responding"
+    fi
+    
+    # Test reload playlist endpoint (requires admin)
+    run_test "DJ reload playlist endpoint"
+    local reload_response=$(curl -s -X POST "${API_BASE}/dj/reload-playlist")
+    if echo "$reload_response" | grep -q "status"; then
+        print_pass "DJ reload playlist endpoint responds"
+    else
+        print_fail "DJ reload playlist endpoint not responding"
+    fi
+    
+    # Test queue track endpoint with dynamic track ID
+    run_test "DJ queue track endpoint"
+    
+    # Fetch a random track ID from the database
+    local track_response=$(curl -s "${API_BASE}/tracks?page=1&per-page=1")
+    
+    # Extract track ID using grep (works without jq)
+    local track_id=$(echo "$track_response" | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*')
+    
+    if [ -n "$track_id" ]; then
+        print_info "Using track ID: $track_id for queue test"
+        local queue_response=$(curl -s -X POST "${API_BASE}/dj/queue?track-id=${track_id}")
+        
+        if echo "$queue_response" | grep -q "queued successfully\|Track not found"; then
+            print_pass "DJ queue track endpoint responds (track ID: $track_id)"
+        else
+            print_fail "DJ queue track endpoint not responding properly"
+            if [ $VERBOSE -eq 1 ]; then
+                echo "Response: $queue_response"
+            fi
+        fi
+    else
+        print_info "No tracks available in database, skipping queue test"
+    fi
+}
+
 # Test Page Endpoints (HTML pages)
 test_page_endpoints() {
     print_header "Testing HTML Page Endpoints"
@@ -278,21 +350,42 @@ test_api_format() {
 print_summary() {
     print_header "Test Summary"
     
+    local summary="Tests Run:    $TESTS_RUN\nTests Passed: $TESTS_PASSED\nTests Failed: $TESTS_FAILED"
+    
     echo "Tests Run:    $TESTS_RUN"
     echo -e "Tests Passed: ${GREEN}$TESTS_PASSED${NC}"
     echo -e "Tests Failed: ${RED}$TESTS_FAILED${NC}"
+    log_to_file "$summary"
     
     if [ $TESTS_FAILED -eq 0 ]; then
         echo -e "\n${GREEN}✓ All tests passed!${NC}\n"
+        log_to_file "\n✓ All tests passed!\n"
+        echo -e "${BLUE}Log file saved to: ${LOG_FILE}${NC}\n"
         exit 0
     else
         echo -e "\n${RED}✗ Some tests failed${NC}\n"
+        log_to_file "\n✗ Some tests failed\n"
+        echo -e "${BLUE}Log file saved to: ${LOG_FILE}${NC}\n"
         exit 1
     fi
 }
 
 # Main test execution
 main() {
+    # Initialize log file with header
+    cat > "$LOG_FILE" << EOF
+╔═══════════════════════════════════════════════════════════════╗
+║           Asteroid Radio Server Test Suite                    ║
+║                    Test Results Log                           ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Test Run Date: $(date '+%Y-%m-%d %H:%M:%S')
+Server URL: ${BASE_URL}
+API Base: ${API_BASE}
+Verbose Mode: ${VERBOSE}
+
+EOF
+    
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════╗"
     echo "║  Asteroid Radio Server Test Suite    ║"
@@ -301,6 +394,7 @@ main() {
     
     print_info "Testing server at: ${BASE_URL}"
     print_info "Verbose mode: ${VERBOSE}"
+    print_info "Log file: ${LOG_FILE}"
     echo ""
     
     # Run all test suites
@@ -310,6 +404,7 @@ main() {
     test_track_endpoints
     test_player_endpoints
     test_playlist_endpoints
+    test_dj_control_endpoints
     test_admin_endpoints
     test_page_endpoints
     test_static_files

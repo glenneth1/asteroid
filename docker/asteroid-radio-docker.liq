@@ -14,13 +14,20 @@ settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
 settings.server.telnet.bind_addr.set("0.0.0.0")
 
+# Create request queue for dynamic track queuing
+queue = request.queue(id="queue")
+
 # Create playlist source from mounted music directory
 # Use playlist.safe which starts playing immediately without full scan
-radio = playlist.safe(
+playlist_source = playlist.safe(
+  id="music",
   mode="randomize", 
   reload=3600,
   "/app/music/"
 )
+
+# Combine queue and playlist - queue takes priority
+radio = fallback(track_sensitive=true, [queue, playlist_source])
 
 # Add some audio processing
 radio = amplify(1.0, radio)
