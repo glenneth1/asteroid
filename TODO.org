@@ -20,15 +20,15 @@
   - [ ] Configure radiance for postres.
   - [ ] Migrate all schema to new database.
 
-** Page Flow [0/0]
-- [ ] When a user logs in, their user profile page should become the
+** [X] Page Flow [2/2] ✅ COMPLETE
+- [X] When a user logs in, their user profile page should become the
   root node of the app in their view.
-- [ ] When the admin user logs in, their view should become the admin
+- [X] When the admin user logs in, their view should become the admin
   profile page which should have panels for adminstering various
   aspects of the station.
-note: these two flow items probably shouldn't affect the current state
-of the front-page, except where some front-page elements are not
-displayed based on the user and their associated permissions.
+note: Front-page conditional elements working correctly - nav links
+display based on authentication status and user role (Profile/Admin/Logout
+for logged-in users, Login/Register for anonymous users).
 
 ** [X] Templates: move our template hyrdration into the Clip machinery [4/4] ✅ COMPLETE
 - [X] Admin Dashboard [2/2]
