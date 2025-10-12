@@ -95,7 +95,23 @@
 
 (defun verify-password (password hash)
   "Verify a password against its hash"
-  (string= (hash-password password) hash))
+  (let ((computed-hash (hash-password password)))
+    (format t "Computed hash: ~a~%" computed-hash)
+    (format t "Stored hash:   ~a~%" hash)
+    (format t "Match: ~a~%" (string= computed-hash hash))
+    (string= computed-hash hash)))
+
+(defun reset-user-password (username new-password)
+  "Reset a user's password"
+  (let ((user (find-user-by-username username)))
+    (when user
+      (let ((new-hash (hash-password new-password))
+            (user-id (gethash "_id" user)))
+        (db:update "USERS"
+                   (db:query (:= "_id" user-id))
+                   `(("password-hash" ,new-hash)))
+        (format t "Password reset for user: ~a~%" username)
+        t))))
 
 (defun user-has-role-p (user role)
   "Check if user has the specified role"
@@ -165,13 +181,10 @@
         t  ; Authorized - return T to continue
         ;; Not authorized - emit error
         (if is-api-request
-            ;; API request - emit JSON error and return the value from api-output
+            ;; API request - return NIL (caller will handle JSON error)
             (progn
-              (format t "Role check failed - returning JSON 403~%")
-              (radiance:api-output
-               '(("error" . "Forbidden"))
-               :status 403
-               :message (format nil "You must be logged in with ~a role to access this resource" role)))
+              (format t "Role check failed - authorization denied~%")
+              nil)
             ;; Page request - redirect to login (redirect doesn't return)
             (progn
               (format t "Role check failed - redirecting to login~%")

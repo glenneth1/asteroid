@@ -674,7 +674,8 @@
                    (when user
                      (let ((user-id (gethash "_id" user)))
                        (setf (session:field "user-id") (if (listp user-id) (first user-id) user-id)))))
-                 (radiance:redirect "/asteroid/"))
+                 ;; Redirect new users to their profile page
+                 (radiance:redirect "/asteroid/profile"))
                (render-template-with-plist "register"
                 :title "Asteroid Radio - Register"
                 :display-error "display: block;"
