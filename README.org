@@ -61,29 +61,76 @@ Asteroid Radio is a complete internet radio streaming platform built with Common
 asteroid/
 ├── asteroid.lisp              # Main server with RADIANCE routes
 ├── asteroid.asd               # System definition with dependencies
-├── stream-control.lisp        # Stream queue management
-├── user-management.lisp       # User administration
-├── playlist-management.lisp   # Playlist operations
-├── test-server.sh             # Automated test suite
-├── docker/                    # Docker infrastructure
-│   ├── docker-compose.yml     # Container orchestration
-│   ├── asteroid-radio-docker.liq  # Liquidsoap config
-│   ├── icecast.xml            # Icecast configuration
-│   └── music/                 # Music library mount
+├── asteroid                   # Compiled executable binary
+├── module.lisp                # RADIANCE module definition
+├── database.lisp              # Database abstraction layer
+├── auth-routes.lisp           # Authentication and authorization routes
+├── user-management.lisp       # User management system
+├── users.lisp                 # User utilities
+├── playlist-management.lisp   # Playlist creation and management
+├── stream-media.lisp          # Media streaming functionality
+├── app-utils.lisp             # Application utilities
+├── template-utils.lisp        # Template rendering utilities
+├── build-executable.lisp      # Build script for binary
+├── setup-environment.lisp     # Environment setup script
+├── asteroid-radio.liq         # Liquidsoap streaming configuration
+├── playlist.m3u               # Generated playlist for streaming
+├── Makefile                   # Build automation
 ├── template/                  # CLIP HTML templates
 │   ├── front-page.chtml       # Main page with live stream
 │   ├── admin.chtml            # Admin dashboard
 │   ├── player.chtml           # Web player interface
-│   └── users.chtml            # User management
-├── static/                    # CSS and assets
-│   └── asteroid.lass          # LASS stylesheet
-├── docs/                      # Comprehensive documentation
-│   ├── README.org             # Documentation index
-│   ├── PROJECT-OVERVIEW.org   # Architecture overview
-│   ├── PROJECT-HISTORY.org    # Development timeline
-│   ├── INSTALLATION.org       # Setup guide
-│   └── ...                    # Additional guides
-└── music/                     # Music library (local dev)
+│   ├── login.chtml            # User login page
+│   ├── register.chtml         # User registration page
+│   ├── profile.chtml          # User profile management
+│   └── users.chtml            # User management interface
+├── static/                    # CSS, JavaScript, and assets
+│   ├── asteroid.lass          # LASS stylesheet source
+│   ├── asteroid.css           # Compiled CSS
+│   └── js/                    # JavaScript modules
+│       ├── admin.js           # Admin panel functionality
+│       ├── player.js          # Audio player controls
+│       ├── front-page.js      # Front page interactions
+│       ├── auth-ui.js         # Authentication UI
+│       ├── profile.js         # Profile management
+│       └── users.js           # User management UI
+├── config/                    # Configuration files
+│   └── radiance-postgres.lisp # PostgreSQL configuration
+├── data/                      # Runtime data
+│   └── sessions/              # User session storage
+├── docs/                      # Documentation
+│   ├── README.org             # Documentation overview
+│   ├── API-ENDPOINTS.org      # API endpoint reference
+│   ├── API-REFERENCE.org      # Detailed API documentation
+│   ├── DEVELOPMENT.org        # Development guide
+│   ├── INSTALLATION.org       # Installation instructions
+│   ├── TESTING.org            # Testing documentation
+│   ├── PROJECT-OVERVIEW.org   # Project architecture overview
+│   ├── POSTGRESQL-SETUP.org   # Database setup guide
+│   ├── DOCKER-STREAMING.org   # Docker deployment guide
+│   ├── PLAYLIST-SYSTEM.org    # Playlist system documentation
+│   ├── TRACK-PAGINATION-SYSTEM.org  # Pagination documentation
+│   └── USER-MANAGEMENT-SYSTEM.org   # User system documentation
+├── docker/                    # Docker deployment
+│   ├── docker-compose.yml     # Docker Compose configuration
+│   ├── Dockerfile.liquidsoap  # Liquidsoap container
+│   ├── asteroid-radio-docker.liq  # Docker Liquidsoap config
+│   ├── icecast.xml            # Icecast configuration
+│   ├── init-db.sql            # Database initialization
+│   ├── start.sh               # Docker startup script
+│   └── stop.sh                # Docker shutdown script
+├── music/                     # Music library
+│   ├── incoming/              # Upload staging area
+│   └── library/               # Processed music files
+├── test-server.sh             # Server testing script
+├── test-user-api.sh           # User API testing script
+├── run-all-tests.sh           # Comprehensive test suite
+├── comprehensive-performance-test.sh  # Performance testing
+├── analyze-performance.py     # Performance analysis tool
+├── simple-analysis.py         # Simple analysis utilities
+├── design.org                 # Design documentation
+├── TODO.org                   # Project TODO list
+└── project-summary.org        # Project summary and status
 #+END_SRC
 
 * Quick Start
