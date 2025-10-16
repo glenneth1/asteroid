@@ -340,6 +340,186 @@ curl -X POST http://localhost:8080/api/asteroid/playlists/add-track \
 }
 #+END_SRC
 
+* Stream Queue Control Endpoints (Admin Only)
+
+** GET /api/asteroid/stream/queue
+
+Get the current stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "queue": [
+    {
+      "id": "track-id-123",
+      "title": "Track Name",
+      "artist": "Artist Name",
+      "album": "Album Name",
+      "duration": 245
+    }
+  ],
+  "queueLength": 10
+}
+#+END_SRC
+
+** POST /api/asteroid/stream/queue/add
+
+Add a track to the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =track-id= (required) - ID of the track to add
+- =position= (optional) - "end" (default) or "next"
+
+*** Example Request
+#+BEGIN_SRC bash
+# Add to end of queue
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/add \
+  -d "track-id=123" \
+  -b cookies.txt
+
+# Add as next track
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/add \
+  -d "track-id=123&position=next" \
+  -b cookies.txt
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Track added to stream queue"
+}
+#+END_SRC
+
+** POST /api/asteroid/stream/queue/remove
+
+Remove a track from the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =track-id= (required) - ID of the track to remove
+
+*** Example Request
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/remove \
+  -d "track-id=123" \
+  -b cookies.txt
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Track removed from stream queue"
+}
+#+END_SRC
+
+** POST /api/asteroid/stream/queue/clear
+
+Clear the entire stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Stream queue cleared"
+}
+#+END_SRC
+
+** POST /api/asteroid/stream/queue/add-playlist
+
+Add all tracks from a playlist to the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =playlist-id= (required) - ID of the playlist to add
+
+*** Example Request
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/add-playlist \
+  -d "playlist-id=5" \
+  -b cookies.txt
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playlist added to stream queue",
+  "tracksAdded": 15
+}
+#+END_SRC
+
+** POST /api/asteroid/stream/queue/reorder
+
+Reorder the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =track-ids= (required) - Comma-separated list of track IDs in desired order
+
+*** Example Request
+#+BEGIN_SRC bash
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/reorder \
+  -d "track-ids=123,456,789" \
+  -b cookies.txt
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Stream queue reordered"
+}
+#+END_SRC
+
+** GET /api/asteroid/stream/history
+
+Get recently played tracks from the stream.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =limit= (optional) - Number of tracks to return (default: 10)
+
+*** Example Request
+#+BEGIN_SRC bash
+curl "http://localhost:8080/api/asteroid/stream/history?limit=20" \
+  -b cookies.txt
+#+END_SRC
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "history": [
+    {
+      "id": "track-id-123",
+      "title": "Track Name",
+      "artist": "Artist Name",
+      "playedAt": "2025-10-16T10:30:00Z"
+    }
+  ]
+}
+#+END_SRC
+
 * Admin Endpoints
 
 ** POST /api/asteroid/admin/scan-library

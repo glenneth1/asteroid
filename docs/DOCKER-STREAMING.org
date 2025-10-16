@@ -6,6 +6,13 @@
 
 This guide covers the complete Docker-based streaming setup for Asteroid Radio using Icecast2 and Liquidsoap containers. This approach provides a containerized, portable streaming infrastructure that's easy to deploy and maintain.
 
+** Key Features
+- Stream queue control system for curated playlists
+- ReplayGain audio processing for consistent volume
+- Automatic fallback to random playback
+- Multi-format streaming (AAC, MP3 high/low)
+- Telnet control interface for live DJ operations
+
 * Architecture
 
 ** Container Stack
@@ -17,6 +24,12 @@ This guide covers the complete Docker-based streaming setup for Asteroid Radio u
 - *High Quality MP3*: 128kbps MP3 stream at /asteroid.mp3
 - *High Quality AAC*: 96kbps AAC stream at /asteroid.aac (better efficiency than MP3)
 - *Low Quality MP3*: 64kbps MP3 stream at /asteroid-low.mp3 (compatibility)
+
+** Audio Processing
+- *ReplayGain*: Consistent volume without pumping artifacts
+- *Crossfading*: Smooth 5-second transitions between tracks
+- *Compression*: Dynamic compression to prevent clipping
+- *Fallback*: Emergency sine wave if all sources fail
 
 ** Network Configuration
 - *Icecast2*: Port 8000 (streaming and admin)
@@ -87,6 +100,7 @@ services:
     volumes:
       - ./music:/app/music:ro
       - ./asteroid-radio-docker.liq:/app/asteroid-radio.liq:ro
+      - ../stream-queue.m3u:/app/stream-queue.m3u:ro  # Stream queue control
     restart: unless-stopped
     networks:
       - asteroid-network
@@ -208,20 +222,42 @@ settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
 settings.server.telnet.bind_addr.set("0.0.0.0")
 
-# Create playlist source from mounted music directory
+# Create playlist source from managed stream queue
 radio = playlist(
-  mode="randomize", 
-  reload=3600, 
-  reload_mode="watch",
+  mode="normal",  # Play in order (not randomized)
+  reload=5,       # Check for playlist updates every 5 seconds
+  reload_mode="watch",  # Watch file for changes
+  "/app/stream-queue.m3u"
+)
+
+# Fallback to directory scan if queue is empty
+radio_fallback = playlist.safe(
+  mode="randomize",
+  reload=3600,
   "/app/music/"
 )
 
-# Add some audio processing
-radio = amplify(1.0, radio)
-radio = normalize(radio)
+radio = fallback(track_sensitive=false, [radio, radio_fallback])
 
-# Add crossfade between tracks
-radio = crossfade(radio)
+# Use ReplayGain for consistent volume without pumping
+radio = amplify(1.0, override="replaygain", radio)
+
+# Add smooth crossfade between tracks (5 seconds)
+radio = crossfade(
+  duration=5.0,
+  fade_in=3.0,
+  fade_out=3.0,
+  radio
+)
+
+# Add compressor to prevent clipping
+radio = compress(
+  ratio=3.0,
+  threshold=-15.0,
+  attack=50.0,
+  release=400.0,
+  radio
+)
 
 # Create a fallback with emergency content
 emergency = sine(440.0)
@@ -436,6 +472,36 @@ echo "--- Liquidsoap ---"
 docker compose logs --tail=10 liquidsoap
 
 #+END_SRC
+
+* Stream Queue Control
+
+** Overview
+The Docker setup integrates with Asteroid's stream queue control system, allowing you to curate exactly what plays on the broadcast stream.
+
+** How It Works
+1. Asteroid web app manages =stream-queue.m3u= file in the project root
+2. File is mounted into Liquidsoap container at =/app/stream-queue.m3u=
+3. Liquidsoap watches the file and reloads every 5 seconds
+4. When queue is empty, falls back to random playback from music directory
+
+** Managing the Queue
+Use the Asteroid web API or admin interface to control the stream queue:
+
+#+BEGIN_SRC bash
+# Add track to queue (requires admin authentication)
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/add \
+  -d "track-id=42" \
+  -b cookies.txt
+
+# View current queue
+curl http://localhost:8080/api/asteroid/stream/queue -b cookies.txt
+
+# Clear queue (falls back to random)
+curl -X POST http://localhost:8080/api/asteroid/stream/queue/clear \
+  -b cookies.txt
+#+END_SRC
+
+See =docs/STREAM-CONTROL.org= for complete queue management documentation.
 
 * Volume Management
 
