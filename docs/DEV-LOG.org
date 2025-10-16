@@ -1,0 +1,639 @@
+#+TITLE: Asteroid Radio - Development Log
+#+AUTHOR: Glenn Thompson & Brian O'Reilly (Fade)
+#+DATE: 2024-09-11 to 2025-10-16
+
+* Introduction
+
+This document chronicles the complete development history of Asteroid Radio, from initial concept to a fully-featured internet radio streaming platform. The project evolved from a simple design document into a sophisticated Common Lisp web application with professional streaming infrastructure.
+
+** Project Vision
+
+Asteroid Radio is designed to be the premier streaming platform for "Asteroid Music" - the perfect soundtrack for developers, hackers, and anyone who spends hours deep in code. The mission is to curate and deliver music that enhances focus, creativity, and the flow state.
+
+** Key Contributors
+
+- *Glenn Thompson (glenneth)* - Core development, API architecture, user management, testing
+- *Brian O'Reilly (Fade)* - Project lead, infrastructure, CLIP templating, system architecture
+- *Luis Pereira (easilok)* - Frontend development, UI/UX improvements, styling
+
+* Phase 1: Project Foundation (September 2024)
+
+** 2024-09-11: Initial Commit
+- Project skeleton created
+- Basic repository structure established
+- Initial .gitignore configuration
+
+** 2024-09-11: Design Document
+- Added comprehensive design document (design.org)
+- Defined project goals and architecture
+- Outlined feature roadmap for internet radio station
+- Established technical requirements
+
+** 2024-09-11: Hunchentoot Implementation
+- Implemented initial web server using Hunchentoot
+- Basic HTTP server functionality
+- Foundation for web interface
+
+* Phase 2: RADIANCE Migration (September 2024)
+
+** 2024-09-11: Framework Migration
+- Migrated from Hunchentoot to RADIANCE web framework
+- Reorganized system around Radiance build conventions
+- Established proper module structure
+- Set up template directory structure
+
+** 2024-09-11: LASS CSS System
+- Implemented LASS for dynamic CSS generation
+- Fixed LASS compilation issues
+- Enabled programmatic stylesheet generation
+- Established dark hacker theme aesthetic
+
+** 2024-09-11: Build System
+- Created build-executable.lisp for deployment
+- Configured custom SBCL paths
+- Set up Makefile for build automation
+- Removed build artifacts from version control
+
+* Phase 3: CLIP Templating (September 2024)
+
+** 2024-09-11: Template System
+- Began CLIP templating implementation
+- Created initial template structure
+- Established template conventions
+- Set up dynamic content rendering
+
+** 2024-09-11: Complete Template Migration
+- Completed CLIP template refactoring
+- Migrated all pages to CLIP system
+- Implemented template inheritance
+- Established consistent page structure
+
+* Phase 4: Database Integration (September-October 2024)
+
+** 2024-09-11: RADIANCE Database
+- Implemented RADIANCE database integration
+- Set up database abstraction layer
+- Created track storage schema
+- Established query patterns
+
+** 2024-09-11: Metadata Extraction
+- Implemented complete metadata extraction
+- Added taglib integration for audio files
+- Extracted title, artist, album, duration, bitrate
+- Automated metadata processing pipeline
+
+** 2024-09-11: Internet Radio System
+- Implemented complete internet radio streaming system
+- Integrated Icecast2 streaming server
+- Set up Liquidsoap audio pipeline
+- Established continuous broadcasting
+
+** 2024-10-01: Database Refactoring
+- Refactored database features into discrete files
+- Improved code organization
+- Separated concerns for maintainability
+- Created modular file structure
+
+* Phase 5: User Management System (October 2024)
+
+** 2024-10-01: User System Foundation
+- Added user management dependencies
+- Created users.lisp module
+- Implemented user profile system
+- Set up authentication framework
+
+** 2024-10-01: Authentication System
+- Fixed Asteroid Radio authentication system
+- Implemented secure password hashing
+- Created session management
+- Added login/logout functionality
+
+** 2024-10-01: User Management API
+- Fixed user management API authentication
+- Implemented proper data formatting
+- Created user administration endpoints
+- Added role-based access control
+
+** 2024-10-01: Recursive Music Scanning
+- Implemented recursive directory scanning
+- Added implicit depth-2 music discovery
+- Improved library management
+- Automated music file detection
+
+* Phase 6: Docker Infrastructure (October 2024)
+
+** 2024-10-02: Docker Streaming
+- Added Docker streaming infrastructure
+- Created Liquidsoap container configuration
+- Set up Icecast2 container
+- Established container networking
+
+** 2024-10-02: Docker Integration
+- Completed Docker streaming infrastructure
+- Fixed user management integration
+- Created docker-compose.yml
+- Established volume mounts
+
+** 2024-10-02: Web Interface Integration
+- Completed Docker streaming integration with web interface
+- Connected frontend to streaming backend
+- Implemented status monitoring
+- Added stream metadata display
+
+** 2024-10-02: Docker Compose V2
+- Fixed Docker Compose V2 compatibility
+- Updated start/stop scripts
+- Modernized container orchestration
+- Improved deployment process
+
+* Phase 7: AAC Streaming (October 2024)
+
+** 2024-10-02: AAC Support
+- Added AAC streaming support
+- Implemented quality selector
+- Created multiple stream formats
+- Improved audio efficiency
+
+** 2024-10-02: Icecast Configuration
+- Added Icecast mount configurations for all streams
+- Configured MP3 128kbps stream
+- Configured AAC 96kbps stream
+- Configured MP3 64kbps low-bandwidth stream
+
+** 2024-10-02: Stream Metadata
+- Restored live stream metadata display
+- Fixed metadata extraction from Icecast
+- Implemented real-time track info
+- Added "now playing" functionality
+
+** 2024-10-02: Documentation
+- Converted AAC-STREAMING.md to org-mode format
+- Updated streaming documentation
+- Added multi-format stream guides
+- Documented quality options
+
+* Phase 8: Docker Refinement (October 2024)
+
+** 2024-10-02: Docker Configuration
+- Updated Docker configuration for improved streaming
+- Optimized container settings
+- Improved volume management
+- Enhanced networking setup
+
+** 2024-10-02: Utility Scripts
+- Restored Docker utility scripts per Fade's request
+- Created start-streaming.sh
+- Created stop-streaming.sh
+- Added test-streaming.sh
+
+** 2024-10-02: Gitignore Updates
+- Added shell script exclusion to gitignore
+- Cleaned up version control
+- Removed build artifacts
+- Improved repository hygiene
+
+* Phase 9: UI Improvements (October 2024)
+
+** 2024-10-03: Color Scheme
+- Updated color scheme from green to blue theme
+- Implemented consistent color palette
+- Improved visual hierarchy
+- Enhanced dark theme aesthetics
+
+** 2024-10-03: Template Features
+- Completed Templates section
+- Implemented CLIP refactoring
+- Added user management templates
+- Created pagination templates
+- Built playlist templates
+- Fixed UI issues
+- Documented PostgreSQL setup
+
+** 2024-10-03: Status Monitoring
+- Added auto-scan on startup
+- Implemented live Icecast status checks
+- Added live Liquidsoap status checks
+- Created admin dashboard monitoring
+
+* Phase 10: JavaScript Modularization (October 2024)
+
+** 2024-10-04: Code Organization
+- Moved admin JavaScript code to own file (admin.js)
+- Moved frontpage JavaScript to own file
+- Moved player JavaScript to own file (player.js)
+- Moved users JavaScript to own file
+- Improved code maintainability
+
+** 2024-10-04: User Management Page
+- Added user management page
+- Created admin interface for users
+- Implemented user listing
+- Added role management UI
+
+* Phase 11: Styling Improvements (October 2024)
+
+** 2024-10-05: LASS Fixes
+- Fixed: Move font import to LASS file
+- Fixed: LASS rules moved up one level
+- Fixed: Pseudo selectors now working in LASS
+- Improved CSS compilation
+
+** 2024-10-05: Live Player Styling
+- Fixed sizing of live player
+- Improved player responsiveness
+- Enhanced player controls
+- Better mobile layout
+
+** 2024-10-05: Navigation Styling
+- Used nav styles on front page
+- Implemented consistent navigation
+- Improved menu appearance
+- Enhanced user experience
+
+* Phase 12: Playlist System (October 2024)
+
+** 2024-10-04: Schema Fix
+- Fixed playlist schema mismatch
+- Used track-ids field consistently
+- Resolved data structure issues
+- Improved playlist reliability
+
+* Phase 13: User Profiles (October 2024)
+
+** 2024-10-06: Profile Pages
+- Added user profile page with CLIP template styling
+- Implemented profile edit functionality
+- Updated profile page to match site-wide layout
+- Created consistent styling
+
+** 2024-10-06: Authentication UI
+- Added user registration UI improvements
+- Enhanced authentication interface
+- Fixed auth form styling (wider 600px forms)
+- Hidden message boxes for cleaner UI
+
+* Phase 14: API Architecture (October 2024)
+
+** 2024-10-07: API-Aware Authentication
+- WIP: Added API-aware authentication
+- Implemented detection for API routes
+- Fixed execution flow issues
+- Completed API-aware authentication returning JSON
+
+** 2024-10-07: API Output Refactoring
+- Fixed api-output usage
+- Passed structured data with :status and :message
+- Standardized API responses
+- Improved error handling
+
+* Phase 15: API Refactoring (October 2024)
+
+** 2024-10-08: Define-API Migration
+- Refactored API endpoints to use Radiance's define-api macro
+- Modernized API architecture
+- Improved endpoint consistency
+- Better integration with Radiance framework
+
+** 2024-10-08: Frontend Integration
+- Fixed frontend JavaScript to work with define-api endpoints
+- Updated AJAX calls
+- Improved error handling
+- Enhanced user feedback
+
+** 2024-10-08: Automated Testing
+- Added comprehensive automated test suite
+- Created test-server.sh
+- Implemented API endpoint testing
+- Added integration tests
+
+* Phase 16: Telnet Controls (October 2024)
+
+** 2024-10-08: Liquidsoap DJ Controls
+- Added Liquidsoap DJ controls via telnet integration
+- Implemented remote control interface
+- Created telnet command system
+- Enabled live stream manipulation
+
+* Phase 17: Merge Conflicts and Integration (October 2024)
+
+** 2024-10-09: Track-IDs Integration
+- Resolved merge conflict
+- Integrated track-ids fix with api-output refactoring
+- Maintained data consistency
+- Preserved both feature sets
+
+* Phase 18: Navigation Improvements (October 2024)
+
+** 2024-10-09: Navbar Enhancement
+- Improved navbar in all pages
+- Enhanced nav styling
+- Created consistent navigation experience
+- Better responsive behavior
+
+* Phase 19: Documentation Updates (October 2024)
+
+** 2024-10-10: API Documentation
+- Updated documentation authors to Asteroid Radio Development Team
+- Documentation cleanup: removed outdated files
+- Added API docs
+- Updated core documentation
+- Created API-REFERENCE.org
+- Created API-ENDPOINTS.org
+
+** 2024-10-10: Testing Documentation
+- Updated TESTING.org
+- Documented test suite
+- Added testing examples
+- Improved test coverage documentation
+
+** 2024-10-10: Template Variables
+- Made stream base URL variable in templates
+- Improved configuration flexibility
+- Better environment handling
+
+* Phase 20: System Configuration (October 2024)
+
+** 2024-10-11: Parallel Processing
+- Added dependency to run music scan in parallel
+- Improved performance
+- Faster library scanning
+- Better resource utilization
+
+** 2024-10-11: TODO Updates
+- Updated TODO with UI items
+- Tracked remaining work
+- Prioritized features
+
+** 2024-10-12: Configuration Documentation
+- Added file for notes on application configuration
+- Documented IRC log of Shinmera chat
+- Preserved configuration discussions
+- Improved setup documentation
+
+** 2024-10-12: Code Documentation
+- Added documentation string in scan-directory-for-music-recursively
+- Improved code readability
+- Better function documentation
+
+* Phase 21: Page Flow System (October 2024)
+
+** 2024-10-12: Role-Based Flow
+- Implemented role-based page flow
+- Created user management APIs
+- Added admin/user routing
+- Improved user experience
+
+** 2024-10-12: UI Fixes
+- Completed UI fixes for page flow feature
+- Fixed navigation issues
+- Improved page transitions
+- Enhanced user feedback
+
+** 2024-10-12: Documentation
+- Marked Page Flow feature as complete in TODO
+- Added session notes for page flow implementation
+- Documented implementation details
+
+** 2024-10-12: README Update
+- Updated README.org file structure
+- Reflected current project state
+- Improved documentation accuracy
+
+* Phase 22: Stream Queue Control (October 2025)
+
+** 2025-10-14: Queue System Foundation
+- Added stream queue control system
+- Implemented in-memory queue management
+- Created stream-queue.m3u generation
+- Integrated with Liquidsoap
+
+** 2025-10-14: Admin UI
+- Added admin UI for stream queue management
+- Created queue control interface
+- Implemented drag-and-drop (planned)
+- Added queue visualization
+
+** 2025-10-14: Audio Quality Improvements
+- Improved audio quality and streaming performance
+- Replaced normalize() with ReplayGain
+- Added crossfading (5 seconds)
+- Implemented dynamic compression
+- Eliminated volume pumping issues
+
+** 2025-10-14: Player Improvements
+- Improved player UI
+- Reduced buffering
+- Enhanced playback controls
+- Better user experience
+
+* Phase 23: UI Polish (October 2025)
+
+** 2025-10-14: Browser Compatibility
+- Fixed scrollbars only visible when required on Chrome browsers
+- Improved cross-browser compatibility
+- Better CSS handling
+
+** 2025-10-14: Responsive Design
+- Fixed playlist create button wrap on small screens
+- Improved mobile experience
+- Enhanced responsive layout
+
+** 2025-10-14: Icecast Integration
+- Fixed: avoid Icecast XML shown on frontend when there is no artist
+- Improved error handling
+- Better metadata display
+
+* Phase 24: Documentation Overhaul (October 2025)
+
+** 2025-10-16: Comprehensive Update
+- Comprehensive documentation update for current features
+- Updated README.org with all current capabilities
+- Documented stream queue control system
+- Added ReplayGain documentation
+- Updated multi-format streaming docs
+- Documented user management system
+- Complete API endpoint reference
+- Updated database schema documentation
+
+** 2025-10-16: API Documentation
+- Added complete stream queue control API section
+- Documented all 7 stream queue endpoints
+- Added authentication requirements
+- Included request/response examples
+
+** 2025-10-16: Docker Documentation
+- Updated Liquidsoap config documentation
+- Documented stream queue integration
+- Added queue management examples
+- Updated audio processing details
+
+** 2025-10-16: Project Overview
+- Updated PROJECT-OVERVIEW with stream queue
+- Added ReplayGain mentions
+- Updated feature list
+- Refreshed project vision
+
+* Technical Milestones
+
+** Architecture Evolution
+1. *Hunchentoot* → *RADIANCE* (Major framework migration)
+2. *Simple HTML* → *CLIP Templates* (Dynamic templating)
+3. *File-based* → *PostgreSQL Database* (Persistent storage)
+4. *Single stream* → *Multi-format streaming* (AAC, MP3 high/low)
+5. *Random playback* → *Queue control* (Curated broadcasting)
+
+** Audio Processing Evolution
+1. *Basic amplify* → *Normalize* → *ReplayGain* (Volume consistency)
+2. *No crossfade* → *5-second crossfade* (Smooth transitions)
+3. *No compression* → *Dynamic compression* (Clipping prevention)
+
+** API Evolution
+1. *Custom routes* → *define-api macro* (Standardization)
+2. *Mixed responses* → *JSON API* (Consistent format)
+3. *No auth* → *Session-based auth* (Security)
+4. *Basic endpoints* → *20+ endpoints* (Comprehensive API)
+
+** Infrastructure Evolution
+1. *Native installation* → *Docker containers* (Easy deployment)
+2. *Single Icecast* → *Icecast + Liquidsoap* (Professional streaming)
+3. *No telnet* → *Telnet control* (Live DJ operations)
+
+* Feature Summary
+
+** Core Features Implemented
+- ✅ User authentication and registration
+- ✅ Role-based access control (admin/user)
+- ✅ Music library management with metadata
+- ✅ User playlists (create, edit, delete)
+- ✅ Stream queue control (admin only)
+- ✅ Multi-format streaming (AAC 96k, MP3 128k/64k)
+- ✅ ReplayGain audio processing
+- ✅ Crossfading and compression
+- ✅ Web player with controls
+- ✅ Live stream metadata display
+- ✅ Admin dashboard
+- ✅ REST API (20+ endpoints)
+- ✅ Automated testing suite
+- ✅ Docker deployment
+- ✅ Telnet DJ controls
+- ✅ PostgreSQL database
+- ✅ Responsive design
+- ✅ Dark hacker theme
+
+** Planned Features
+- 🔄 WebSocket real-time updates
+- 🔄 Drag-and-drop queue management
+- 🔄 Social features (playlist sharing)
+- 🔄 Advanced search and filtering
+- 🔄 Listener statistics
+- 🔄 Mobile native apps
+- 🔄 Scheduled programming
+- 🔄 Auto-queue filling
+- 🔄 Genre-based smart queues
+
+* Development Statistics
+
+** Commit Count by Phase
+- Phase 1-2 (Foundation): ~15 commits
+- Phase 3-4 (Templates/DB): ~10 commits
+- Phase 5-6 (Users/Docker): ~20 commits
+- Phase 7-9 (Streaming): ~15 commits
+- Phase 10-14 (UI/Profiles): ~25 commits
+- Phase 15-17 (API): ~15 commits
+- Phase 18-21 (Polish): ~20 commits
+- Phase 22-24 (Queue/Docs): ~10 commits
+
+** Key Contributors Statistics
+- Glenn Thompson: ~70 commits (Core development, API, testing)
+- Brian O'Reilly: ~40 commits (Infrastructure, architecture)
+- Luis Pereira: ~20 commits (Frontend, UI/UX)
+
+** Technology Stack
+- *Language*: Common Lisp (SBCL)
+- *Framework*: RADIANCE
+- *Database*: PostgreSQL
+- *Templating*: CLIP
+- *CSS*: LASS
+- *Streaming*: Icecast2 + Liquidsoap
+- *Containers*: Docker + Docker Compose
+- *Audio*: ReplayGain, crossfade, compression
+
+* Lessons Learned
+
+** Framework Migration
+The migration from Hunchentoot to RADIANCE was challenging but worthwhile. RADIANCE's module system and database abstraction provided better structure for a growing application.
+
+** Audio Processing
+The evolution from normalize() to ReplayGain solved the volume pumping issue. ReplayGain uses track metadata for consistent volume without dynamic compression artifacts.
+
+** API Design
+Migrating to Radiance's define-api macro standardized our API and improved maintainability. Consistent JSON responses made frontend integration much easier.
+
+** Docker Deployment
+Containerizing the streaming infrastructure simplified deployment and made the system more portable. The separation of concerns between web app and streaming services improved reliability.
+
+** Testing
+Adding automated tests early would have caught integration issues faster. The comprehensive test suite added in Phase 15 significantly improved code quality.
+
+* Future Directions
+
+** Short Term (Next 3 Months)
+- WebSocket integration for real-time updates
+- Drag-and-drop queue management UI
+- Telnet integration from web interface
+- Listener statistics dashboard
+
+** Medium Term (6-12 Months)
+- Social features (playlist sharing, discovery)
+- Advanced search with full-text indexing
+- Mobile native applications
+- Scheduled programming system
+
+** Long Term (12+ Months)
+- Multi-station support
+- Federation with other Asteroid Radio instances
+- Machine learning for music recommendations
+- Live DJ streaming capabilities
+
+* Conclusion
+
+Asteroid Radio has evolved from a simple design document into a sophisticated internet radio platform. The journey from Hunchentoot to RADIANCE, from file-based storage to PostgreSQL, from single-stream to multi-format broadcasting, and from random playback to curated queue control demonstrates the power of iterative development and continuous improvement.
+
+The project successfully combines the elegance of Common Lisp with modern web technologies, creating a platform that's both technically impressive and user-friendly. The dark hacker aesthetic, professional audio processing, and comprehensive API make Asteroid Radio a unique contribution to the internet radio landscape.
+
+Most importantly, Asteroid Radio achieves its core mission: providing the perfect soundtrack for developers, hackers, and anyone who spends hours deep in code.
+
+* Appendix: Key Files
+
+** Core Application
+- =asteroid.lisp= - Main application with RADIANCE routes
+- =asteroid.asd= - System definition
+- =stream-control.lisp= - Queue management
+- =stream-media.lisp= - Media streaming
+- =user-management.lisp= - User authentication
+- =playlist-management.lisp= - Playlist operations
+- =auth-routes.lisp= - Authentication endpoints
+
+** Configuration
+- =docker/docker-compose.yml= - Container orchestration
+- =docker/asteroid-radio-docker.liq= - Liquidsoap configuration
+- =docker/icecast.xml= - Icecast server config
+
+** Frontend
+- =static/asteroid.lass= - Stylesheet source
+- =static/js/admin.js= - Admin interface (289 lines)
+- =static/js/player.js= - Web player
+- =template/*.chtml= - CLIP templates
+
+** Documentation
+- =README.org= - Project overview
+- =docs/STREAM-CONTROL.org= - Queue management guide
+- =docs/API-ENDPOINTS.org= - Complete API reference
+- =docs/DOCKER-STREAMING.org= - Streaming setup
+- =docs/DEV-LOG.org= - This document
+
+---
+
+*End of Development Log*
+
+Last Updated: 2025-10-16
