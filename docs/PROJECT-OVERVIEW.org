@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Project Overview
 #+AUTHOR: Glenn Thompson & Brian O'Reilly (Fade)
-#+DATE: 2025-10-03
+#+DATE: 2025-10-16
 
 * 🎯 Mission
 
@@ -79,9 +79,11 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 - ✅ **User Management** - Admin interface for user administration
 - ✅ **Music Library** - Track management with pagination and search
 - ✅ **User Playlists** - Create, manage, and play personal music collections
+- ✅ **Stream Queue Control** - Curated broadcast queue with admin controls
 - ✅ **Web Player** - Browser-based player with queue management
-- ✅ **REST API** - Comprehensive JSON API with 15+ endpoints
-- ✅ **Music Streaming** - Multiple quality formats (MP3, AAC)
+- ✅ **REST API** - Comprehensive JSON API with 20+ endpoints
+- ✅ **Multi-Format Streaming** - AAC 96kbps, MP3 128kbps/64kbps
+- ✅ **ReplayGain Processing** - Consistent volume without pumping
 - ✅ **Rate Limiting** - Anti-abuse protection
 - ✅ **Docker Integration** - Icecast2/Liquidsoap streaming infrastructure
 - ✅ **PostgreSQL Database** - Persistent data storage
@@ -109,9 +111,10 @@ Asteroid Radio is the premier streaming platform for **Asteroid Music** - the pe
 
 **Platform Features:**
 - **Multi-Format Streaming** - High-quality AAC, MP3 128k, and MP3 64k streams
+- **Stream Queue Control** - Curate exactly what plays on the broadcast
 - **User Community** - Accounts, playlists, and sharing among fellow developers
 - **Developer-Friendly** - Built with Common Lisp, fully hackable and extensible
-- **Professional Quality** - Crossfading, normalization, metadata, and telnet control
+- **Professional Quality** - ReplayGain, crossfading, compression, metadata, and telnet control
 - **Always-On Broadcasting** - Continuous streams perfect for long coding sessions
 
 Asteroid Radio isn't just another music platform - it's the soundtrack to the hacker lifestyle, designed by hackers for hackers who understand that the right music can make the difference between good code and great code.
