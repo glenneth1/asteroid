@@ -561,35 +561,25 @@ function displayQueueSearchResults(results) {
 // Live stream info update
 async function updateLiveStreamInfo() {
     try {
-        const response = await fetch('/api/asteroid/icecast-status');
-        if (!response.ok) {
+        const response = await fetch('/api/asteroid/partial/now-playing-inline');
+        const contentType = response.headers.get("content-type");
+        
+        if (!contentType.includes('text/plain')) {
+            console.error('Unexpected content type:', contentType);
             return;
         }
         
-        const result = await response.json();
+        const nowPlayingText = await response.text();
+        const nowPlayingEl = document.getElementById('live-now-playing');
         
-        // Handle Radiance API response format
-        const data = result.data || result;
-        
-        // Sources are nested in icestats
-        const sources = data.icestats?.source;
-        
-        if (sources) {
-            const mainStream = Array.isArray(sources) 
-                ? sources.find(s => s.listenurl?.includes('/asteroid.aac') || s.listenurl?.includes('/asteroid.mp3'))
-                : sources;
-            
-            if (mainStream && mainStream.title) {
-                const nowPlayingEl = document.getElementById('live-now-playing');
-                if (nowPlayingEl) {
-                    const parts = mainStream.title.split(' - ');
-                    const artist = parts[0] || 'Unknown';
-                    const track = parts.slice(1).join(' - ') || 'Unknown';
-                    nowPlayingEl.textContent = `${artist} - ${track}`;
-                }
-            }
+        if (nowPlayingEl) {
+            nowPlayingEl.textContent = nowPlayingText;
         }
     } catch (error) {
         console.error('Could not fetch stream info:', error);
+        const nowPlayingEl = document.getElementById('live-now-playing');
+        if (nowPlayingEl) {
+            nowPlayingEl.textContent = 'Error loading stream info';
+        }
     }
 }
