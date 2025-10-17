@@ -53,3 +53,18 @@
       (api-output `(("status" . "error")
                     ("message" . ,(format nil "Error loading profile: ~a" e)))
                   :status 500))))
+
+(define-api asteroid/partial/now-playing-inline () ()
+  "Get inline text with now playing info (for admin dashboard and widgets)"
+  (handler-case
+    (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+      (if now-playing-stats
+          (progn
+            (setf (header "Content-Type") "text/plain")
+            (cdr (assoc :title now-playing-stats)))
+          (progn
+            (setf (header "Content-Type") "text/plain")
+            "Stream Offline")))
+    (error (e)
+      (setf (header "Content-Type") "text/plain")
+      "Error loading stream info")))
