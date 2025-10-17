@@ -185,6 +185,7 @@ async function scanLibrary() {
 
 // Filter tracks based on search
 function filterTracks() {
+    const query = document.getElementById('track-search').value.toLowerCase();
     const filtered = tracks.filter(track => 
         (track.title || '').toLowerCase().includes(query) ||
         (track.artist || '').toLowerCase().includes(query) ||
