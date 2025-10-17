@@ -523,10 +523,9 @@ Asteroid Radio is designed to be the premier streaming platform for "Asteroid Mu
 ** Planned Features
 - 🔄 WebSocket real-time updates
 - 🔄 Drag-and-drop queue management
-- 🔄 Social features (playlist sharing)
+- 🔄 Social features (playlist sharing)??
 - 🔄 Advanced search and filtering
 - 🔄 Listener statistics
-- 🔄 Mobile native apps
 - 🔄 Scheduled programming
 - 🔄 Auto-queue filling
 - 🔄 Genre-based smart queues
@@ -577,7 +576,7 @@ Adding automated tests early would have caught integration issues faster. The co
 
 * Future Directions
 
-** Short Term (Next 3 Months)
+** Short Term (Next 3 Months?)
 - WebSocket integration for real-time updates
 - Drag-and-drop queue management UI
 - Telnet integration from web interface
