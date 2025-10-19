@@ -9,6 +9,11 @@ set("init.allow_root", true)
 # Set log level for debugging
 log.level.set(4)
 
+# Audio buffering settings to prevent choppiness
+settings.frame.audio.samplerate.set(44100)
+settings.frame.audio.channels.set(2)
+settings.audio.converter.samplerate.libsamplerate.quality.set("best")
+
 # Enable telnet server for remote control
 settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
@@ -19,8 +24,8 @@ settings.server.telnet.bind_addr.set("0.0.0.0")
 # Falls back to directory scan if playlist file doesn't exist
 radio = playlist(
   mode="normal",  # Play in order (not randomized)
-  reload=5,       # Check for playlist updates every 5 seconds
-  reload_mode="watch",  # Watch file for changes
+  reload=30,      # Check for playlist updates every 30 seconds
+  reload_mode="seconds",  # Reload every N seconds (prevents running out of tracks)
   "/app/stream-queue.m3u"
 )
 
@@ -34,24 +39,11 @@ radio_fallback = playlist.safe(
 # Use main playlist, fall back to directory scan
 radio = fallback(track_sensitive=false, [radio, radio_fallback])
 
-# Add some audio processing
-# Use ReplayGain for consistent volume without pumping
-radio = amplify(1.0, override="replaygain", radio)
-
-# Add smooth crossfade between tracks (5 seconds)
+# Simple crossfade for smooth transitions
 radio = crossfade(
-  duration=5.0,        # 5 second crossfade
-  fade_in=3.0,         # 3 second fade in
-  fade_out=3.0,        # 3 second fade out
-  radio
-)
-
-# Add a compressor to prevent clipping
-radio = compress(
-  ratio=3.0,           # Compression ratio
-  threshold=-15.0,     # Threshold in dB
-  attack=50.0,         # Attack time in ms
-  release=400.0,       # Release time in ms
+  duration=3.0,        # 3 second crossfade
+  fade_in=2.0,         # 2 second fade in
+  fade_out=2.0,        # 2 second fade out
   radio
 )
 

@@ -177,3 +177,46 @@
         (setf *stream-queue* (subseq track-ids 0 (min count (length track-ids))))
         (regenerate-stream-playlist)
         *stream-queue*))))
+
+(defun convert-from-docker-path (docker-path)
+  "Convert Docker container path back to host file path"
+  (if (and (stringp docker-path)
+           (>= (length docker-path) 11)
+           (string= docker-path "/app/music/" :end1 11))
+      (concatenate 'string 
+                   (namestring *music-library-path*)
+                   (subseq docker-path 11))
+      docker-path))
+
+(defun load-queue-from-m3u-file ()
+  "Load the stream queue from the stream-queue.m3u file"
+  (let* ((m3u-path (merge-pathnames "stream-queue.m3u" 
+                                    (asdf:system-source-directory :asteroid)))
+         (track-ids '())
+         (all-tracks (db:select "tracks" (db:query :all))))
+    
+    (when (probe-file m3u-path)
+      (with-open-file (stream m3u-path :direction :input)
+        (loop for line = (read-line stream nil)
+              while line
+              do (unless (or (string= line "")
+                           (char= (char line 0) #\#))
+                   ;; This is a file path line
+                   (let* ((docker-path (string-trim '(#\Space #\Tab #\Return #\Newline) line))
+                          (host-path (convert-from-docker-path docker-path)))
+                     ;; Find track by file path
+                     (let ((track (find-if 
+                                   (lambda (trk)
+                                     (let ((fp (gethash "file-path" trk)))
+                                       (let ((file-path (if (listp fp) (first fp) fp)))
+                                         (string= file-path host-path))))
+                                   all-tracks)))
+                       (when track
+                         (let ((id (gethash "_id" track)))
+                           (push (if (listp id) (first id) id) track-ids)))))))))
+    
+    ;; Reverse to maintain order from file
+    (setf track-ids (nreverse track-ids))
+    (setf *stream-queue* track-ids)
+    (regenerate-stream-playlist)
+    (length track-ids)))
