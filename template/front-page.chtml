@@ -33,7 +33,12 @@
       </div>
       
       <div class="live-stream">
-        <h2 style="color: #00ff00;">🟢 LIVE STREAM</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <h2 style="color: #00ff00; margin: 0;">🟢 LIVE STREAM</h2>
+          <button id="popout-btn" class="btn btn-info" onclick="openPopoutPlayer()" style="font-size: 0.9em;">
+            🗗 Pop Out Player
+          </button>
+        </div>
         
         <!-- Stream Quality Selector -->
         <div class="live-stream-quality">

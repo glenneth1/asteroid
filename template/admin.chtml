@@ -127,6 +127,7 @@
       
       <div class="queue-controls">
         <button id="refresh-queue" class="btn btn-secondary">🔄 Refresh Queue</button>
+        <button id="load-from-m3u" class="btn btn-success">📂 Load Queue from M3U</button>
         <button id="clear-queue-btn" class="btn btn-warning">🗑️ Clear Queue</button>
         <button id="add-random-tracks" class="btn btn-info">🎲 Add 10 Random Tracks</button>
       </div>

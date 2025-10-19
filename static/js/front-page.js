@@ -89,7 +89,83 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     // Update playing information right after load
     updateNowPlaying();
+
+    // Auto-reconnect on stream errors
+    const audioElement = document.getElementById('live-audio');
+    if (audioElement) {
+        audioElement.addEventListener('error', function(e) {
+            console.log('Stream error, attempting reconnect in 3 seconds...');
+            setTimeout(function() {
+                audioElement.load();
+                audioElement.play().catch(err => console.log('Reconnect failed:', err));
+            }, 3000);
+        });
+
+        audioElement.addEventListener('stalled', function() {
+            console.log('Stream stalled, reloading...');
+            audioElement.load();
+            audioElement.play().catch(err => console.log('Reload failed:', err));
+        });
+    }
 });
 
 // Update every 10 seconds
 setInterval(updateNowPlaying, 10000);
+
+// Pop-out player functionality
+let popoutWindow = null;
+
+function openPopoutPlayer() {
+    // Check if popout is already open
+    if (popoutWindow && !popoutWindow.closed) {
+        popoutWindow.focus();
+        return;
+    }
+
+    // Calculate centered position
+    const width = 420;
+    const height = 300;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    // Open popout window
+    const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,status=no,menubar=no,toolbar=no,location=no`;
+    
+    popoutWindow = window.open('/asteroid/popout-player', 'AsteroidPlayer', features);
+
+    // Update button state
+    updatePopoutButton(true);
+}
+
+function updatePopoutButton(isOpen) {
+    const btn = document.getElementById('popout-btn');
+    if (btn) {
+        if (isOpen) {
+            btn.textContent = '✓ Player Open';
+            btn.classList.remove('btn-info');
+            btn.classList.add('btn-success');
+        } else {
+            btn.textContent = '🗗 Pop Out Player';
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-info');
+        }
+    }
+}
+
+// Listen for messages from popout window
+window.addEventListener('message', function(event) {
+    if (event.data.type === 'popout-opened') {
+        updatePopoutButton(true);
+    } else if (event.data.type === 'popout-closed') {
+        updatePopoutButton(false);
+        popoutWindow = null;
+    }
+});
+
+// Check if popout is still open periodically
+setInterval(function() {
+    if (popoutWindow && popoutWindow.closed) {
+        updatePopoutButton(false);
+        popoutWindow = null;
+    }
+}, 1000);

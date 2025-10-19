@@ -277,6 +277,19 @@
                     ("message" . ,(format nil "Error reordering queue: ~a" e)))
                   :status 500))))
 
+(define-api asteroid/stream/queue/load-m3u () ()
+  "Load stream queue from stream-queue.m3u file"
+  (require-role :admin)
+  (handler-case
+      (let ((count (load-queue-from-m3u-file)))
+        (api-output `(("status" . "success")
+                      ("message" . "Queue loaded from M3U file")
+                      ("count" . ,count))))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Error loading from M3U: ~a" e)))
+                  :status 500))))
+
 (defun get-track-by-id (track-id)
   "Get a track by its ID - handles type mismatches"
   ;; Try direct query first
@@ -823,6 +836,16 @@
      :now-playing-track "Silence"
      :now-playing-album "Startup Sounds"
      :player-status "Stopped")))
+
+(define-page popout-player #@"/popout-player" ()
+  "Pop-out player window"
+  (let ((template-path (merge-pathnames "template/popout-player.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :stream-base-url *stream-base-url*
+     :default-stream-url (concatenate 'string *stream-base-url* "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 (define-api asteroid/status () ()
   "Get server status"

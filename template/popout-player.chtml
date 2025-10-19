@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>🎵 Asteroid Radio - Player</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: #0a0a0a;
+            overflow: hidden;
+        }
+        .popout-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .popout-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2a3441;
+        }
+        .popout-title {
+            font-size: 1.2em;
+            color: #00ff00;
+        }
+        .close-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .close-btn:hover {
+            background: #ff6666;
+        }
+        .now-playing-mini {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #2a3441;
+        }
+        .track-info-mini {
+            font-size: 0.9em;
+        }
+        .track-title-mini {
+            color: #00ff00;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .track-artist-mini {
+            color: #4488ff;
+            font-size: 0.85em;
+        }
+        .quality-selector {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border: 1px solid #2a3441;
+        }
+        .quality-selector label {
+            color: #00ff00;
+            margin-right: 10px;
+        }
+        .quality-selector select {
+            background: #0a0a0a;
+            color: #00ff00;
+            border: 1px solid #2a3441;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        audio {
+            width: 100%;
+            margin: 10px 0;
+        }
+        .status-mini {
+            text-align: center;
+            color: #888;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+    </style>
+    <script src="/asteroid/static/js/front-page.js"></script>
+</head>
+<body>
+    <div class="popout-container">
+        <div class="popout-header">
+            <div class="popout-title">🎵 Asteroid Radio</div>
+            <button class="close-btn" onclick="window.close()">✖ Close</button>
+        </div>
+
+        <div class="now-playing-mini">
+            <div class="track-info-mini">
+                <div class="track-title-mini" id="popout-track-title">Loading...</div>
+                <div class="track-artist-mini" id="popout-track-artist">Please wait</div>
+            </div>
+        </div>
+
+        <div class="quality-selector">
+            <input type="hidden" id="stream-base-url" lquery="(val stream-base-url)">
+            <label for="popout-stream-quality"><strong>Quality:</strong></label>
+            <select id="popout-stream-quality" onchange="changeStreamQuality()">
+                <option value="aac">AAC 96kbps</option>
+                <option value="mp3">MP3 128kbps</option>
+                <option value="low">MP3 64kbps</option>
+            </select>
+        </div>
+
+        <audio id="live-audio" controls autoplay style="width: 100%;">
+            <source id="audio-source" lquery="(attr :src default-stream-url :type default-stream-encoding)">
+            Your browser does not support the audio element.
+        </audio>
+
+        <div class="status-mini">
+            <span style="color: #00ff00;">● LIVE</span>
+        </div>
+    </div>
+
+    <script>
+        // Stream quality configuration for popout
+        function getStreamConfig(streamBaseUrl, encoding) {
+            const config = {
+                aac: {
+                    url: `${streamBaseUrl}/asteroid.aac`,
+                    format: 'AAC 96kbps Stereo',
+                    type: 'audio/aac',
+                    mount: 'asteroid.aac'
+                },
+                mp3: {
+                    url: `${streamBaseUrl}/asteroid.mp3`,
+                    format: 'MP3 128kbps Stereo',
+                    type: 'audio/mpeg',
+                    mount: 'asteroid.mp3'
+                },
+                low: {
+                    url: `${streamBaseUrl}/asteroid-low.mp3`,
+                    format: 'MP3 64kbps Stereo',
+                    type: 'audio/mpeg',
+                    mount: 'asteroid-low.mp3'
+                }
+            };
+            return config[encoding];
+        }
+
+        // Change stream quality in popout
+        function changeStreamQuality() {
+            const selector = document.getElementById('popout-stream-quality');
+            const streamBaseUrl = document.getElementById('stream-base-url');
+            const config = getStreamConfig(streamBaseUrl.value, selector.value);
+
+            // Update audio player
+            const audioElement = document.getElementById('live-audio');
+            const sourceElement = document.getElementById('audio-source');
+
+            const wasPlaying = !audioElement.paused;
+
+            sourceElement.src = config.url;
+            sourceElement.type = config.type;
+            audioElement.load();
+
+            // Resume playback if it was playing
+            if (wasPlaying) {
+                audioElement.play().catch(e => console.log('Autoplay prevented:', e));
+            }
+        }
+
+        // Update now playing info for popout
+        async function updatePopoutNowPlaying() {
+            try {
+                const response = await fetch('/api/asteroid/partial/now-playing-inline');
+                const html = await response.text();
+                
+                // Parse the HTML to extract track info
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const trackText = doc.body.textContent || doc.body.innerText || '';
+                
+                // Try to split artist - title format
+                const parts = trackText.split(' - ');
+                if (parts.length >= 2) {
+                    document.getElementById('popout-track-artist').textContent = parts[0].trim();
+                    document.getElementById('popout-track-title').textContent = parts.slice(1).join(' - ').trim();
+                } else {
+                    document.getElementById('popout-track-title').textContent = trackText.trim();
+                    document.getElementById('popout-track-artist').textContent = 'Asteroid Radio';
+                }
+            } catch (error) {
+                console.error('Error updating now playing:', error);
+            }
+        }
+
+        // Update every 10 seconds
+        setInterval(updatePopoutNowPlaying, 10000);
+        // Initial update
+        updatePopoutNowPlaying();
+
+        // Auto-reconnect on stream errors
+        const audioElement = document.getElementById('live-audio');
+        audioElement.addEventListener('error', function(e) {
+            console.log('Stream error, attempting reconnect in 3 seconds...');
+            setTimeout(function() {
+                audioElement.load();
+                audioElement.play().catch(err => console.log('Reconnect failed:', err));
+            }, 3000);
+        });
+
+        audioElement.addEventListener('stalled', function() {
+            console.log('Stream stalled, reloading...');
+            audioElement.load();
+            audioElement.play().catch(err => console.log('Reload failed:', err));
+        });
+
+        // Notify parent window that popout is open
+        if (window.opener && !window.opener.closed) {
+            window.opener.postMessage({ type: 'popout-opened' }, '*');
+        }
+
+        // Notify parent when closing
+        window.addEventListener('beforeunload', function() {
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ type: 'popout-closed' }, '*');
+            }
+        });
+    </script>
+</body>
+</html>
