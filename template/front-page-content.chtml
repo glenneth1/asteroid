@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title data-text="title">🎵 ASTEROID RADIO 🎵</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script src="/asteroid/static/js/auth-ui.js"></script>
+  <script src="/asteroid/static/js/front-page.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 data-text="station-name">🎵 ASTEROID RADIO 🎵</h1>
+      <nav class="nav">
+        <a href="/asteroid/content" target="content-frame">Home</a>
+        <a href="/asteroid/player-content" target="content-frame">Player</a>
+        <a href="/asteroid/status" target="content-frame">Status</a>
+        <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>
+        <a href="/asteroid/admin" target="content-frame" data-show-if-admin>Admin</a>
+        <a href="/asteroid/login" target="content-frame" data-show-if-logged-out>Login</a>
+        <a href="/asteroid/register" target="content-frame" data-show-if-logged-out>Register</a>
+        <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout">Logout</a>
+      </nav>
+    </header>
+
+    <main>
+      <div class="status">
+        <h2>Station Status</h2>
+        <p data-text="status-message">🟢 LIVE - Broadcasting asteroid music for hackers</p>
+        <p>Current listeners: <span data-text="listeners">0</span></p>
+        <p>Stream quality: <span data-text="stream-quality">AAC 96kbps Stereo</span></p>
+      </div>
+      
+      <div class="live-stream">
+        <h2 style="color: #00ff00;">🟢 LIVE STREAM</h2>
+        <p><em>The live stream player is now in the persistent bar at the bottom of the page.</em></p>
+        <p><strong>Stream URL:</strong> <code id="stream-url" lquery="(text default-stream-url)"></code></p>
+        <p><strong>Format:</strong> <span id="stream-format" lquery="(text default-stream-encoding-desc)"></span></p>
+        <p><strong>Status:</strong> <span id="stream-status" style="color: #00ff00;">● BROADCASTING</span></p>
+      </div>
+      
+      <div id="now-playing" class="now-playing"></div>
+    </main>
+  </div>
+</body>
+</html>

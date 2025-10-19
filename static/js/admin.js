@@ -28,11 +28,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Queue controls
     const refreshQueueBtn = document.getElementById('refresh-queue');
+    const loadFromM3uBtn = document.getElementById('load-from-m3u');
     const clearQueueBtn = document.getElementById('clear-queue-btn');
     const addRandomBtn = document.getElementById('add-random-tracks');
     const queueSearchInput = document.getElementById('queue-track-search');
     
     if (refreshQueueBtn) refreshQueueBtn.addEventListener('click', loadStreamQueue);
+    if (loadFromM3uBtn) loadFromM3uBtn.addEventListener('click', loadQueueFromM3U);
     if (clearQueueBtn) clearQueueBtn.addEventListener('click', clearStreamQueue);
     if (addRandomBtn) addRandomBtn.addEventListener('click', addRandomTracks);
     if (queueSearchInput) queueSearchInput.addEventListener('input', searchTracksForQueue);
@@ -103,8 +105,6 @@ function renderPage() {
                 <div class="track-album">${track.album || 'Unknown Album'}</div>
             </div>
             <div class="track-actions">
-                <button onclick="playTrack(${track.id})" class="btn btn-sm btn-success">▶️ Play</button>
-                <button onclick="streamTrack(${track.id})" class="btn btn-sm btn-info">🎵 Stream</button>
                 <button onclick="addToQueue(${track.id}, 'end')" class="btn btn-sm btn-primary">➕ Add to Queue</button>
                 <button onclick="deleteTrack(${track.id})" class="btn btn-sm btn-danger">🗑️ Delete</button>
             </div>
@@ -368,14 +368,20 @@ function displayStreamQueue() {
     let html = '<div class="queue-items">';
     streamQueue.forEach((item, index) => {
         if (item) {
+            const isFirst = index === 0;
+            const isLast = index === streamQueue.length - 1;
             html += `
-                <div class="queue-item" data-track-id="${item.id}">
+                <div class="queue-item" data-track-id="${item.id}" data-index="${index}">
                     <span class="queue-position">${index + 1}</span>
                     <div class="queue-track-info">
                         <div class="track-title">${item.title || 'Unknown'}</div>
                         <div class="track-artist">${item.artist || 'Unknown Artist'}</div>
                     </div>
-                    <button class="btn btn-sm btn-danger" onclick="removeFromQueue(${item.id})">Remove</button>
+                    <div class="queue-actions">
+                        <button class="btn btn-sm btn-secondary" onclick="moveTrackUp(${index})" ${isFirst ? 'disabled' : ''}>⬆️</button>
+                        <button class="btn btn-sm btn-secondary" onclick="moveTrackDown(${index})" ${isLast ? 'disabled' : ''}>⬇️</button>
+                        <button class="btn btn-sm btn-danger" onclick="removeFromQueue(${item.id})">Remove</button>
+                    </div>
                 </div>
             `;
         }
@@ -582,5 +588,73 @@ async function updateLiveStreamInfo() {
         if (nowPlayingEl) {
             nowPlayingEl.textContent = 'Error loading stream info';
         }
+    }
+}
+
+// Load queue from M3U file
+async function loadQueueFromM3U() {
+    if (!confirm('Load queue from stream-queue.m3u file? This will replace the current queue.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/asteroid/stream/queue/load-m3u', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        const data = result.data || result;
+        
+        if (data.status === 'success') {
+            alert(`Successfully loaded ${data.count} tracks from M3U file!`);
+            loadStreamQueue();
+        } else {
+            alert('Error loading from M3U: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error loading from M3U:', error);
+        alert('Error loading from M3U: ' + error.message);
+    }
+}
+
+// Move track up in queue
+async function moveTrackUp(index) {
+    if (index === 0) return;
+    
+    // Swap with previous track
+    const newQueue = [...streamQueue];
+    [newQueue[index - 1], newQueue[index]] = [newQueue[index], newQueue[index - 1]];
+    
+    await reorderQueue(newQueue);
+}
+
+// Move track down in queue
+async function moveTrackDown(index) {
+    if (index === streamQueue.length - 1) return;
+    
+    // Swap with next track
+    const newQueue = [...streamQueue];
+    [newQueue[index], newQueue[index + 1]] = [newQueue[index + 1], newQueue[index]];
+    
+    await reorderQueue(newQueue);
+}
+
+// Reorder the queue
+async function reorderQueue(newQueue) {
+    try {
+        const trackIds = newQueue.map(track => track.id).join(',');
+        const response = await fetch('/api/asteroid/stream/queue/reorder?track-ids=' + trackIds, {
+            method: 'POST'
+        });
+        const result = await response.json();
+        const data = result.data || result;
+        
+        if (data.status === 'success') {
+            loadStreamQueue();
+        } else {
+            alert('Error reordering queue: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error reordering queue:', error);
+        alert('Error reordering queue: ' + error.message);
     }
 }

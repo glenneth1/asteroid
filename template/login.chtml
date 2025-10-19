@@ -11,10 +11,10 @@
     <header>
       <h1>🎵 ASTEROID RADIO - LOGIN</h1>
       <nav class="nav">
-        <a href="/asteroid/">Home</a>
-        <a href="/asteroid/player">Player</a>
-        <a href="/asteroid/status">Status</a>
-        <a href="/asteroid/register">Register</a>
+        <a href="/asteroid/content" target="content-frame">Home</a>
+        <a href="/asteroid/player-content" target="content-frame">Player</a>
+        <a href="/asteroid/status" target="content-frame">Status</a>
+        <a href="/asteroid/register" target="content-frame">Register</a>
       </nav>
     </header>
 
@@ -37,11 +37,6 @@
             <button type="submit" class="btn btn-primary" style="width: 100%;">LOGIN</button>
           </div>
         </form>
-        <div class="panel" style="margin-top: 20px; text-align: center;">
-          <strong style="color: #ff6600;">Default Admin Credentials:</strong><br>
-          Username: <br><code style="color: #00ff00;">admin</code><br>
-          Password: <br><code style="color: #00ff00;">asteroid123</code>
-        </div>
       </div>
     </div>
   </div>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      background: #1a1a1a;
+      font-family: 'Courier New', monospace;
+    }
+    .persistent-player {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      max-width: 100%;
+    }
+    .player-label {
+      color: #00ff00;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+    .quality-selector {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .quality-selector label {
+      color: #00ff00;
+      font-size: 0.9em;
+    }
+    .quality-selector select {
+      background: #2a2a2a;
+      color: #00ff00;
+      border: 1px solid #00ff00;
+      padding: 3px 8px;
+      font-family: 'Courier New', monospace;
+    }
+    audio {
+      flex: 1;
+      min-width: 200px;
+    }
+    .now-playing-mini {
+      color: #00ff00;
+      font-size: 0.9em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div class="persistent-player">
+    <span class="player-label">🟢 LIVE:</span>
+    
+    <div class="quality-selector">
+      <input type="hidden" id="stream-base-url" lquery="(val stream-base-url)">
+      <label for="stream-quality">Quality:</label>
+      <select id="stream-quality" onchange="changeStreamQuality()">
+        <option value="aac">AAC 96k</option>
+        <option value="mp3">MP3 128k</option>
+        <option value="low">MP3 64k</option>
+      </select>
+    </div>
+    
+    <audio id="persistent-audio" controls preload="metadata">
+      <source id="audio-source" lquery="(attr :src default-stream-url :type default-stream-encoding)">
+    </audio>
+    
+    <span class="now-playing-mini" id="mini-now-playing">Loading...</span>
+  </div>
+
+  <script>
+    // Configure audio element for better streaming
+    document.addEventListener('DOMContentLoaded', function() {
+      const audioElement = document.getElementById('persistent-audio');
+      
+      // Try to enable low-latency mode if supported
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'Asteroid Radio Live Stream',
+          artist: 'Asteroid Radio',
+          album: 'Live Broadcast'
+        });
+      }
+      
+      // Add event listeners for debugging
+      audioElement.addEventListener('waiting', function() {
+        console.log('Audio buffering...');
+      });
+      
+      audioElement.addEventListener('playing', function() {
+        console.log('Audio playing');
+      });
+      
+      audioElement.addEventListener('error', function(e) {
+        console.error('Audio error:', e);
+      });
+    });
+
+    // Stream quality configuration
+    function getStreamConfig(streamBaseUrl, encoding) {
+      const config = {
+        aac: {
+          url: streamBaseUrl + '/asteroid.aac',
+          type: 'audio/aac'
+        },
+        mp3: {
+          url: streamBaseUrl + '/asteroid.mp3',
+          type: 'audio/mpeg'
+        },
+        low: {
+          url: streamBaseUrl + '/asteroid-low.mp3',
+          type: 'audio/mpeg'
+        }
+      };
+      return config[encoding];
+    }
+
+    // Change stream quality
+    function changeStreamQuality() {
+      const selector = document.getElementById('stream-quality');
+      const streamBaseUrl = document.getElementById('stream-base-url').value;
+      const config = getStreamConfig(streamBaseUrl, selector.value);
+      
+      const audioElement = document.getElementById('persistent-audio');
+      const sourceElement = document.getElementById('audio-source');
+      
+      const wasPlaying = !audioElement.paused;
+      
+      sourceElement.src = config.url;
+      sourceElement.type = config.type;
+      audioElement.load();
+      
+      if (wasPlaying) {
+        audioElement.play().catch(e => console.log('Autoplay prevented:', e));
+      }
+    }
+
+    // Update mini now playing display
+    async function updateMiniNowPlaying() {
+      try {
+        const response = await fetch('/api/asteroid/partial/now-playing-inline');
+        if (response.ok) {
+          const text = await response.text();
+          document.getElementById('mini-now-playing').textContent = text;
+        }
+      } catch(error) {
+        console.log('Could not fetch now playing:', error);
+      }
+    }
+
+    // Update every 10 seconds
+    setTimeout(updateMiniNowPlaying, 1000);
+    setInterval(updateMiniNowPlaying, 10000);
+  </script>
+</body>
+</html>

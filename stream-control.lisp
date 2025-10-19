@@ -96,6 +96,54 @@
             (format stream "~a~%" docker-path))))))
   t)
 
+(defun load-queue-from-m3u ()
+  "Load the stream queue from the existing M3U file"
+  (let ((playlist-path (merge-pathnames "stream-queue.m3u" 
+                                       (asdf:system-source-directory :asteroid))))
+    (format t "Checking for M3U file at: ~a~%" playlist-path)
+    (if (probe-file playlist-path)
+        (handler-case
+            (progn
+              (format t "M3U file found, loading...~%")
+              (format t "Available collections: ~a~%" (db:collections))
+              (let ((all-tracks (db:select "tracks" (db:query :all))))
+                (format t "Found ~d tracks in database~%" (length all-tracks))
+                (when (> (length all-tracks) 0)
+                  (format t "Sample track: ~a~%" (first all-tracks)))
+                (when (= (length all-tracks) 0)
+                  (format t "⚠ Warning: No tracks in database. Please scan your music library first!~%")
+                  (format t "   Visit the Admin page and click 'Scan Library' to add tracks.~%")
+                  (format t "   After scanning, restart the server to load the queue.~%")
+                  (return-from load-queue-from-m3u nil))
+                (with-open-file (stream playlist-path :direction :input)
+                  (let ((track-ids '())
+                        (line-count 0))
+                    (loop for line = (read-line stream nil)
+                          while line
+                          do (progn
+                               (incf line-count)
+                               (when (and (> (length line) 0)
+                                         (not (char= (char line 0) #\#)))
+                                 ;; This is a file path line, find the track ID
+                                 (format t "Processing line ~d: ~a~%" line-count line)
+                                 (dolist (track all-tracks)
+                                   (let* ((file-path (gethash "file-path" track))
+                                          (file-path-str (if (listp file-path) (first file-path) file-path))
+                                          (docker-path (convert-to-docker-path file-path-str)))
+                                     (when (string= docker-path line)
+                                       (let ((id (gethash "_id" track)))
+                                         (push (if (listp id) (first id) id) track-ids)
+                                         (format t "  Matched track ID: ~a~%" id))))))))
+                    (setf *stream-queue* (nreverse track-ids))
+                    (format t "✓ Loaded ~d tracks from stream-queue.m3u~%" (length *stream-queue*))
+                    (length *stream-queue*)))))
+          (error (e)
+            (format t "✗ Error loading queue from M3U: ~a~%" e)
+            nil))
+        (progn
+          (format t "✗ M3U file not found at: ~a~%" playlist-path)
+          nil))))
+
 (defun regenerate-stream-playlist ()
   "Regenerate the main stream playlist from the current queue"
   (let ((playlist-path (merge-pathnames "stream-queue.m3u" 

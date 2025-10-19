@@ -12,11 +12,11 @@
   <div class="container">
     <h1>🎛️ ADMIN DASHBOARD</h1>
     <div class="nav">
-      <a href="/asteroid/">Home</a>
-      <a href="/asteroid/player/">Player</a>
-      <a href="/asteroid/profile">Profile</a>
-      <a href="/asteroid/admin/users">👥 Users</a>
-      <a href="/asteroid/logout" class="btn-logout">Logout</a>
+      <a href="/asteroid/content" target="content-frame">Home</a>
+      <a href="/asteroid/player-content" target="content-frame">Player</a>
+      <a href="/asteroid/profile" target="content-frame">Profile</a>
+      <a href="/asteroid/admin/user" target="content-frame">👥 Users</a>
+      <a href="/asteroid/logout" target="_top" class="btn-logout">Logout</a>
     </div>
     
     <!-- System Status -->
@@ -127,6 +127,7 @@
       
       <div class="queue-controls">
         <button id="refresh-queue" class="btn btn-secondary">🔄 Refresh Queue</button>
+        <button id="load-from-m3u" class="btn btn-success">📂 Load Queue from M3U</button>
         <button id="clear-queue-btn" class="btn btn-warning">🗑️ Clear Queue</button>
         <button id="add-random-tracks" class="btn btn-info">🎲 Add 10 Random Tracks</button>
       </div>

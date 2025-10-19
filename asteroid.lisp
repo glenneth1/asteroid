@@ -250,6 +250,23 @@
                     ("message" . ,(format nil "Error clearing queue: ~a" e)))
                   :status 500))))
 
+(define-api asteroid/stream/queue/load-m3u () ()
+  "Load queue from stream-queue.m3u file"
+  (require-role :admin)
+  (handler-case
+      (let ((count (or (load-queue-from-m3u) 0)))
+        (if (numberp count)
+            (api-output `(("status" . "success")
+                          ("message" . "Queue loaded from M3U file")
+                          ("count" . ,count)))
+            (api-output `(("status" . "error")
+                          ("message" . "Failed to load queue from M3U file"))
+                        :status 500)))
+    (error (e)
+      (api-output `(("status" . "error")
+                    ("message" . ,(format nil "Error loading from M3U: ~a" e)))
+                  :status 500))))
+
 (define-api asteroid/stream/queue/add-playlist (playlist-id) ()
   "Add all tracks from a playlist to the stream queue"
   (require-role :admin)
@@ -503,10 +520,19 @@
      ("message" . "Listening history cleared successfully"))))
 |#
 
-;; Front page
+;; Front page - now serves frameset wrapper
 (define-page front-page #@"/" ()
-  "Main front page"
-  (let ((template-path (merge-pathnames "template/front-page.chtml" 
+  "Main front page with persistent audio player frame"
+  (let ((template-path (merge-pathnames "template/frameset-wrapper.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎵 ASTEROID RADIO 🎵")))
+
+;; Content frame - the actual front page content
+(define-page front-page-content #@"/content" ()
+  "Front page content (displayed in content frame)"
+  (let ((template-path (merge-pathnames "template/front-page-content.chtml" 
                                        (asdf:system-source-directory :asteroid))))
     (clip:process-to-string 
      (plump:parse (alexandria:read-file-into-string template-path))
@@ -523,6 +549,17 @@
      :now-playing-track "Silence"
      :now-playing-album "Startup Sounds"
      :now-playing-duration "∞")))
+
+;; Persistent audio player frame
+(define-page audio-player-frame #@"/audio-player-frame" ()
+  "Persistent audio player frame (bottom of page)"
+  (let ((template-path (merge-pathnames "template/audio-player-frame.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :stream-base-url *stream-base-url*
+     :default-stream-url (concatenate 'string *stream-base-url* "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 ;; Configure static file serving for other files
 (define-page static #@"/static/(.*)" (:uri-groups (path))
@@ -810,8 +847,15 @@
          :error-message ""
          :success-message ""))))
 
+;; Player page - redirects to content frame version
 (define-page player #@"/player" ()
-  (let ((template-path (merge-pathnames "template/player.chtml" 
+  "Redirect to player content in frameset"
+  (radiance:redirect "/asteroid/"))
+
+;; Player content frame
+(define-page player-content #@"/player-content" ()
+  "Player page content (displayed in content frame)"
+  (let ((template-path (merge-pathnames "template/player-content.chtml" 
                                        (asdf:system-source-directory :asteroid))))
     (clip:process-to-string 
      (plump:parse (alexandria:read-file-into-string template-path))
@@ -890,6 +934,24 @@
     (setf (radiance:environment) "default"))
   
   (radiance:startup)
+  
+  ;; Load the stream queue from M3U file after database is ready
+  (bt:make-thread
+   (lambda ()
+     (format t "Queue loader thread started, waiting for database...~%")
+     (sleep 3) ; Wait for database to be ready
+     (handler-case
+         (progn
+           (format t "Attempting to load stream queue from M3U file...~%")
+           (if (db:connected-p)
+               (progn
+                 (format t "Database is connected, loading queue...~%")
+                 (load-queue-from-m3u))
+               (format t "Database not connected yet, skipping queue load~%")))
+       (error (e)
+         (format t "✗ Warning: Could not load stream queue: ~a~%" e))))
+   :name "queue-loader")
+  
   (format t "Server started! Visit http://localhost:~a/asteroid/~%" port))
 
 (defun stop-server ()
