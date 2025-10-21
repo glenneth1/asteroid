@@ -15,32 +15,15 @@
       <a href="/asteroid/content" target="content-frame">Home</a>
       <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>
       <a href="/asteroid/admin" target="content-frame" data-show-if-admin>Admin</a>
-      <a href="/asteroid/login" data-show-if-logged-out>Login</a>
-      <a href="/asteroid/register" data-show-if-logged-out>Register</a>
+      <a href="/asteroid/login" target="content-frame" data-show-if-logged-out>Login</a>
+      <a href="/asteroid/register" target="content-frame" data-show-if-logged-out>Register</a>
       <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout">Logout</a>
     </div>
     
-    <!-- Live Stream Section -->
+    <!-- Live Stream Section - Note about persistent player -->
     <div class="player-section">
       <h2 style="color: #00ff00;">🟢 Live Radio Stream</h2>
-      <div class="live-stream">
-        <input type="hidden" id="stream-base-url" lquery="(val stream-base-url)">
-        <!-- Stream Quality Selector -->
-        <div class="live-stream-quality">
-          <label for="live-stream-quality"><strong>Quality:</strong></label>
-          <select id="live-stream-quality" onchange="changeLiveStreamQuality()">
-            <option value="aac">AAC 96kbps (Recommended)</option>
-            <option value="mp3">MP3 128kbps (Compatible)</option>
-            <option value="low">MP3 64kbps (Low Bandwidth)</option>
-          </select>
-        </div>
-        
-        <audio id="live-stream-audio" controls style="width: 100%; margin: 10px 0;">
-          <source id="live-stream-source" lquery="(attr :src default-stream-url)" type="audio/aac">
-          Your browser does not support the audio element.
-        </audio>
-        <p><em>Listen to the live Asteroid Radio stream</em></p>
-      </div>
+      <p><em>The live stream player is now in the persistent bar at the bottom of the page. It will continue playing as you navigate between pages!</em></p>
     </div>
 
     <div id="now-playing" class="now-playing"></div>

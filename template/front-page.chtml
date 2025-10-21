@@ -35,9 +35,14 @@
       <div class="live-stream">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <h2 style="color: #00ff00; margin: 0;">🟢 LIVE STREAM</h2>
-          <button id="popout-btn" class="btn btn-info" onclick="openPopoutPlayer()" style="font-size: 0.9em;">
-            🗗 Pop Out Player
-          </button>
+          <div style="display: flex; gap: 10px;">
+            <button id="popout-btn" class="btn btn-info" onclick="openPopoutPlayer()" style="font-size: 0.9em;">
+              🗗 Pop Out Player
+            </button>
+            <button id="frameset-btn" class="btn btn-secondary" onclick="enableFramesetMode()" style="font-size: 0.9em;">
+              🖼️ Enable Persistent Player
+            </button>
+          </div>
         </div>
         
         <!-- Stream Quality Selector -->
