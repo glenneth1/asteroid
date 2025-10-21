@@ -516,7 +516,7 @@
      ("message" . "Listening history cleared successfully"))))
 |#
 
-;; Front page
+;; Front page - regular view by default
 (define-page front-page #@"/" ()
   "Main front page"
   (let ((template-path (merge-pathnames "template/front-page.chtml" 
@@ -536,6 +536,44 @@
      :now-playing-track "Silence"
      :now-playing-album "Startup Sounds"
      :now-playing-duration "∞")))
+
+;; Frameset wrapper for persistent player mode
+(define-page frameset-wrapper #@"/frameset" ()
+  "Frameset wrapper with persistent audio player"
+  (let ((template-path (merge-pathnames "template/frameset-wrapper.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎵 ASTEROID RADIO 🎵")))
+
+;; Content frame - front page content without player
+(define-page front-page-content #@"/content" ()
+  "Front page content (displayed in content frame)"
+  (let ((template-path (merge-pathnames "template/front-page-content.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎵 ASTEROID RADIO 🎵"
+     :station-name "🎵 ASTEROID RADIO 🎵"
+     :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
+     :listeners "0"
+     :stream-quality "128kbps MP3"
+     :stream-base-url *stream-base-url*
+     :now-playing-artist "The Void"
+     :now-playing-track "Silence"
+     :now-playing-album "Startup Sounds"
+     :now-playing-duration "∞")))
+
+;; Persistent audio player frame (bottom frame)
+(define-page audio-player-frame #@"/audio-player-frame" ()
+  "Persistent audio player frame (bottom of page)"
+  (let ((template-path (merge-pathnames "template/audio-player-frame.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :stream-base-url *stream-base-url*
+     :default-stream-url (concatenate 'string *stream-base-url* "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 ;; Configure static file serving for other files
 (define-page static #@"/static/(.*)" (:uri-groups (path))
@@ -836,6 +874,18 @@
      :now-playing-track "Silence"
      :now-playing-album "Startup Sounds"
      :player-status "Stopped")))
+
+;; Player content frame (for frameset mode)
+(define-page player-content #@"/player-content" ()
+  "Player page content (displayed in content frame)"
+  (let ((template-path (merge-pathnames "template/player-content.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "Asteroid Radio - Web Player"
+     :stream-base-url *stream-base-url*
+     :default-stream-url (concatenate 'string *stream-base-url* "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 (define-page popout-player #@"/popout-player" ()
   "Pop-out player window"

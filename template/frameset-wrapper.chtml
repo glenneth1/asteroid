@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title lquery="(text title)">🎵 ASTEROID RADIO 🎵</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    // Prevent nested framesets - break out if we're already in a frame
+    if (window.self !== window.top) {
+      window.top.location.href = window.self.location.href;
+    }
+  </script>
+</head>
+<frameset rows="*,80" frameborder="0" border="0" framespacing="0">
+  <frame src="/asteroid/content" name="content-frame" noresize>
+  <frame src="/asteroid/audio-player-frame" name="player-frame" noresize scrolling="no">
+  <noframes>
+    <body>
+      <p>Your browser does not support frames. Please use a modern browser or visit <a href="/asteroid/content">the main site</a>.</p>
+    </body>
+  </noframes>
+</frameset>
+</html>

@@ -169,3 +169,30 @@ setInterval(function() {
         popoutWindow = null;
     }
 }, 1000);
+
+// Frameset mode functionality
+function enableFramesetMode() {
+    // Save preference
+    localStorage.setItem('useFrameset', 'true');
+    // Redirect to frameset wrapper
+    window.location.href = '/asteroid/frameset';
+}
+
+function disableFramesetMode() {
+    // Clear preference
+    localStorage.removeItem('useFrameset');
+    // Redirect to regular view
+    window.location.href = '/asteroid/';
+}
+
+// Check if user prefers frameset mode on page load
+window.addEventListener('DOMContentLoaded', function() {
+    const path = window.location.pathname;
+    const isFramesetPage = path.includes('/frameset') || path.includes('/content') || 
+                           path.includes('/audio-player-frame') || path.includes('/player-content');
+    
+    if (localStorage.getItem('useFrameset') === 'true' && !isFramesetPage && path === '/asteroid/') {
+        // User wants frameset but is on regular front page, redirect
+        window.location.href = '/asteroid/frameset';
+    }
+});
