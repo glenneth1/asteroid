@@ -21,6 +21,17 @@
 (defparameter *supported-formats* '("mp3" "flac" "ogg" "wav"))
 (defparameter *stream-base-url* "http://localhost:8000")
 
+(defun get-stream-base-url ()
+  "Get the stream base URL, using the request host if available"
+  (if (boundp 'radiance:*request*)
+      (let* ((host (or (header "Host") "localhost:8080"))
+             ;; Remove port if present and add :8000
+             (host-without-port (if (position #\: host)
+                                    (subseq host 0 (position #\: host))
+                                    host)))
+        (format nil "http://~a:8000" host-without-port))
+      *stream-base-url*))
+
 ;; Configure JSON as the default API format
 (define-api-format json (data)
   "JSON API format for Radiance"
@@ -443,21 +454,23 @@
 ;; Front page - regular view by default
 (define-page front-page #@"/" ()
   "Main front page"
-  (clip:process-to-string 
-   (load-template "front-page")
-   :title "🎵 ASTEROID RADIO 🎵"
-   :station-name "🎵 ASTEROID RADIO 🎵"
-   :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
-   :listeners "0"
-   :stream-quality "128kbps MP3"
-   :stream-base-url *stream-base-url*
-   :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
-   :default-stream-encoding "audio/aac"
-   :default-stream-encoding-desc "AAC 96kbps Stereo"
-   :now-playing-artist "The Void"
-   :now-playing-track "Silence"
-   :now-playing-album "Startup Sounds"
-   :now-playing-duration "∞"))
+  (let ((template-path (merge-pathnames "template/front-page.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎵 ASTEROID RADIO 🎵"
+     :station-name "🎵 ASTEROID RADIO 🎵"
+     :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
+     :listeners "0"
+     :stream-quality "128kbps MP3"
+     :stream-base-url (get-stream-base-url)
+     :default-stream-url (concatenate 'string (get-stream-base-url) "/asteroid.aac")
+     :default-stream-encoding "audio/aac"
+     :default-stream-encoding-desc "AAC 96kbps Stereo"
+     :now-playing-artist "The Void"
+     :now-playing-track "Silence"
+     :now-playing-album "Startup Sounds"
+     :now-playing-duration "∞")))
 
 ;; Frameset wrapper for persistent player mode
 (define-page frameset-wrapper #@"/frameset" ()
@@ -469,27 +482,31 @@
 ;; Content frame - front page content without player
 (define-page front-page-content #@"/content" ()
   "Front page content (displayed in content frame)"
-  (clip:process-to-string 
-   (load-template "front-page-content")
-   :title "🎵 ASTEROID RADIO 🎵"
-   :station-name "🎵 ASTEROID RADIO 🎵"
-   :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
-   :listeners "0"
-   :stream-quality "128kbps MP3"
-   :stream-base-url *stream-base-url*
-   :now-playing-artist "The Void"
-   :now-playing-track "Silence"
-   :now-playing-album "Startup Sounds"
-   :now-playing-duration "∞"))
+  (let ((template-path (merge-pathnames "template/front-page-content.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "🎵 ASTEROID RADIO 🎵"
+     :station-name "🎵 ASTEROID RADIO 🎵"
+     :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
+     :listeners "0"
+     :stream-quality "128kbps MP3"
+     :stream-base-url (get-stream-base-url)
+     :now-playing-artist "The Void"
+     :now-playing-track "Silence"
+     :now-playing-album "Startup Sounds"
+     :now-playing-duration "∞")))
 
 ;; Persistent audio player frame (bottom frame)
 (define-page audio-player-frame #@"/audio-player-frame" ()
   "Persistent audio player frame (bottom of page)"
-  (clip:process-to-string 
-   (load-template "audio-player-frame")
-   :stream-base-url *stream-base-url*
-   :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
-   :default-stream-encoding "audio/aac"))
+  (let ((template-path (merge-pathnames "template/audio-player-frame.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :stream-base-url (get-stream-base-url)
+     :default-stream-url (concatenate 'string (get-stream-base-url) "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 ;; Configure static file serving for other files
 (define-page static #@"/static/(.*)" (:uri-groups (path))
@@ -536,8 +553,8 @@
      :icecast-status (check-icecast-status)
      :track-count (format nil "~d" track-count)
      :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
-     :stream-base-url *stream-base-url*
-     :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*))))
+     :stream-base-url (get-stream-base-url)
+     :default-stream-url (concatenate 'string (get-stream-base-url) "/asteroid.aac"))))
 
 ;; User Management page (requires authentication)
 (define-page users-management #@"/admin/user" ()
@@ -761,34 +778,40 @@
          :success-message ""))))
 
 (define-page player #@"/player" ()
-  (clip:process-to-string 
-   (load-template "player")
-   :title "Asteroid Radio - Web Player"
-   :stream-base-url *stream-base-url*
-   :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
-   :bitrate "128kbps MP3"
-   :now-playing-artist "The Void"
-   :now-playing-track "Silence"
-   :now-playing-album "Startup Sounds"
-   :player-status "Stopped"))
+  (let ((template-path (merge-pathnames "template/player.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "Asteroid Radio - Web Player"
+     :stream-base-url (get-stream-base-url)
+     :default-stream-url (concatenate 'string (get-stream-base-url) "/asteroid.aac")
+     :bitrate "128kbps MP3"
+     :now-playing-artist "The Void"
+     :now-playing-track "Silence"
+     :now-playing-album "Startup Sounds"
+     :player-status "Stopped")))
 
 ;; Player content frame (for frameset mode)
 (define-page player-content #@"/player-content" ()
   "Player page content (displayed in content frame)"
-  (clip:process-to-string 
-   (load-template "player-content")
-   :title "Asteroid Radio - Web Player"
-   :stream-base-url *stream-base-url*
-   :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
-   :default-stream-encoding "audio/aac"))
+  (let ((template-path (merge-pathnames "template/player-content.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :title "Asteroid Radio - Web Player"
+     :stream-base-url (get-stream-base-url)
+     :default-stream-url (concatenate 'string (get-stream-base-url) "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 (define-page popout-player #@"/popout-player" ()
   "Pop-out player window"
-  (clip:process-to-string 
-   (load-template "popout-player")
-   :stream-base-url *stream-base-url*
-   :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
-   :default-stream-encoding "audio/aac"))
+  (let ((template-path (merge-pathnames "template/popout-player.chtml" 
+                                       (asdf:system-source-directory :asteroid))))
+    (clip:process-to-string 
+     (plump:parse (alexandria:read-file-into-string template-path))
+     :stream-base-url (get-stream-base-url)
+     :default-stream-url (concatenate 'string (get-stream-base-url) "/asteroid.aac")
+     :default-stream-encoding "audio/aac")))
 
 (define-api asteroid/status () ()
   "Get server status"
