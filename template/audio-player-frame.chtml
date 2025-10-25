@@ -9,7 +9,7 @@
       margin: 0;
       padding: 10px;
       background: #1a1a1a;
-      font-family: 'Courier New', monospace;
+      font-family: 'VT323', monospace;
     }
     .persistent-player {
       display: flex;
@@ -36,7 +36,7 @@
       color: #00ff00;
       border: 1px solid #00ff00;
       padding: 3px 8px;
-      font-family: 'Courier New', monospace;
+      font-family: 'VT323', monospace;
     }
     audio {
       flex: 1;
@@ -73,7 +73,7 @@
     
     <span class="now-playing-mini" id="mini-now-playing">Loading...</span>
     
-    <button onclick="disableFramesetMode()" style="background: #2a2a2a; color: #00ff00; border: 1px solid #00ff00; padding: 5px 10px; cursor: pointer; font-family: 'Courier New', monospace; font-size: 0.85em; white-space: nowrap;">
+    <button onclick="disableFramesetMode()" style="background: #2a2a2a; color: #00ff00; border: 1px solid #00ff00; padding: 5px 10px; cursor: pointer; font-family: 'VT323', monospace; font-size: 0.85em; white-space: nowrap;">
       ✕ Disable
     </button>
   </div>
