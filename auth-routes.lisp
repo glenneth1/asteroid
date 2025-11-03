@@ -110,54 +110,46 @@
 (define-api asteroid/user/change-password (current-password new-password) ()
   "API endpoint for users to change their own password"
   (require-authentication)
-  (handler-case
-      (if (and current-password new-password)
-          (let* ((current-user (auth:current-user))
-                 (username (gethash "username" current-user))
-                 (stored-hash (gethash "password-hash" current-user)))
-            ;; Verify current password
-            (if (verify-password current-password 
-                               (if (listp stored-hash) (first stored-hash) stored-hash))
-                ;; Current password is correct, update to new password
-                (if (reset-user-password username new-password)
-                    (api-output `(("status" . "success")
-                                  ("message" . "Password changed successfully")))
-                    (api-output `(("status" . "error")
-                                  ("message" . "Failed to update password"))
-                                :status 500))
-                ;; Current password is incorrect
-                (api-output `(("status" . "error")
-                              ("message" . "Current password is incorrect"))
-                            :status 401)))
-          (api-output `(("status" . "error")
-                        ("message" . "Missing required fields"))
-                      :status 400))
-    (error (e)
-      (api-output `(("status" . "error")
-                    ("message" . ,(format nil "Error changing password: ~a" e)))
-                  :status 500))))
+  (with-error-handling
+    (if (and current-password new-password)
+        (let* ((current-user (auth:current-user))
+               (username (gethash "username" current-user))
+               (stored-hash (gethash "password-hash" current-user)))
+          ;; Verify current password
+          (if (verify-password current-password 
+                             (if (listp stored-hash) (first stored-hash) stored-hash))
+              ;; Current password is correct, update to new password
+              (if (reset-user-password username new-password)
+                  (api-output `(("status" . "success")
+                                ("message" . "Password changed successfully")))
+                  (api-output `(("status" . "error")
+                                ("message" . "Failed to update password"))
+                              :status 500))
+              ;; Current password is incorrect
+              (api-output `(("status" . "error")
+                            ("message" . "Current password is incorrect"))
+                          :status 401)))
+        (api-output `(("status" . "error")
+                      ("message" . "Missing required fields"))
+                    :status 400))))
 
 ;; API: Reset user password (admin only)
 (define-api asteroid/admin/reset-password (username new-password) ()
   "API endpoint for admins to reset any user's password"
   (require-role :admin)
-  (handler-case
-      (if (and username new-password)
-          (let ((user (find-user-by-username username)))
-            (if user
-                (if (reset-user-password username new-password)
-                    (api-output `(("status" . "success")
-                                  ("message" . ,(format nil "Password reset for user: ~a" username))))
-                    (api-output `(("status" . "error")
-                                  ("message" . "Failed to reset password"))
-                                :status 500))
-                (api-output `(("status" . "error")
-                              ("message" . ,(format nil "User not found: ~a" username)))
-                            :status 404)))
-          (api-output `(("status" . "error")
-                        ("message" . "Missing required fields"))
-                      :status 400))
-    (error (e)
-      (api-output `(("status" . "error")
-                    ("message" . ,(format nil "Error resetting password: ~a" e)))
-                  :status 500))))
+  (with-error-handling
+    (if (and username new-password)
+        (let ((user (find-user-by-username username)))
+          (if user
+              (if (reset-user-password username new-password)
+                  (api-output `(("status" . "success")
+                                ("message" . ,(format nil "Password reset for user: ~a" username))))
+                  (api-output `(("status" . "error")
+                                ("message" . "Failed to reset password"))
+                              :status 500))
+              (api-output `(("status" . "error")
+                            ("message" . ,(format nil "User not found: ~a" username)))
+                          :status 404)))
+        (api-output `(("status" . "error")
+                      ("message" . "Missing required fields"))
+                    :status 400))))
