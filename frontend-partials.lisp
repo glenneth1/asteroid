@@ -4,7 +4,8 @@
     (let* ((icecast-url (format nil "~a/admin/stats.xml" icecast-base-url))
            (response (drakma:http-request icecast-url
                                          :want-stream nil
-                                         :basic-authorization '("admin" "asteroid_admin_2024"))))
+                                         :basic-authorization (list (config-icecast-admin-user *config*)
+                                                                   (config-icecast-admin-password *config*)))))
       (when response
           (let ((xml-string (if (stringp response)
                                 response
@@ -22,17 +23,17 @@
                          (listenersp (cl-ppcre:all-matches "<listeners>" source-section))
                          (title (if titlep (cl-ppcre:regex-replace-all ".*<title>(.*?)</title>.*" source-section "\\1") "Unknown"))
                          (listeners (if listenersp (cl-ppcre:regex-replace-all ".*<listeners>(.*?)</listeners>.*" source-section "\\1") "0")))
-                    `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+                    `((:listenurl . ,(format nil "~a/asteroid.mp3" (*stream-base-url*)))
                       (:title . ,title)
                       (:listeners . ,(parse-integer listeners :junk-allowed t))))
-                  `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+                  `((:listenurl . ,(format nil "~a/asteroid.mp3" (*stream-base-url*)))
                     (:title . "Unknown")
                     (:listeners . "Unknown"))))))))
 
 (define-api asteroid/partial/now-playing () ()
   "Get Partial HTML with live status from Icecast server"
   (handler-case
-    (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+    (let ((now-playing-stats (icecast-now-playing (*stream-base-url*))))
       (if now-playing-stats
           (progn
             ;; TODO: it should be able to define a custom api-output for this
@@ -55,7 +56,7 @@
 (define-api asteroid/partial/now-playing-inline () ()
   "Get inline text with now playing info (for admin dashboard and widgets)"
   (handler-case
-    (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+    (let ((now-playing-stats (icecast-now-playing (*stream-base-url*))))
       (if now-playing-stats
           (progn
             (setf (header "Content-Type") "text/plain")

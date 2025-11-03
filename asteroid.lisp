@@ -12,14 +12,15 @@
   (:use #:cl #:radiance #:lass #:r-clip)
   (:domain "asteroid"))
 
-;; Configuration -- this will be refactored to a dedicated
-;; configuration logic. Probably using 'ubiquity
-(defparameter *server-port* 8080)
-(defparameter *music-library-path* 
-  (merge-pathnames "music/library/" 
-                   (asdf:system-source-directory :asteroid)))
-(defparameter *supported-formats* '("mp3" "flac" "ogg" "wav"))
-(defparameter *stream-base-url* "http://localhost:8000")
+;; Configuration - now loaded from environment variables via config.lisp
+;; Initialize configuration on module load
+(init-config)
+
+;; Convenience accessors for backward compatibility
+(defun *server-port* () (config-server-port *config*))
+(defun *music-library-path* () (config-music-library-path *config*))
+(defun *supported-formats* () (config-supported-formats *config*))
+(defun *stream-base-url* () (config-stream-base-url *config*))
 
 ;; Configure JSON as the default API format
 (define-api-format json (data)
@@ -807,10 +808,11 @@
 (define-api asteroid/icecast-status () ()
   "Get live status from Icecast server"
   (with-error-handling
-    (let* ((icecast-url (format nil "~a/admin/stats.xml" *stream-base-url*))
+    (let* ((icecast-url (format nil "~a/admin/stats.xml" (*stream-base-url*)))
            (response (drakma:http-request icecast-url 
                                          :want-stream nil
-                                         :basic-authorization '("admin" "asteroid_admin_2024"))))
+                                         :basic-authorization (list (config-icecast-admin-user *config*)
+                                                                   (config-icecast-admin-password *config*)))))
       (if response
           (let ((xml-string (if (stringp response) 
                                 response 
