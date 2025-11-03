@@ -71,6 +71,16 @@ Eliminated hardcoded Icecast admin password from codebase.
   - ~*supported-formats*~ → ~(config-supported-formats *config*)~
   - ~*stream-base-url*~ → ~(config-stream-base-url *config*)~
 
+** Template Security Fix (~template/login.ctml~) - CRITICAL
+
+Removed hardcoded admin credentials display from login page:
+
+- Deleted panel showing "Default Admin Credentials"
+- No longer displays username: ~admin~ / password: ~asteroid123~
+- Login page is now production-safe
+
+This was the critical issue Fade mentioned: "the templates with the default passwords for sure need changing"
+
 ** Docker Security Fixes (~docker/docker-compose.yml~) - CRITICAL
 
 *** Port Bindings Secured
