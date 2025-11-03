@@ -15,10 +15,11 @@ settings.frame.audio.channels.set(2)
 settings.audio.converter.samplerate.libsamplerate.quality.set("best")
 
 # Enable telnet server for remote control
-# Bind to 127.0.0.1 for security (only accessible from within container)
+# Bind to 0.0.0.0 inside container (Docker port mapping restricts external access)
+# Security is enforced by docker-compose.yml: "127.0.0.1:1234:1234"
 settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
-settings.server.telnet.bind_addr.set("127.0.0.1")
+settings.server.telnet.bind_addr.set("0.0.0.0")
 
 # Get Icecast source password from environment variable
 # Falls back to default if not set (for development)
