@@ -112,7 +112,7 @@
   (require-authentication)
   (with-error-handling
     (if (and current-password new-password)
-        (let* ((current-user (auth:current-user))
+        (let* ((current-user (get-current-user))
                (username (gethash "username" current-user))
                (stored-hash (gethash "password-hash" current-user)))
           ;; Verify current password
