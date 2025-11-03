@@ -658,3 +658,70 @@ async function updateLiveStreamInfo() {
         }
     }
 }
+
+// Password change functionality
+function changeAdminPassword(event) {
+    event.preventDefault();
+    
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const messageEl = document.getElementById('password-message');
+    
+    // Clear previous messages
+    messageEl.style.display = 'none';
+    messageEl.className = 'message';
+    
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+        showPasswordMessage('New passwords do not match', 'error');
+        return;
+    }
+    
+    // Validate password length
+    if (newPassword.length < 8) {
+        showPasswordMessage('Password must be at least 8 characters', 'error');
+        return;
+    }
+    
+    // Submit password change
+    const formData = new URLSearchParams();
+    formData.append('current-password', currentPassword);
+    formData.append('new-password', newPassword);
+    
+    fetch('/api/asteroid/user/change-password', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showPasswordMessage('Password changed successfully! Please use your new password on next login.', 'success');
+            // Clear form
+            document.getElementById('change-password-form').reset();
+        } else {
+            showPasswordMessage(data.message || 'Failed to change password', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error changing password:', error);
+        showPasswordMessage('Error changing password. Please try again.', 'error');
+    });
+}
+
+function showPasswordMessage(message, type) {
+    const messageEl = document.getElementById('password-message');
+    messageEl.textContent = message;
+    messageEl.className = 'message ' + type;
+    messageEl.style.display = 'block';
+    
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+        setTimeout(() => {
+            messageEl.style.display = 'none';
+        }, 5000);
+    }
+}
