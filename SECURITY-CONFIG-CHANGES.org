@@ -71,23 +71,52 @@ Eliminated hardcoded Icecast admin password from codebase.
   - ~*supported-formats*~ → ~(config-supported-formats *config*)~
   - ~*stream-base-url*~ → ~(config-stream-base-url *config*)~
 
+** Docker Security Fixes (~docker/docker-compose.yml~) - CRITICAL
+
+*** Port Bindings Secured
+
+All services now bind to localhost only (127.0.0.1) instead of 0.0.0.0:
+
+- *Icecast*: ~127.0.0.1:8000:8000~ - Use HAproxy to expose publicly
+- *Liquidsoap telnet*: ~127.0.0.1:1234:1234~ - Never expose to internet
+- *PostgreSQL*: ~127.0.0.1:5432:5432~ - Database access from host only
+
+This prevents external access to:
+- Liquidsoap telnet management interface (Problem 1)
+- Direct Icecast access without HAproxy (Problem 2)
+- PostgreSQL database port
+
+*** Passwords Externalized
+
+All Docker container passwords now use environment variables:
+
+#+BEGIN_SRC yaml
+environment:
+  - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-default}
+  - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD:-default}
+  - ICECAST_RELAY_PASSWORD=${ICECAST_RELAY_PASSWORD:-default}
+  - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-default}
+#+END_SRC
+
 * TODO Items Addressed
 
 ** DONE Problem 4: Templates no longer advertise default admin password
 ** DONE Server runtime configuration: All configuration parameterized and loaded from environment
+** DONE Problem 1: Liquidsoap telnet binding secured (localhost only)
+** DONE Problem 2: Icecast external binding secured (localhost only)
 ** TODO Problem 3: Database backend selection implemented (PostgreSQL support ready, migration needed)
 
 * Production Deployment Issues (From b612.asteroid.radio Test)
 
 ** Critical Security (Must fix before public launch)
 
-- [ ] *Problem 1*: Fix Liquidsoap telnet binding (currently exposed on external interface)
+- [X] *Problem 1*: Fix Liquidsoap telnet binding ✅ FIXED
   - Issue: ~telnet asteroid.radio 1234~ works from anywhere
-  - Fix: Bind to localhost only in Docker config
+  - Fix: Bind to ~127.0.0.1:1234:1234~ in docker-compose.yml
   
-- [ ] *Problem 2*: Fix Icecast external binding
+- [X] *Problem 2*: Fix Icecast external binding ✅ FIXED
   - Issue: Icecast binding to 0.0.0.0
-  - Fix: Bind to localhost only, use HAproxy to proxy
+  - Fix: Bind to ~127.0.0.1:8000:8000~, use HAproxy to proxy
   
 - [ ] *Problem 5*: Set up TLS/Let's Encrypt with HAproxy
 

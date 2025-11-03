@@ -3,13 +3,13 @@ services:
     image: infiniteproject/icecast:latest
     container_name: asteroid-icecast
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  # Bind to localhost only - use HAproxy to expose publicly
     volumes:
       - ./icecast.xml:/etc/icecast.xml
     environment:
-      - ICECAST_SOURCE_PASSWORD=H1tn31EhsyLrfRmo
-      - ICECAST_ADMIN_PASSWORD=asteroid_admin_2024
-      - ICECAST_RELAY_PASSWORD=asteroid_relay_2024
+      - ICECAST_SOURCE_PASSWORD=${ICECAST_SOURCE_PASSWORD:-H1tn31EhsyLrfRmo}
+      - ICECAST_ADMIN_PASSWORD=${ICECAST_ADMIN_PASSWORD:-asteroid_admin_2024}
+      - ICECAST_RELAY_PASSWORD=${ICECAST_RELAY_PASSWORD:-asteroid_relay_2024}
     restart: unless-stopped
     networks:
       - asteroid-network
@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile.liquidsoap
     container_name: asteroid-liquidsoap
     ports:
-      - "1234:1234"
+      - "127.0.0.1:1234:1234"  # Bind telnet to localhost only - SECURITY: Never expose to internet
     depends_on:
       - icecast
     volumes:
@@ -35,11 +35,11 @@ services:
     image: postgres:16-alpine
     container_name: asteroid-postgres
     environment:
-      POSTGRES_DB: asteroid
-      POSTGRES_USER: asteroid
-      POSTGRES_PASSWORD: asteroid_db_2025
+      POSTGRES_DB: ${POSTGRES_DB:-asteroid}
+      POSTGRES_USER: ${POSTGRES_USER:-asteroid}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-asteroid_db_2025}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # Bind to localhost only
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
