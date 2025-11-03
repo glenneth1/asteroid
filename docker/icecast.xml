@@ -14,6 +14,10 @@
     </limits>
 
     <authentication>
+        <!-- NOTE: These passwords are OVERRIDDEN by environment variables in docker-compose.yml
+             Set ICECAST_SOURCE_PASSWORD, ICECAST_ADMIN_PASSWORD, and ICECAST_RELAY_PASSWORD
+             in your environment or .env file for production deployments.
+             These defaults are only used if environment variables are not set. -->
         <source-password>H1tn31EhsyLrfRmo</source-password>
         <relay-password>asteroid_relay_2024</relay-password>
         <admin-user>admin</admin-user>

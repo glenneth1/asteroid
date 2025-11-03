@@ -15,9 +15,14 @@ settings.frame.audio.channels.set(2)
 settings.audio.converter.samplerate.libsamplerate.quality.set("best")
 
 # Enable telnet server for remote control
+# Bind to 127.0.0.1 for security (only accessible from within container)
 settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
-settings.server.telnet.bind_addr.set("0.0.0.0")
+settings.server.telnet.bind_addr.set("127.0.0.1")
+
+# Get Icecast source password from environment variable
+# Falls back to default if not set (for development)
+icecast_password = environment.get("ICECAST_SOURCE_PASSWORD", default="H1tn31EhsyLrfRmo")
 
 # Create playlist source from generated M3U file
 # This file is managed by Asteroid's stream control system
@@ -65,7 +70,7 @@ output.icecast(
   %mp3(bitrate=128),
   host="icecast",  # Docker service name
   port=8000,
-  password="H1tn31EhsyLrfRmo",
+  password=icecast_password,
   mount="asteroid.mp3",
   name="Asteroid Radio",
   description="Music for Hackers - Streaming from the Asteroid",
@@ -80,7 +85,7 @@ output.icecast(
   %fdkaac(bitrate=96),
   host="icecast",
   port=8000,
-  password="H1tn31EhsyLrfRmo",
+  password=icecast_password,
   mount="asteroid.aac",
   name="Asteroid Radio (AAC)",
   description="Music for Hackers - High efficiency AAC stream",
@@ -95,7 +100,7 @@ output.icecast(
   %mp3(bitrate=64),
   host="icecast",
   port=8000,
-  password="H1tn31EhsyLrfRmo",
+  password=icecast_password,
   mount="asteroid-low.mp3",
   name="Asteroid Radio (Low Quality)",
   description="Music for Hackers - Low bandwidth stream",
