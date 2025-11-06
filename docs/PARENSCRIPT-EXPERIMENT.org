@@ -31,12 +31,12 @@ This branch experiments with converting all JavaScript files to ParenScript, all
 
 ** Phase 2: Convert Simple Files First
 - [X] Convert =auth-ui.js= (smallest, simplest) - COMPLETE ✅
+- [X] Convert =front-page.js= (stream quality, now playing, pop-out, frameset) - COMPLETE ✅
 - [ ] Convert =profile.js=
 - [ ] Convert =users.js=
 
 ** Phase 3: Convert Complex Files
 - [ ] Convert =player.js= (audio player logic)
-- [ ] Convert =front-page.js= (pop-out player, frameset mode)
 - [ ] Convert =admin.js= (queue management, track controls)
 
 ** Phase 4: Testing & Refinement
@@ -125,5 +125,44 @@ This is an EXPERIMENTAL branch. The goal is to evaluate ParenScript for this pro
 
 If successful, we can merge incrementally, one file at a time.
 
-** First Conversion Complete!
-auth-ui.js successfully converted to ParenScript on 2025-11-06. All functionality working, no errors.
+** Conversion Progress
+- *auth-ui.js* (2025-11-06): Successfully converted. 1386 chars. All functionality working.
+- *front-page.js* (2025-11-06): Successfully converted. 6900 chars. Stream quality, now playing, pop-out player, frameset mode all working.
+
+** front-page.js Conversion Notes
+
+This was a more complex file with multiple features. Key learnings:
+
+*** Global Variables
+ParenScript uses =(defvar *variable-name* value)= for global variables:
+#+BEGIN_EXAMPLE
+(defvar *popout-window* nil)
+#+END_EXAMPLE
+
+*** String Concatenation
+Use =+= operator for string concatenation:
+#+BEGIN_EXAMPLE
+(+ "width=" width ",height=" height)
+#+END_EXAMPLE
+
+*** Conditional Logic
+Use =cond= for multiple conditions in route interception:
+#+BEGIN_EXAMPLE
+(cond
+  ((string= path "js/auth-ui.js") ...)
+  ((string= path "js/front-page.js") ...)
+  (t ...))
+#+END_EXAMPLE
+
+*** Object Property Access
+Use =ps:getprop= for dynamic property access:
+#+BEGIN_EXAMPLE
+(ps:getprop config encoding)  ; config[encoding]
+#+END_EXAMPLE
+
+All features tested and working:
+- Stream quality selector changes stream correctly
+- Now playing updates every 10 seconds
+- Pop-out player functionality works
+- Frameset mode toggle works
+- Auto-reconnect on stream errors works
