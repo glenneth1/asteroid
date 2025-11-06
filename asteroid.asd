@@ -17,6 +17,7 @@
                :r-simple-rate
                :r-simple-profile
                :lass
+               :parenscript
                :cl-json
                :alexandria
                :local-time
@@ -38,6 +39,7 @@
                (:file "conditions")
                (:file "database")
                (:file "template-utils")
+               (:file "parenscript-utils")
                (:file "stream-media")
                (:file "user-management")
                (:file "playlist-management")

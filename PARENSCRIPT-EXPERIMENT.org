@@ -1,0 +1,74 @@
+#+TITLE: ParenScript Conversion Experiment
+#+AUTHOR: Glenn
+#+DATE: 2025-11-06
+
+* Overview
+
+This branch experiments with converting all JavaScript files to ParenScript, allowing us to write client-side code in Common Lisp that compiles to JavaScript.
+
+* Goals
+
+- Replace all =.js= files with ParenScript equivalents
+- Maintain same functionality
+- Improve code maintainability by using one language (Lisp) for both frontend and backend
+- Take advantage of Lisp macros for client-side code generation
+
+* Current JavaScript Files
+
+- =static/js/admin.js= - Admin dashboard functionality
+- =static/js/auth-ui.js= - Authentication UI
+- =static/js/front-page.js= - Front page interactions
+- =static/js/player.js= - Audio player controls
+- =static/js/profile.js= - User profile page
+- =static/js/users.js= - User management
+
+* Implementation Plan
+
+** Phase 1: Setup [DONE]
+- [X] Add ParenScript dependency to =asteroid.asd=
+- [X] Create =parenscript-utils.lisp= with helper functions
+- [X] Create experimental branch
+
+** Phase 2: Convert Simple Files First
+- [ ] Convert =auth-ui.js= (smallest, simplest)
+- [ ] Convert =profile.js=
+- [ ] Convert =users.js=
+
+** Phase 3: Convert Complex Files
+- [ ] Convert =player.js= (audio player logic)
+- [ ] Convert =front-page.js= (pop-out player, frameset mode)
+- [ ] Convert =admin.js= (queue management, track controls)
+
+** Phase 4: Testing & Refinement
+- [ ] Test all functionality
+- [ ] Optimize generated JavaScript
+- [ ] Document ParenScript patterns used
+
+* Benefits
+
+** Code Reuse
+- Share utility functions between frontend and backend
+- Use same data structures and validation logic
+
+** Macros
+- Create domain-specific macros for common UI patterns
+- Generate repetitive JavaScript code programmatically
+
+** Type Safety
+- Catch more errors at compile time
+- Better IDE support with Lisp tooling
+
+** Maintainability
+- Single language for entire stack
+- Easier refactoring across frontend/backend boundary
+
+* ParenScript Resources
+
+- [[https://parenscript.common-lisp.dev/][ParenScript Documentation]]
+- [[https://github.com/vsedach/Parenscript][ParenScript GitHub]]
+
+* Notes
+
+This is an EXPERIMENTAL branch. The goal is to evaluate ParenScript for this project, not to immediately replace all JavaScript.
+
+If successful, we can merge incrementally, one file at a time.
