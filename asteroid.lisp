@@ -472,25 +472,37 @@
    :default-stream-encoding "audio/aac"))
 
 ;; Configure static file serving for other files
-;; BUT exclude auth-ui.js which is served by ParenScript
+;; BUT exclude ParenScript-compiled JS files
 (define-page static #@"/static/(.*)" (:uri-groups (path))
-  (if (string= path "js/auth-ui.js")
-      ;; Serve ParenScript-compiled JavaScript
-      (progn
-        (format t "~%=== SERVING PARENSCRIPT auth-ui.js ===~%")
-        (setf (content-type *response*) "application/javascript")
-        (handler-case
-            (let ((js (generate-auth-ui-js)))
-              (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
-              (if js
-                  js
-                  "// Error: No JavaScript generated"))
-          (error (e)
-            (format t "ERROR generating auth-ui.js: ~a~%" e)
-            (format nil "// Error generating JavaScript: ~a~%" e))))
-      ;; Serve regular static file
-      (serve-file (merge-pathnames (format nil "static/~a" path) 
-                                   (asdf:system-source-directory :asteroid)))))
+  (cond
+    ;; Serve ParenScript-compiled auth-ui.js
+    ((string= path "js/auth-ui.js")
+     (format t "~%=== SERVING PARENSCRIPT auth-ui.js ===~%")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-auth-ui-js)))
+           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating auth-ui.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
+    ;; Serve ParenScript-compiled front-page.js
+    ((string= path "js/front-page.js")
+     (format t "~%=== SERVING PARENSCRIPT front-page.js ===~%")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-front-page-js)))
+           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating front-page.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
+    ;; Serve regular static file
+    (t
+     (serve-file (merge-pathnames (format nil "static/~a" path) 
+                                  (asdf:system-source-directory :asteroid))))))
 
 ;; Status check functions
 (defun check-icecast-status ()
