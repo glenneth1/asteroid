@@ -59,4 +59,4 @@
                  (let ((auth-status (await (check-auth-status))))
                    (ps:chain console (log "Auth status:" auth-status))
                    (update-auth-ui auth-status)
-                   (ps:chain console (log "Auth UI updated"))))))))))
+                   (ps:chain console (log "Auth UI updated")))))))))
