@@ -43,7 +43,8 @@
                (:module :parenscript
                 :components ((:file "auth-ui")
                              (:file "front-page")
-                             (:file "profile")))
+                             (:file "profile")
+                             (:file "users")))
                (:file "stream-media")
                (:file "user-management")
                (:file "playlist-management")
