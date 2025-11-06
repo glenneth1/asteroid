@@ -30,7 +30,7 @@ This branch experiments with converting all JavaScript files to ParenScript, all
 - [X] Create experimental branch
 
 ** Phase 2: Convert Simple Files First
-- [ ] Convert =auth-ui.js= (smallest, simplest)
+- [X] Convert =auth-ui.js= (smallest, simplest) - COMPLETE ✅
 - [ ] Convert =profile.js=
 - [ ] Convert =users.js=
 
@@ -67,8 +67,63 @@ This branch experiments with converting all JavaScript files to ParenScript, all
 - [[https://parenscript.common-lisp.dev/][ParenScript Documentation]]
 - [[https://github.com/vsedach/Parenscript][ParenScript GitHub]]
 
+* Lessons Learned
+
+** auth-ui.js Conversion (2025-11-06)
+
+*** Challenge 1: Route Precedence
+*Problem:* Radiance routes are matched in load order, not definition order. The general static file route (=/static/(.*)=) was intercepting our specific ParenScript route.
+
+*Solution:* Intercept the static file route and check if path is =js/auth-ui.js=. If yes, serve ParenScript; otherwise serve regular file.
+
+*** Challenge 2: Async/Await Syntax
+*Problem:* ParenScript doesn't support =async/await= syntax. Using =(async lambda ...)= generated invalid JavaScript.
+
+*Solution:* Use promise chains with =.then()= instead of async/await.
+
+*** Challenge 3: Compile Time vs Runtime
+*Problem:* ParenScript compiler (=ps:ps*=) isn't available in saved binary at runtime.
+
+*Solution:* Compile JavaScript at load time and store in a parameter. The function just returns the pre-compiled string.
+
+*** Success Metrics
+- JavaScript compiles correctly (1386 characters)
+- No browser console errors
+- Auth UI works perfectly (show/hide elements based on login status)
+- Generated code is readable and maintainable
+
+*** Key Patterns
+
+*Compile at load time:*
+#+BEGIN_EXAMPLE
+(defparameter *my-js*
+  (ps:ps* '(progn ...)))
+
+(defun generate-my-js ()
+  *my-js*)
+#+END_EXAMPLE
+
+*Promise chains instead of async/await:*
+#+BEGIN_EXAMPLE
+(ps:chain (fetch url)
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (data) (process data)))
+          (catch (lambda (error) (handle error))))
+#+END_EXAMPLE
+
+*Intercept static route:*
+#+BEGIN_EXAMPLE
+(define-page static #@"/static/(.*)" (:uri-groups (path))
+  (if (string= path "js/my-file.js")
+      (serve-parenscript)
+      (serve-static-file)))
+#+END_EXAMPLE
+
 * Notes
 
 This is an EXPERIMENTAL branch. The goal is to evaluate ParenScript for this project, not to immediately replace all JavaScript.
 
 If successful, we can merge incrementally, one file at a time.
+
+** First Conversion Complete!
+auth-ui.js successfully converted to ParenScript on 2025-11-06. All functionality working, no errors.

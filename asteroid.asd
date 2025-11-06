@@ -41,7 +41,8 @@
                (:file "template-utils")
                (:file "parenscript-utils")
                (:module :parenscript
-                :components ((:file "auth-ui")))
+                :components ((:file "auth-ui")
+                             (:file "front-page")))
                (:file "stream-media")
                (:file "user-management")
                (:file "playlist-management")
