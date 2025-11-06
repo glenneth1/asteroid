@@ -32,8 +32,8 @@ This branch experiments with converting all JavaScript files to ParenScript, all
 ** Phase 2: Convert Simple Files First
 - [X] Convert =auth-ui.js= (smallest, simplest) - COMPLETE ✅
 - [X] Convert =front-page.js= (stream quality, now playing, pop-out, frameset) - COMPLETE ✅
-- [ ] Convert =profile.js=
-- [ ] Convert =users.js=
+- [X] Convert =profile.js= (user profile, stats, history) - COMPLETE ✅
+- [X] Convert =users.js= (user management, admin) - COMPLETE ✅
 
 ** Phase 3: Convert Complex Files
 - [ ] Convert =player.js= (audio player logic)
@@ -128,6 +128,8 @@ If successful, we can merge incrementally, one file at a time.
 ** Conversion Progress
 - *auth-ui.js* (2025-11-06): Successfully converted. 1386 chars. All functionality working.
 - *front-page.js* (2025-11-06): Successfully converted. 6900 chars. Stream quality, now playing, pop-out player, frameset mode all working.
+- *profile.js* (2025-11-06): Successfully converted. Profile data, listening stats, recent tracks, top artists, password change all working.
+- *users.js* (2025-11-06): Successfully converted. User stats, user list, role changes, activate/deactivate, create user all working.
 
 ** front-page.js Conversion Notes
 
@@ -166,3 +168,50 @@ All features tested and working:
 - Pop-out player functionality works
 - Frameset mode toggle works
 - Auto-reconnect on stream errors works
+
+** profile.js and users.js Conversion Notes
+
+*** Modulo Operator
+ParenScript doesn't support =%= for modulo. Use =rem= (remainder) instead:
+#+BEGIN_EXAMPLE
+;; WRONG:
+(% seconds 3600)
+
+;; CORRECT:
+(rem seconds 3600)
+#+END_EXAMPLE
+
+*** Property Access with Hyphens
+For properties with hyphens (like ="last-login"=), use =ps:getprop=:
+#+BEGIN_EXAMPLE
+(ps:getprop user "last-login")
+;; Instead of (ps:@ user last-login)
+#+END_EXAMPLE
+
+*** Template Literals in HTML Generation
+Build HTML strings with =+= concatenation:
+#+BEGIN_EXAMPLE
+(+ "<td>" (ps:@ user username) "</td>"
+   "<td>" (ps:@ user email) "</td>")
+#+END_EXAMPLE
+
+*** Conditional Attributes
+Use =if= expressions inline for conditional HTML attributes:
+#+BEGIN_EXAMPLE
+(+ "<option value=\"listener\" "
+   (if (= (ps:@ user role) "listener") "selected" "")
+   ">Listener</option>")
+#+END_EXAMPLE
+
+** Summary of Key ParenScript Patterns
+
+1. *Async/Await*: Use promise chains with =.then()= instead
+2. *Modulo*: Use =rem= instead of =%=
+3. *Global Variables*: Use =defvar= with asterisks: =*variable-name*=
+4. *String Concatenation*: Use =+= operator
+5. *Property Access*: Use =ps:getprop= for dynamic/hyphenated properties
+6. *Object Creation*: Use =ps:create= with keyword arguments
+7. *Array Methods*: Use =ps:chain= for method chaining
+8. *Route Interception*: Use =cond= in static route handler
+9. *Compile at Load Time*: Store compiled JS in =defparameter=
+10. *Return Pre-compiled String*: Function just returns the parameter value
