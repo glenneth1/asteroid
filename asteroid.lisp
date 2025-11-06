@@ -855,6 +855,13 @@
       (format t "~%Received interrupt, stopping server...~%")
       (stop-server))))
 
+;;; ParenScript JavaScript Routes
+;;; These routes serve dynamically compiled ParenScript as JavaScript
+
+(define-page js-auth-ui #@"/static/js/auth-ui.js" ()
+  (:content-type "application/javascript")
+  (generate-auth-ui-js))
+
 (defun ensure-radiance-environment ()
   "Ensure RADIANCE environment is properly configured for persistence"
   (unless (radiance:environment)
