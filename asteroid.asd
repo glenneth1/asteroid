@@ -40,6 +40,8 @@
                (:file "database")
                (:file "template-utils")
                (:file "parenscript-utils")
+               (:module :parenscript
+                :components ((:file "auth-ui")))
                (:file "stream-media")
                (:file "user-management")
                (:file "playlist-management")
