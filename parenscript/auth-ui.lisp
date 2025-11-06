@@ -53,12 +53,14 @@
     (ps:chain document
               (add-event-listener
                "DOMContentLoaded"
-               (async lambda ()
+               (lambda ()
                  (ps:chain console (log "Auth UI initializing..."))
-                 (let ((auth-status (await (check-auth-status))))
-                   (ps:chain console (log "Auth status:" auth-status))
-                   (update-auth-ui auth-status)
-                   (ps:chain console (log "Auth UI updated")))))))))
+                 (ps:chain (check-auth-status)
+                           (then (lambda (auth-status)
+                                   (ps:chain console (log "Auth status:" auth-status))
+                                   (update-auth-ui auth-status)
+                                   (ps:chain console (log "Auth UI updated")))))))))
+  "Compiled JavaScript for auth UI - generated at load time"))
 
 (defun generate-auth-ui-js ()
   "Return the pre-compiled JavaScript for authentication UI"
