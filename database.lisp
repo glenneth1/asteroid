@@ -33,8 +33,8 @@
 
   (unless (db:collection-exists-p "playlist_tracks")
     (db:create "playlist_tracks" '((track_id :integer)
-                                   (position :ingeger)
-                                   (added_date :timestamp))))
+                                   (position :integer)
+                                   (added_date :integer))))
 
   ;; TODO: the radiance db interface is too basic to contain anything
   ;; but strings, integers, booleans, and maybe timestamps... we will
