@@ -45,5 +45,5 @@
   ;; (unless (db:collection-exists-p "sessions")
   ;;   (db:create "sessions" '(())))
   
-  (l:info "~2&Database collections initialized~%"))
+  (format t "~2&Database collections initialized~%"))
 
