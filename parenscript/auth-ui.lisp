@@ -3,8 +3,7 @@
 
 (in-package #:asteroid)
 
-(defun generate-auth-ui-js ()
-  "Generate JavaScript for authentication UI handling"
+(defparameter *auth-ui-js*
   (ps:ps*
    '(progn
     
@@ -60,3 +59,7 @@
                    (ps:chain console (log "Auth status:" auth-status))
                    (update-auth-ui auth-status)
                    (ps:chain console (log "Auth UI updated")))))))))
+
+(defun generate-auth-ui-js ()
+  "Return the pre-compiled JavaScript for authentication UI"
+  *auth-ui-js*)
