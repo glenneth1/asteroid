@@ -543,6 +543,30 @@
          (format t "ERROR generating users.js: ~a~%" e)
          (format nil "// Error generating JavaScript: ~a~%" e))))
     
+    ;; Serve ParenScript-compiled admin.js
+    ((string= path "js/admin.js")
+     (format t "~%=== SERVING PARENSCRIPT admin.js ===~%")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-admin-js)))
+           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating admin.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
+    ;; Serve ParenScript-compiled player.js
+    ((string= path "js/player.js")
+     (format t "~%=== SERVING PARENSCRIPT player.js ===~%")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-player-js)))
+           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating player.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
     ;; Serve regular static file
     (t
      (serve-file (merge-pathnames (format nil "static/~a" path) 
