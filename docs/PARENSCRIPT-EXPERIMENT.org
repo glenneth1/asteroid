@@ -216,7 +216,7 @@ This was the most challenging conversion due to complex ParenScript compilation 
 ;; WRONG:
 (push item *play-queue*)
 
-;; CORRECT (what we implemented):
+;; CORRECT (what I implemented):
 (setf (aref *play-queue* (ps:@ *play-queue* length)) item)
 
 ;; ALTERNATIVE (more idiomatic, could be used instead):
@@ -302,14 +302,28 @@ This was the most challenging conversion due to complex ParenScript compilation 
 *** Challenge 6: Icecast Listener Count Aggregation
 *Problem:* Function only checked =/asteroid.mp3= mount point, missing listeners on =/asteroid.aac= and =/asteroid-low.mp3= streams.
 
-*Solution:* Loop through all three mount points and aggregate listener counts:
+*Solution:* Modified =icecast-now-playing= function in =frontend-partials.lisp= to loop through all three mount points and aggregate listener counts:
 #+BEGIN_EXAMPLE
 (let ((total-listeners 0))
   (dolist (mount '("/asteroid\\.mp3" "/asteroid\\.aac" "/asteroid-low\\.mp3"))
-    (when (find-mount mount xml-string)
-      (incf total-listeners (parse-listener-count mount xml-string))))
+    (let ((match-pos (cl-ppcre:scan (format nil "<source mount=\"~a\">" mount) xml-string)))
+      (when match-pos
+        (let* ((source-section (subseq xml-string match-pos ...))
+               (listenersp (cl-ppcre:all-matches "<listeners>" source-section)))
+          (when listenersp
+            (let ((count (parse-integer (cl-ppcre:regex-replace-all 
+                                         ".*<listeners>(.*?)</listeners>.*" 
+                                         source-section "\\1") 
+                                        :junk-allowed t)))
+              (incf total-listeners count)))))))
   total-listeners)
 #+END_EXAMPLE
+
+*Additional Changes to frontend-partials.lisp:*
+- Fixed stray =^= character in =(in-package :asteroid)= form
+- Added error handler to =define-api asteroid/partial/now-playing= endpoint to catch errors gracefully
+- Added debug logging to track Icecast stats fetching and parsing
+- Removed problematic error variable usage in error handlers (see Challenge 3)
 
 *** Success Metrics
 - player.lisp compiles without errors
