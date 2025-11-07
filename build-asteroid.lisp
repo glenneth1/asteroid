@@ -3,8 +3,9 @@
 (unless *load-pathname*
   (error "Please LOAD this file."))
 
-(when (find-package :quicklisp)
-  (error "Please run this file as a script or from the Makefile."))
+;; Commented out to allow building with Quicklisp already loaded
+;; (when (find-package :quicklisp)
+;;   (error "Please run this file as a script or from the Makefile."))
 
 (defpackage #:asteroid-bootstrap
   (:use #:cl)

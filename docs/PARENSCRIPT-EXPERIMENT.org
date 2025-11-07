@@ -65,7 +65,8 @@ This branch experiments with converting all JavaScript files to ParenScript, all
 * ParenScript Resources
 
 - [[https://parenscript.common-lisp.dev/][ParenScript Documentation]]
-- [[https://github.com/vsedach/Parenscript][ParenScript GitHub]]
+- [[https://gitlab.common-lisp.net/parenscript/parenscript][ParenScript GitLab Repository]]
+- [[https://parenscript.common-lisp.dev/reference.html][ParenScript Reference Manual]]
 
 * Lessons Learned
 
