@@ -10,32 +10,34 @@
            (response (drakma:http-request icecast-url
                                          :want-stream nil
                                          :basic-authorization '("admin" "asteroid_admin_2024"))))
+      (format t "DEBUG: Fetching Icecast stats from ~a~%" icecast-url)
       (when response
-          (let ((xml-string (if (stringp response)
-                                response
-                                (babel:octets-to-string response :encoding :utf-8))))
-            ;; Extract total listener count from root <listeners> tag (sums all mount points)
-            ;; Extract title from asteroid.mp3 mount point
-            (let* ((total-listeners (multiple-value-bind (match groups)
-                                        (cl-ppcre:scan-to-strings "<listeners>(\\d+)</listeners>" xml-string)
-                                      (if (and match groups)
-                                          (parse-integer (aref groups 0) :junk-allowed t)
-                                          0)))
-                   ;; Get title from asteroid.mp3 mount point
-                   (mount-start (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string))
-                   (title (if mount-start
-                             (let* ((source-section (subseq xml-string mount-start
-                                                           (or (cl-ppcre:scan "</source>" xml-string :start mount-start)
-                                                               (length xml-string)))))
-                               (multiple-value-bind (match groups)
-                                   (cl-ppcre:scan-to-strings "<title>(.*?)</title>" source-section)
-                                 (if (and match groups)
-                                     (aref groups 0)
-                                     "Unknown")))
-                             "Unknown")))
-              `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
-                (:title . ,title)
-                (:listeners . ,total-listeners)))))))
+        (let ((xml-string (if (stringp response)
+                              response
+                              (babel:octets-to-string response :encoding :utf-8))))
+          ;; Extract total listener count from root <listeners> tag (sums all mount points)
+          ;; Extract title from asteroid.mp3 mount point
+          (let* ((total-listeners (multiple-value-bind (match groups)
+                                      (cl-ppcre:scan-to-strings "<listeners>(\\d+)</listeners>" xml-string)
+                                    (if (and match groups)
+                                        (parse-integer (aref groups 0) :junk-allowed t)
+                                        0)))
+                 ;; Get title from asteroid.mp3 mount point
+                 (mount-start (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string))
+                 (title (if mount-start
+                           (let* ((source-section (subseq xml-string mount-start
+                                                         (or (cl-ppcre:scan "</source>" xml-string :start mount-start)
+                                                             (length xml-string)))))
+                             (multiple-value-bind (match groups)
+                                 (cl-ppcre:scan-to-strings "<title>(.*?)</title>" source-section)
+                               (if (and match groups)
+                                   (aref groups 0)
+                                   "Unknown")))
+                           "Unknown")))
+            (format t "DEBUG: Parsed title=~a, total-listeners=~a~%" title total-listeners)
+            `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+              (:title . ,title)
+              (:listeners . ,total-listeners))))))
 
 (define-api asteroid/partial/now-playing () ()
   "Get Partial HTML with live status from Icecast server"
@@ -54,7 +56,14 @@
             (clip:process-to-string
              (load-template "partial/now-playing")
              :connection-error t
-             :stats nil))))))
+             :stats nil))))
+    (error ()
+      (format t "Error in now-playing endpoint~%")
+      (setf (header "Content-Type") "text/html")
+      (clip:process-to-string
+       (load-template "partial/now-playing")
+       :connection-error t
+       :stats nil))))
 
 (define-api asteroid/partial/now-playing-inline () ()
   "Get inline text with now playing info (for admin dashboard and widgets)"

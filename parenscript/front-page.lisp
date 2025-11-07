@@ -170,8 +170,8 @@
                       (ps:chain audio-element
                                 (add-event-listener
                                  "error"
-                                 (lambda (e)
-                                   (ps:chain console (log "Stream error, attempting reconnect in 3 seconds..."))
+                                 (lambda (err)
+                                   (ps:chain console (log "Stream error, attempting reconnect in 3 seconds..." err))
                                    (set-timeout
                                     (lambda ()
                                       (ps:chain audio-element (load))
