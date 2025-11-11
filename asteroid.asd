@@ -11,24 +11,27 @@
   :class "radiance:virtual-module"
   :depends-on (:slynk
                :lparallel
-               :radiance
-               :i-log4cl
-               :r-clip
-               :r-simple-rate
-               :r-simple-profile
-               :lass
-               :cl-json
                :alexandria
+               :cl-json
+               :radiance
+               :lass
                :local-time
                :taglib
-               :r-data-model
                :ironclad
                :babel
                :cl-fad
                :bordeaux-threads
                :drakma
+               ;; radiance interfaces
+               :i-log4cl
+               :i-postmodern
+               :r-clip
+               :r-data-model
+               :r-simple-profile
+               :r-simple-rate
                (:interface :auth)
                (:interface :database)
+               (:interface :relational-database)
                (:interface :user))
   :pathname "./"
   :components ((:file "app-utils")

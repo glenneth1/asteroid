@@ -22,20 +22,20 @@
 ;; Load RADIANCE first, then handle environment
 (ql:quickload :radiance)
 
-(defmethod radiance:environment-directory (environment (kind (eql :configuration)))
-  (ab:path (make-pathname :directory `(:relative "config" ,environment))))
+;; (defmethod radiance:environment-directory (environment (kind (eql :configuration)))
+;;   (ab:path (make-pathname :directory `(:relative "config" ,environment))))
 
-(defmethod radiance:environment-directory (environment (kind (eql :cache)))
-  (ab:path (make-pathname :directory `(:relative "cache" ,environment))))
+;; (defmethod radiance:environment-directory (environment (kind (eql :cache)))
+;;   (ab:path (make-pathname :directory `(:relative "cache" ,environment))))
 
-(defmethod radiance:environment-directory (environment (kind (eql :data)))
-  (ab:path (make-pathname :directory `(:relative "data" ,environment))))
+;; (defmethod radiance:environment-directory (environment (kind (eql :data)))
+;;   (ab:path (make-pathname :directory `(:relative "data" ,environment))))
 
-(defmethod radiance:environment-directory (environment (kind (eql :template)))
-  (ab:path (make-pathname :directory `(:relative "override" ,environment "template"))))
+;; (defmethod radiance:environment-directory (environment (kind (eql :template)))
+;;   (ab:path (make-pathname :directory `(:relative "override" ,environment "template"))))
 
-(defmethod radiance:environment-directory (environment (kind (eql :static)))
-  (ab:path (make-pathname :directory `(:relative "override" ,environment "static"))))
+;; (defmethod radiance:environment-directory (environment (kind (eql :static)))
+;;   (ab:path (make-pathname :directory `(:relative "override" ,environment "static"))))
 
 ;; Ensure RADIANCE environment is set before loading
 (unless (radiance:environment)
@@ -63,4 +63,5 @@
 (sb-ext:save-lisp-and-die "asteroid" 
                           :toplevel #'main
                           :executable t
-                          :compression 22)
+                          :compression 12)
+
