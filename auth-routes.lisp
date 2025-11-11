@@ -22,9 +22,9 @@
                              (user-role (if (listp user-role-raw) (first user-role-raw) user-role-raw))
                              (redirect-path (cond
                                               ;; Admin users go to admin dashboard
-                                              ((string-equal user-role "admin") "/asteroid/admin")
+                                              ((string-equal user-role "admin") "/admin")
                                               ;; All other users go to their profile
-                                              (t "/asteroid/profile"))))
+                                              (t "/profile"))))
                         (format t "User ID from DB: ~a~%" user-id)
                         (format t "User role: ~a, redirecting to: ~a~%" user-role redirect-path)
                         (setf (session:field "user-id") (if (listp user-id) (first user-id) user-id))
