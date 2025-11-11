@@ -848,11 +848,10 @@
   (compile-styles)  ; Generate CSS file using LASS
   
   ;; Ensure RADIANCE environment is properly set before startup
-  (unless (radiance:environment)
-    (setf (radiance:environment) "default"))
+  ;; (unless (radiance:environment)
+  ;;   (setf (radiance:environment) "asteroid"))
   
-  (radiance:startup)
-  (format t "Server started! Visit http://localhost:~a/asteroid/~%" port))
+  (radiance:startup))
 
 (defun stop-server ()
   "Stop the Asteroid Radio RADIANCE server"
@@ -874,13 +873,14 @@
 (defun ensure-radiance-environment ()
   "Ensure RADIANCE environment is properly configured for persistence"
   (unless (radiance:environment)
-    (setf (radiance:environment) "default"))
-  
-  ;; Ensure the database directory exists
-  (let ((db-dir (merge-pathnames ".config/radiance/default/i-lambdalite/radiance.db/"
-                                 (user-homedir-pathname))))
-    (ensure-directories-exist db-dir)
-    (format t "Database directory: ~a~%" db-dir)))
+    (setf (radiance:environment) "asteroid"))
+
+  (log:info "~2&:configuration - ~A~%:cache - ~A~%:data - ~A~%:template - ~A~%:static - ~A~2%"
+            (radiance:environment-directory (radiance-core:environment) :configuration)
+            (radiance:environment-directory (radiance-core:environment) :cache)
+            (radiance:environment-directory (radiance-core:environment) :data)
+            (radiance:environment-directory (radiance-core:environment) :template)
+            (radiance:environment-directory (radiance-core:environment) :static)))
 
 (defun -main (&optional args (debug t))
   (declare (ignorable args))
