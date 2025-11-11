@@ -875,11 +875,16 @@
   (unless (radiance:environment)
     (setf (radiance:environment) "asteroid"))
 
-  (log:info "~2&:configuration - ~A~%:cache - ~A~%:data - ~A~%:template - ~A~%:static - ~A~2%"
+  (log:info "~2&~15A - ~A~%~15A - ~A~%~15A - ~A~%~15A - ~A~%~15A - ~A~2%"
+            ":configuration"
             (radiance:environment-directory (radiance-core:environment) :configuration)
+            ":cache"
             (radiance:environment-directory (radiance-core:environment) :cache)
+            ":data"
             (radiance:environment-directory (radiance-core:environment) :data)
+            ":template"
             (radiance:environment-directory (radiance-core:environment) :template)
+            ":static"
             (radiance:environment-directory (radiance-core:environment) :static)))
 
 (defun -main (&optional args (debug t))
