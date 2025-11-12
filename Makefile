@@ -3,6 +3,7 @@ PACKAGE=asteroid
 PACKAGEUTILS=asteroid.app-utils
 OUT=asteroid
 ENTRY=-main
+BROWN_MM="Nil"
 
 .PHONY: $(OUT)
 $(OUT): clean
