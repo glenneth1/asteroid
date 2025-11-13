@@ -23,9 +23,9 @@ settings.server.telnet.bind_addr.set("0.0.0.0")
 # This file is managed by Asteroid's stream control system
 # Falls back to directory scan if playlist file doesn't exist
 radio = playlist(
-  mode="normal",  # Play in order (not randomized)
-  reload=30,      # Check for playlist updates every 30 seconds
-  reload_mode="seconds",  # Reload every N seconds (prevents running out of tracks)
+  mode="sequential",  # Play through playlist in order, then loop
+  reload=300,         # Check for playlist updates every 5 minutes
+  reload_mode="watch",  # Watch file for changes (more efficient than polling)
   "/app/stream-queue.m3u"
 )
 
