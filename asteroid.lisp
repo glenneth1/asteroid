@@ -425,8 +425,8 @@
   "Main front page"
   (clip:process-to-string 
    (load-template "front-page")
-   :title "🎵 ASTEROID RADIO 🎵"
-   :station-name "🎵 ASTEROID RADIO 🎵"
+   :title "ASTEROID RADIO"
+   :station-name "ASTEROID RADIO"
    :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
    :listeners "0"
    :stream-quality "128kbps MP3"
@@ -444,15 +444,15 @@
   "Frameset wrapper with persistent audio player"
   (clip:process-to-string 
    (load-template "frameset-wrapper")
-   :title "🎵 ASTEROID RADIO 🎵"))
+   :title "ASTEROID RADIO"))
 
 ;; Content frame - front page content without player
 (define-page front-page-content #@"/content" ()
   "Front page content (displayed in content frame)"
   (clip:process-to-string 
    (load-template "front-page-content")
-   :title "🎵 ASTEROID RADIO 🎵"
-   :station-name "🎵 ASTEROID RADIO 🎵"
+   :title "ASTEROID RADIO"
+   :station-name "ASTEROID RADIO"
    :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
    :listeners "0"
    :stream-quality "128kbps MP3"
@@ -601,7 +601,7 @@
   (require-authentication)
   (clip:process-to-string 
    (load-template "users")
-   :title "🎵 ASTEROID RADIO - User Management"))
+   :title "ASTEROID RADIO - User Management"))
 
 ;; User Profile page (requires authentication)
 (define-page user-profile #@"/profile" ()
