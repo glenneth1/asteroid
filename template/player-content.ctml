@@ -10,7 +10,11 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎵 WEB PLAYER</h1>
+    <h1 style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+      <img src="/asteroid/static/asteroid.png" alt="Asteroid" style="height: 50px; width: auto;">
+      <span>WEB PLAYER</span>
+      <img src="/asteroid/static/asteroid.png" alt="Asteroid" style="height: 50px; width: auto;">
+    </h1>
     <div class="nav">
       <a href="/asteroid/content" target="content-frame">Home</a>
       <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>

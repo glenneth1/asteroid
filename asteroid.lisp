@@ -445,8 +445,8 @@
   "Main front page"
   (clip:process-to-string 
    (load-template "front-page")
-   :title "🎵 ASTEROID RADIO 🎵"
-   :station-name "🎵 ASTEROID RADIO 🎵"
+   :title "ASTEROID RADIO"
+   :station-name "ASTEROID RADIO"
    :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
    :listeners "0"
    :stream-quality "128kbps MP3"
@@ -464,15 +464,15 @@
   "Frameset wrapper with persistent audio player"
   (clip:process-to-string 
    (load-template "frameset-wrapper")
-   :title "🎵 ASTEROID RADIO 🎵"))
+   :title "ASTEROID RADIO"))
 
 ;; Content frame - front page content without player
 (define-page front-page-content #@"/content" ()
   "Front page content (displayed in content frame)"
   (clip:process-to-string 
    (load-template "front-page-content")
-   :title "🎵 ASTEROID RADIO 🎵"
-   :station-name "🎵 ASTEROID RADIO 🎵"
+   :title "ASTEROID RADIO"
+   :station-name "ASTEROID RADIO"
    :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
    :listeners "0"
    :stream-quality "128kbps MP3"
@@ -597,23 +597,34 @@
 ;; Admin page (requires authentication)
 (define-page admin #@"/admin" ()
   "Admin dashboard"
-  (require-authentication)
-  (let ((track-count (handler-case 
-                       (length (db:select "tracks" (db:query :all)))
-                       (error () 0))))
-    (clip:process-to-string 
-     (load-template "admin")
-     :title "🎵 ASTEROID RADIO - Admin Dashboard"
-     :server-status "🟢 Running"
-     :database-status (handler-case 
-                        (if (db:connected-p) "🟢 Connected" "🔴 Disconnected")
-                        (error () "🔴 No Database Backend"))
-     :liquidsoap-status (check-liquidsoap-status)
-     :icecast-status (check-icecast-status)
-     :track-count (format nil "~d" track-count)
-     :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
-     :stream-base-url *stream-base-url*
-     :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*))))
+  (format t "~%=== ADMIN PAGE CALLED ===~%")
+  (handler-case
+      (progn
+        (require-authentication)
+        (format t "~%=== AUTHENTICATION PASSED ===~%"))
+    (error (e)
+      (format t "~%ERROR IN require-authentication: ~a~%" e)
+      (error e)))
+  (handler-case
+      (let ((track-count (handler-case 
+                           (length (db:select "tracks" (db:query :all)))
+                           (error () 0))))
+        (clip:process-to-string 
+         (load-template "admin")
+         :title "ASTEROID RADIO - Admin Dashboard"
+         :server-status "🟢 Running"
+         :database-status (handler-case 
+                            (if (db:connected-p) "🟢 Connected" "🔴 Disconnected")
+                            (error () "🔴 No Database Backend"))
+         :liquidsoap-status (check-liquidsoap-status)
+         :icecast-status (check-icecast-status)
+         :track-count (format nil "~d" track-count)
+         :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
+         :stream-base-url *stream-base-url*
+         :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)))
+    (error (e)
+      (format t "~%ERROR IN ADMIN PAGE: ~a~%" e)
+      (error e))))
 
 ;; User Management page (requires authentication)
 (define-page users-management #@"/admin/user" ()
@@ -621,7 +632,7 @@
   (require-authentication)
   (clip:process-to-string 
    (load-template "users")
-   :title "🎵 ASTEROID RADIO - User Management"))
+   :title "ASTEROID RADIO - User Management"))
 
 ;; User Profile page (requires authentication)
 (define-page user-profile #@"/profile" ()

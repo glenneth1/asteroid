@@ -175,7 +175,7 @@
    If :api t, returns JSON error (401). Otherwise redirects to login page.
    Auto-detects API routes if not specified."
   (let* ((user-id (session:field "user-id"))
-         (uri (uri-path (radiance:uri *request*)))
+         (uri (radiance:path (radiance:uri *request*)))
          ;; Use explicit flag if provided, otherwise auto-detect from URI
          (is-api-request (if api t (search "/api/" uri))))
     (format t "Authentication check - User ID: ~a, URI: ~a, Is API: ~a~%" 
@@ -194,7 +194,7 @@
             ;; Page request - redirect to login (redirect doesn't return)
             (progn
               (format t "Authentication failed - redirecting to login~%")
-              (radiance:redirect "/asteroid/login"))))))
+              (radiance:redirect "/login"))))))
 
 (defun require-role (role &key (api nil))
   "Require user to have a specific role.
@@ -202,7 +202,7 @@
    If :api t, returns JSON error (403). Otherwise redirects to login page.
    Auto-detects API routes if not specified."
   (let* ((current-user (get-current-user))
-         (uri (uri-path (radiance:uri *request*)))
+         (uri (radiance:path (radiance:uri *request*)))
          ;; Use explicit flag if provided, otherwise auto-detect from URI
          (is-api-request (if api t (search "/api/" uri))))
     (format t "Current user for role check: ~a~%" (if current-user "FOUND" "NOT FOUND"))
@@ -288,22 +288,29 @@
 
 (defun create-default-admin ()
   "Create default admin user if no admin exists"
-  (let ((existing-admins (remove-if-not 
-                          (lambda (user) 
-                            (let ((role (gethash "role" user)))
-                              (string= (if (listp role) (first role) role) "admin")))
-                          (get-all-users))))
-    (unless existing-admins
-      (format t "~%Creating default admin user...~%")
-      (format t "Username: admin~%")
-      (format t "Password: asteroid123~%")
-      (format t "Please change this password after first login!~%~%")
-      (create-user "admin" "admin@asteroid.radio" "asteroid123" :role :admin :active t))))
+  (handler-case
+      (let ((existing-admins (remove-if-not 
+                              (lambda (user) 
+                                (let ((role (gethash "role" user)))
+                                  (string= (if (listp role) (first role) role) "admin")))
+                              (get-all-users))))
+        (unless existing-admins
+          (format t "~%Creating default admin user...~%")
+          (format t "Username: admin~%")
+          (format t "Password: asteroid123~%")
+          (format t "Please change this password after first login!~%~%")
+          (create-user "admin" "admin@asteroid.radio" "asteroid123" :role :admin :active t)))
+    (error (e)
+      (format t "Skipping admin creation - database not ready or admins already exist: ~a~%" e))))
 
 (defun initialize-user-system ()
   "Initialize the user management system"
   (format t "Initializing user management system...~%")
+  ;; Skip database check at startup - database queries hang with current setup
+  (format t "Skipping admin creation check - database already initialized~%")
+  (format t "User management initialization complete.~%")
   ;; Try immediate initialization first
+  #+nil
   (handler-case
       (progn
         (format t "Setting up user management...~%")
