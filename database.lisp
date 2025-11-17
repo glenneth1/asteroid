@@ -47,3 +47,26 @@
   
   (format t "~2&Database collections initialized~%"))
 
+(defun data-model-as-alist (model)
+  "Converts a radiance data-model instance into a alist"
+  (unless (dm:hull-p model)
+    (loop for field in (dm:fields model)
+          collect (cons field (dm:field model field)))))
+
+(defun lambdalite-db-p ()
+  "Checks if application is using lambdalite as database backend"
+  (string= (string-upcase (package-name (db:implementation)))
+           "I-LAMBDALITE"))
+
+(defun data-model-save (data-model)
+  "Wrapper on data-model save method to bypass error using dm:save on lambdalite.
+It uses the same approach as dm:save under the hood through db:save."
+  (if (lambdalite-db-p)
+      (progn
+        (format t "Updating lambdalite collection '~a'~%" (dm:collection data-model))
+        (db:update (dm:collection data-model)
+                   (db:query (:= '_id (dm:id data-model)))
+                   (dm:field-table data-model)))
+      (progn
+        (format t "Updating database table '~a'~%" (dm:collection data-model))
+        (dm:save data-model))))
