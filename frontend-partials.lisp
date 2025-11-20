@@ -35,6 +35,15 @@
                                    "Unknown")))
                            "Unknown")))
             (format t "DEBUG: Parsed title=~a, total-listeners=~a~%" title total-listeners)
+            
+            ;; Track recently played if title changed
+            (when (and title 
+                      (not (string= title "Unknown"))
+                      (not (equal title *last-known-track*)))
+              (setf *last-known-track* title)
+              (add-recently-played (list :title title
+                                        :timestamp (get-universal-time))))
+            
             `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
               (:title . ,title)
               (:listeners . ,total-listeners)))))))
@@ -56,14 +65,7 @@
             (clip:process-to-string
              (load-template "partial/now-playing")
              :connection-error t
-             :stats nil))))
-    (error ()
-      (format t "Error in now-playing endpoint~%")
-      (setf (header "Content-Type") "text/html")
-      (clip:process-to-string
-       (load-template "partial/now-playing")
-       :connection-error t
-       :stats nil))))
+             :stats nil))))))
 
 (define-api asteroid/partial/now-playing-inline () ()
   "Get inline text with now playing info (for admin dashboard and widgets)"
