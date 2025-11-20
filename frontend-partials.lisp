@@ -37,7 +37,7 @@
             (format t "DEBUG: Parsed title=~a, total-listeners=~a~%" title total-listeners)
             `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
               (:title . ,title)
-              (:listeners . ,total-listeners))))))
+              (:listeners . ,total-listeners)))))))
 
 (define-api asteroid/partial/now-playing () ()
   "Get Partial HTML with live status from Icecast server"

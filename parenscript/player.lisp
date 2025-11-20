@@ -439,7 +439,7 @@
                                                                                                                                         (when (== (ps:@ add-result data status) "success")
                                                                                                                                           (setf added-count (+ added-count 1)))))
                                                                                                                                 (catch (lambda (err)
-                                                                                                                                         (ps:chain console (log "Error adding track:" err))))))))))
+                                                                                                                                         (ps:chain console (log "Error adding track:" err)))))))))))
                                                                                           
                                                                                           (alert (+ "Playlist \"" name "\" created with " added-count " tracks!"))
                                                                                           (load-playlists))))
@@ -608,8 +608,7 @@
     (setf (ps:@ window library-next-page) library-next-page)
     (setf (ps:@ window library-go-to-last-page) library-go-to-last-page)
     (setf (ps:@ window change-library-tracks-per-page) change-library-tracks-per-page)
-    (setf (ps:@ window load-playlist) load-playlist)
-    ))
+    (setf (ps:@ window load-playlist) load-playlist)))
   "Compiled JavaScript for web player - generated at load time")
 
 (defun generate-player-js ()
