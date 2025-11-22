@@ -91,18 +91,21 @@
      ;; Update user role
      (defun update-user-role (user-id new-role)
        (let ((form-data (ps:new (-form-data))))
+         (ps:chain form-data (append "user-id" user-id))
          (ps:chain form-data (append "role" new-role))
          
          (ps:chain
-          (fetch (+ "/api/asteroid/users/" user-id "/role")
+          (fetch "/api/asteroid/user/role"
                  (ps:create :method "POST" :body form-data))
           (then (lambda (response) (ps:chain response (json))))
           (then (lambda (result)
-                  (if (= (ps:@ result status) "success")
-                      (progn
-                        (load-user-stats)
-                        (alert "User role updated successfully"))
-                      (alert (+ "Error updating user role: " (ps:@ result message))))))
+                  ;; Handle Radiance API data wrapping
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (load-user-stats)
+                          (alert (ps:@ data message)))
+                        (alert (+ "Error updating user role: " (ps:@ data message)))))))
           (catch (lambda (error)
                    (ps:chain console (error "Error updating user role:" error))
                    (alert "Error updating user role. Please try again."))))))
@@ -112,37 +115,52 @@
        (when (not (confirm "Are you sure you want to deactivate this user?"))
          (return))
        
-       (ps:chain
-        (fetch (+ "/api/asteroid/users/" user-id "/deactivate")
-               (ps:create :method "POST"))
-        (then (lambda (response) (ps:chain response (json))))
-        (then (lambda (result)
-                (if (= (ps:@ result status) "success")
-                    (progn
-                      (load-users)
-                      (load-user-stats)
-                      (alert "User deactivated successfully"))
-                    (alert (+ "Error deactivating user: " (ps:@ result message))))))
-        (catch (lambda (error)
-                 (ps:chain console (error "Error deactivating user:" error))
-                 (alert "Error deactivating user. Please try again.")))))
+       (let ((form-data (ps:new (-form-data))))
+         (ps:chain form-data (append "user-id" user-id))
+         (ps:chain form-data (append "active" 0))
+         
+         (ps:chain
+          (fetch "/api/asteroid/user/activate"
+                 (ps:create :method "POST" :body form-data))
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  ;; Handle Radiance API data wrapping
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (load-users)
+                          (load-user-stats)
+                          (alert (ps:@ data message)))
+                        (alert (+ "Error deactivating user: " (ps:@ data message)))))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error deactivating user:" error))
+                   (alert "Error deactivating user. Please try again."))))))
      
      ;; Activate user
      (defun activate-user (user-id)
-       (ps:chain
-        (fetch (+ "/api/asteroid/users/" user-id "/activate")
-               (ps:create :method "POST"))
-        (then (lambda (response) (ps:chain response (json))))
-        (then (lambda (result)
-                (if (= (ps:@ result status) "success")
-                    (progn
-                      (load-users)
-                      (load-user-stats)
-                      (alert "User activated successfully"))
-                    (alert (+ "Error activating user: " (ps:@ result message))))))
-        (catch (lambda (error)
-                 (ps:chain console (error "Error activating user:" error))
-                 (alert "Error activating user. Please try again.")))))
+       (when (not (confirm "Are you sure you want to activate this user?"))
+         (return))
+       
+       (let ((form-data (ps:new (-form-data))))
+         (ps:chain form-data (append "user-id" user-id))
+         (ps:chain form-data (append "active" 1))
+         
+         (ps:chain
+          (fetch "/api/asteroid/user/activate"
+                 (ps:create :method "POST" :body form-data))
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  ;; Handle Radiance API data wrapping
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (load-users)
+                          (load-user-stats)
+                          (alert (ps:@ data message)))
+                        (alert (+ "Error activating user: " (ps:@ data message)))))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error activating user:" error))
+                   (alert "Error activating user. Please try again."))))))
      
      ;; Toggle create user form
      (defun toggle-create-user-form ()
