@@ -196,6 +196,27 @@
                         ("message" . "Playlist not found"))
                       :status 404)))))
 
+;; Recently played tracks API endpoint
+(define-api asteroid/recently-played () ()
+  "Get the last 3 played tracks with AllMusic links"
+  (with-error-handling
+    (let ((tracks (get-recently-played)))
+      (api-output `(("status" . "success")
+                    ("tracks" . ,(mapcar (lambda (track)
+                                           (let* ((title (getf track :title))
+                                                  (timestamp (getf track :timestamp))
+                                                  (unix-timestamp (universal-time-to-unix timestamp))
+                                                  (parsed (parse-track-title title))
+                                                  (artist (getf parsed :artist))
+                                                  (song (getf parsed :song))
+                                                  (search-url (generate-music-search-url artist song)))
+                                             `(("title" . ,title)
+                                               ("artist" . ,artist)
+                                               ("song" . ,song)
+                                               ("timestamp" . ,unix-timestamp)
+                                               ("search_url" . ,search-url))))
+                                         tracks)))))))
+
 ;; API endpoint to get all tracks (for web player)
 (define-api asteroid/tracks () ()
   "Get all tracks for web player"
