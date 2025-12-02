@@ -7,10 +7,17 @@
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
   <script src="/asteroid/static/js/auth-ui.js"></script>
   <script src="/asteroid/static/js/player.js"></script>
+  <script src="/api/asteroid/spectrum-analyzer.js"></script>
 </head>
 <body>
   <div class="container">
     <h1>🎵 WEB PLAYER</h1>
+    
+    <!-- Spectrum Analyzer Canvas -->
+    <div style="text-align: center; margin: 15px 0;">
+      <canvas id="spectrum-canvas" width="800" height="100" style="max-width: 100%; border: 1px solid #00ff00; background: #000; border-radius: 4px;"></canvas>
+    </div>
+    
     <div class="nav">
       <a href="/asteroid/content" target="content-frame">Home</a>
       <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>
