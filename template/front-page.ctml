@@ -11,7 +11,7 @@
   <script src="/asteroid/static/js/auth-ui.js"></script>
   <script src="/asteroid/static/js/front-page.js"></script>
   <script src="/asteroid/static/js/recently-played.js"></script>
-  <script src="/asteroid/static/js/spectrum-analyzer.js"></script>
+  <script src="/api/asteroid/spectrum-analyzer.js"></script>
 </head>
 <body>
   <div class="container">
