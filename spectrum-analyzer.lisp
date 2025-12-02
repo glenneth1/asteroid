@@ -3,8 +3,9 @@
 ;;; Spectrum Analyzer - Parenscript Implementation
 ;;; Generates JavaScript for real-time audio visualization
 
-(defun generate-spectrum-analyzer-js ()
-  "Generate JavaScript code for the spectrum analyzer using Parenscript"
+(define-api asteroid/spectrum-analyzer.js () ()
+  "Serve the spectrum analyzer JavaScript generated from Parenscript"
+  (setf (content-type *response*) "application/javascript")
   (ps:ps
     (defvar *audio-context* nil)
     (defvar *analyser* nil)
@@ -85,12 +86,4 @@
         (let ((audio-element (chain document (get-element-by-id "live-audio"))))
           (when audio-element
             (chain audio-element (add-event-listener "play" init-spectrum-analyzer))
-            (chain audio-element (add-event-listener "pause" stop-spectrum-analyzer)))))))))
-
-(defun write-spectrum-analyzer-js ()
-  "Write the generated JavaScript to a file"
-  (with-open-file (stream (asdf:system-relative-pathname :asteroid "static/js/spectrum-analyzer.js")
-                          :direction :output
-                          :if-exists :supersede
-                          :if-does-not-exist :create)
-    (write-string (generate-spectrum-analyzer-js) stream)))
+            (chain audio-element (add-event-listener "pause" stop-spectrum-analyzer))))))))
