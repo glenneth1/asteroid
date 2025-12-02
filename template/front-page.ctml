@@ -70,7 +70,7 @@
             </button>
         </div>
         
-        <audio id="live-audio" controls style="width: 100%; margin: 10px 0;">
+        <audio id="live-audio" controls crossorigin="anonymous" style="width: 100%; margin: 10px 0;">
           <source id="audio-source" lquery="(attr :src default-stream-url :type default-stream-encoding)">
           Your browser does not support the audio element.
         </audio>
