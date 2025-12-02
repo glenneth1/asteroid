@@ -1,0 +1,62 @@
+#+TITLE: Spectrum Analyzer Implementation
+#+AUTHOR: Asteroid Radio
+#+DATE: 2025-12-02
+
+* Overview
+Real-time audio spectrum analyzer for Asteroid Radio, implemented using Parenscript (Lisp-to-JavaScript compiler).
+
+* Features
+- *Real-time visualization* of audio frequencies using Web Audio API
+- *Green gradient bars* matching Asteroid Radio's aesthetic
+- *Smooth animations* with fade effects
+- *Responsive design* - canvas scales to fit container
+- *Auto-start* - begins when audio playback starts
+
+* Implementation Details
+
+** Files Modified
+1. *asteroid.asd* - Added Parenscript dependency
+2. *spectrum-analyzer.lisp* - Parenscript code that generates JavaScript
+3. *module.lisp* - Compile-time hook to generate JS file
+4. *template/front-page.ctml* - Added canvas element and script tag
+
+** Technical Approach
+- Uses *Web Audio API* =AnalyserNode= for FFT analysis
+- *256 frequency bins* for balanced detail and performance
+- *Canvas 2D* rendering with gradient fills
+- *RequestAnimationFrame* for smooth 60fps animation
+- *Event-driven* - starts on audio play, stops on pause
+
+** Parenscript Benefits
+- *Type safety* - Lisp macros catch errors at compile time
+- *Code reuse* - Share utilities between server and client
+- *Maintainability* - Single language for full stack
+- *Integration* - Seamless with existing Radiance/Clip infrastructure
+
+* Usage
+
+** Generating JavaScript
+The JavaScript is automatically generated at compile time. To manually regenerate:
+
+#+BEGIN_SRC lisp
+(asteroid:write-spectrum-analyzer-js)
+#+END_SRC
+
+This creates =static/js/spectrum-analyzer.js= from the Parenscript code.
+
+** Customization
+Edit =spectrum-analyzer.lisp= to modify:
+- *FFT size* - =(setf (@ *analyser* fft-size) 256)=
+- *Colors* - Gradient color stops in =draw-spectrum=
+- *Smoothing* - =(setf (@ *analyser* smoothing-time-constant) 0.8)=
+- *Canvas size* - Update width/height in template
+
+* Future Enhancements
+- Multiple visualization modes (waveform, circular, particle effects)
+- User-selectable color schemes
+- Frequency range filtering
+- Beat detection and reactive animations
+- Integration with now-playing metadata
+
+* Notes
+This is the first Parenscript component in Asteroid Radio. Future work will convert existing JavaScript files to Parenscript as part of the =glenneth/parenscript-conversion= branch.

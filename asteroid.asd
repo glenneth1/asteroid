@@ -15,6 +15,7 @@
                :cl-json
                :radiance
                :lass
+               :parenscript
                :local-time
                :taglib
                :ironclad
@@ -31,7 +32,6 @@
                :r-simple-rate
                (:interface :auth)
                (:interface :database)
-               (:interface :relational-database)
                (:interface :user))
   :pathname "./"
   :components ((:file "app-utils")
@@ -41,6 +41,7 @@
                (:file "conditions")
                (:file "database")
                (:file "template-utils")
+               (:file "spectrum-analyzer")
                (:file "stream-media")
                (:file "user-management")
                (:file "playlist-management")
