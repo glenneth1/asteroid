@@ -113,6 +113,8 @@ window.addEventListener('DOMContentLoaded', function() {
     if (audioElement) {
         // Track pause timestamp to detect long pauses and reconnect
         let pauseTimestamp = null;
+        let isReconnecting = false;
+        let needsReconnect = false;
         const PAUSE_RECONNECT_THRESHOLD = 10000; // 10 seconds
         
         audioElement.addEventListener('pause', function() {
@@ -121,8 +123,23 @@ window.addEventListener('DOMContentLoaded', function() {
         });
         
         audioElement.addEventListener('play', function() {
-            if (pauseTimestamp && (Date.now() - pauseTimestamp) > PAUSE_RECONNECT_THRESHOLD) {
+            // Check if we need to reconnect after long pause
+            if (!isReconnecting && pauseTimestamp && (Date.now() - pauseTimestamp) > PAUSE_RECONNECT_THRESHOLD) {
+                needsReconnect = true;
+                console.log('Long pause detected, will reconnect when playing starts...');
+            }
+            pauseTimestamp = null;
+        });
+        
+        // Intercept the playing event to stop stale audio
+        audioElement.addEventListener('playing', function() {
+            if (needsReconnect && !isReconnecting) {
+                isReconnecting = true;
+                needsReconnect = false;
                 console.log('Reconnecting stream after long pause to clear stale buffers...');
+                
+                // Stop the stale audio immediately
+                audioElement.pause();
                 
                 // Reset spectrum analyzer before reconnect
                 if (typeof resetSpectrumAnalyzer === 'function') {
@@ -139,9 +156,10 @@ window.addEventListener('DOMContentLoaded', function() {
                         initSpectrumAnalyzer();
                         console.log('Spectrum analyzer reinitialized after reconnect');
                     }
+                    
+                    isReconnecting = false;
                 }, 500);
             }
-            pauseTimestamp = null;
         });
         
         audioElement.addEventListener('error', function(e) {
