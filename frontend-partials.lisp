@@ -30,7 +30,7 @@
                              (multiple-value-bind (match groups)
                                  (cl-ppcre:scan-to-strings "<title>(.*?)</title>" source-section)
                                (if (and match groups)
-                                   (aref groups 0)
+                                   (plump:decode-entities (aref groups 0))
                                    "Unknown")))
                            "Unknown")))
             
