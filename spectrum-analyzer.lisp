@@ -12,6 +12,18 @@
     (defvar *canvas* nil)
     (defvar *canvas-ctx* nil)
     (defvar *animation-id* nil)
+    (defvar *media-source* nil)
+    (defvar *current-audio-element* nil)
+    
+    (defun reset-spectrum-analyzer ()
+      "Reset the spectrum analyzer to allow reconnection after audio element reload"
+      (when *animation-id*
+        (cancel-animation-frame *animation-id*)
+        (setf *animation-id* nil))
+      (setf *audio-context* nil)
+      (setf *analyser* nil)
+      (setf *media-source* nil)
+      (ps:chain console (log "Spectrum analyzer reset for reconnection")))
     
     (defun init-spectrum-analyzer ()
       "Initialize the spectrum analyzer"
@@ -37,27 +49,35 @@
            (:catch (e)
              (ps:chain console (log "Cross-frame access error:" e)))))
         
-        (when (and audio-element canvas-element (not *audio-context*))
-          ;; Create Audio Context
-          (setf *audio-context* (ps:new (or (ps:@ window |AudioContext|)
-                                            (ps:@ window |webkitAudioContext|))))
+        (when (and audio-element canvas-element)
+          ;; Store current audio element
+          (setf *current-audio-element* audio-element)
           
-          ;; Create Analyser Node
-          (setf *analyser* (ps:chain *audio-context* (create-analyser)))
-          (setf (ps:@ *analyser* |fftSize|) 256)
-          (setf (ps:@ *analyser* |smoothingTimeConstant|) 0.8)
-          
-          ;; Connect audio source to analyser
-          (let ((source (ps:chain *audio-context* (create-media-element-source audio-element))))
-            (ps:chain source (connect *analyser*))
-            (ps:chain *analyser* (connect (ps:@ *audio-context* destination))))
+          ;; Only create audio context and media source once
+          (when (not *audio-context*)
+            ;; Create Audio Context
+            (setf *audio-context* (ps:new (or (ps:@ window |AudioContext|)
+                                              (ps:@ window |webkitAudioContext|))))
+            
+            ;; Create Analyser Node
+            (setf *analyser* (ps:chain *audio-context* (create-analyser)))
+            (setf (ps:@ *analyser* |fftSize|) 256)
+            (setf (ps:@ *analyser* |smoothingTimeConstant|) 0.8)
+            
+            ;; Connect audio source to analyser (can only be done once per element)
+            (setf *media-source* (ps:chain *audio-context* (create-media-element-source audio-element)))
+            (ps:chain *media-source* (connect *analyser*))
+            (ps:chain *analyser* (connect (ps:@ *audio-context* destination)))
+            
+            (ps:chain console (log "Spectrum analyzer audio context created")))
           
           ;; Setup canvas
           (setf *canvas* canvas-element)
           (setf *canvas-ctx* (ps:chain *canvas* (get-context "2d")))
           
-          ;; Start visualization
-          (draw-spectrum))))
+          ;; Start visualization if not already running
+          (when (not *animation-id*)
+            (draw-spectrum)))))
     
     (defun draw-spectrum ()
       "Draw the spectrum analyzer visualization"

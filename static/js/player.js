@@ -26,6 +26,39 @@ document.addEventListener('DOMContentLoaded', function() {
     if (liveAudio) {
         // Reduce buffer to minimize delay
         liveAudio.preload = 'none';
+        
+        // Track pause timestamp to detect long pauses and reconnect
+        let pauseTimestamp = null;
+        const PAUSE_RECONNECT_THRESHOLD = 10000; // 10 seconds
+        
+        liveAudio.addEventListener('pause', function() {
+            pauseTimestamp = Date.now();
+            console.log('Live stream paused at:', pauseTimestamp);
+        });
+        
+        liveAudio.addEventListener('play', function() {
+            if (pauseTimestamp && (Date.now() - pauseTimestamp) > PAUSE_RECONNECT_THRESHOLD) {
+                console.log('Reconnecting live stream after long pause to clear stale buffers...');
+                
+                // Reset spectrum analyzer before reconnect
+                if (typeof resetSpectrumAnalyzer === 'function') {
+                    resetSpectrumAnalyzer();
+                }
+                
+                liveAudio.load(); // Force reconnect to clear accumulated buffer
+                
+                // Start playing the fresh stream and reinitialize spectrum analyzer
+                setTimeout(function() {
+                    liveAudio.play().catch(err => console.log('Reconnect play failed:', err));
+                    
+                    if (typeof initSpectrumAnalyzer === 'function') {
+                        initSpectrumAnalyzer();
+                        console.log('Spectrum analyzer reinitialized after reconnect');
+                    }
+                }, 500);
+            }
+            pauseTimestamp = null;
+        });
     }
     // Restore user quality preference
     const selector = document.getElementById('live-stream-quality');
@@ -598,6 +631,12 @@ function changeLiveStreamQuality() {
 
 // Live stream informatio update
 async function updateNowPlaying() {
+    // Don't update if stream is paused
+    const liveAudio = document.getElementById('live-stream-audio');
+    if (liveAudio && liveAudio.paused) {
+        return;
+    }
+    
     try {
         const response = await fetch('/api/asteroid/partial/now-playing')
         const contentType = response.headers.get("content-type")

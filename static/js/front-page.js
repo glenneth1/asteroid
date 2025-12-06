@@ -55,6 +55,12 @@ function changeStreamQuality() {
 
 // Update now playing info from Icecast
 async function updateNowPlaying() {
+    // Don't update if stream is paused
+    const audioElement = document.getElementById('live-audio');
+    if (audioElement && audioElement.paused) {
+        return;
+    }
+    
     try {
         const response = await fetch('/api/asteroid/partial/now-playing')
         const contentType = response.headers.get("content-type")
@@ -102,9 +108,42 @@ window.addEventListener('DOMContentLoaded', function() {
     // Update playing information right after load
     updateNowPlaying();
 
-    // Auto-reconnect on stream errors
+    // Auto-reconnect on stream errors and after long pauses
     const audioElement = document.getElementById('live-audio');
     if (audioElement) {
+        // Track pause timestamp to detect long pauses and reconnect
+        let pauseTimestamp = null;
+        const PAUSE_RECONNECT_THRESHOLD = 10000; // 10 seconds
+        
+        audioElement.addEventListener('pause', function() {
+            pauseTimestamp = Date.now();
+            console.log('Stream paused at:', pauseTimestamp);
+        });
+        
+        audioElement.addEventListener('play', function() {
+            if (pauseTimestamp && (Date.now() - pauseTimestamp) > PAUSE_RECONNECT_THRESHOLD) {
+                console.log('Reconnecting stream after long pause to clear stale buffers...');
+                
+                // Reset spectrum analyzer before reconnect
+                if (typeof resetSpectrumAnalyzer === 'function') {
+                    resetSpectrumAnalyzer();
+                }
+                
+                audioElement.load(); // Force reconnect to clear accumulated buffer
+                
+                // Start playing the fresh stream and reinitialize spectrum analyzer
+                setTimeout(function() {
+                    audioElement.play().catch(err => console.log('Reconnect play failed:', err));
+                    
+                    if (typeof initSpectrumAnalyzer === 'function') {
+                        initSpectrumAnalyzer();
+                        console.log('Spectrum analyzer reinitialized after reconnect');
+                    }
+                }, 500);
+            }
+            pauseTimestamp = null;
+        });
+        
         audioElement.addEventListener('error', function(e) {
             console.log('Stream error, attempting reconnect in 3 seconds...');
             setTimeout(function() {
