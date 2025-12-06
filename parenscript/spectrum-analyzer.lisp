@@ -89,7 +89,8 @@
              (height (ps:@ *canvas* height))
              (bar-width (/ width buffer-length))
              (bar-height 0)
-             (x 0))
+             (x 0)
+             (is-muted (and *current-audio-element* (ps:@ *current-audio-element* muted))))
         
         (ps:chain *analyser* (get-byte-frequency-data data-array))
         
@@ -111,7 +112,15 @@
             (setf (ps:@ *canvas-ctx* |fillStyle|) gradient)
             (ps:chain *canvas-ctx* (fill-rect x (- height bar-height) bar-width bar-height))
             
-            (incf x bar-width)))))
+            (incf x bar-width)))
+        
+        ;; Draw MUTED indicator if audio is muted
+        (when is-muted
+          (setf (ps:@ *canvas-ctx* |fillStyle|) "rgba(255, 0, 0, 0.8)")
+          (setf (ps:@ *canvas-ctx* font) "bold 20px monospace")
+          (setf (ps:@ *canvas-ctx* |textAlign|) "right")
+          (setf (ps:@ *canvas-ctx* |textBaseline|) "top")
+          (ps:chain *canvas-ctx* (fill-text "MUTED" (- width 10) 10)))))
     
     (defun stop-spectrum-analyzer ()
       "Stop the spectrum analyzer"

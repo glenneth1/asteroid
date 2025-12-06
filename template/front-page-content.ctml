@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title data-text="title">🎵 ASTEROID RADIO 🎵</title>
+    <title data-text="title">ASTEROID RADIO</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="/asteroid/static/favicon.ico">
@@ -53,7 +53,7 @@
       <div id="now-playing" class="now-playing"></div>
       
       <!-- Recently Played Tracks -->
-      <div class="recently-played-panel">
+      <div id="recently-played-panel" class="recently-played-panel">
         <h3>Recently Played</h3>
         <div id="recently-played-list" class="recently-played-list">
           <p class="loading">Loading...</p>
