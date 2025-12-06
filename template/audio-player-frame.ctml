@@ -34,6 +34,10 @@
   </div>
 
   <script>
+    // Track if audio should be playing
+    let shouldBePlaying = false;
+    let keepAliveInterval = null;
+
     // Configure audio element for better streaming
     document.addEventListener('DOMContentLoaded', function() {
       const audioElement = document.getElementById('persistent-audio');
@@ -47,17 +51,47 @@
         });
       }
       
+      // Track when user intentionally plays/pauses
+      audioElement.addEventListener('play', function() {
+        console.log('Audio play event');
+        shouldBePlaying = true;
+        startKeepAlive();
+      });
+
+      audioElement.addEventListener('playing', function() {
+        console.log('Audio playing');
+        shouldBePlaying = true;
+      });
+
+      // Only set shouldBePlaying to false if user clicked pause button
+      const originalPause = audioElement.pause.bind(audioElement);
+      audioElement.pause = function() {
+        console.log('User paused audio');
+        shouldBePlaying = false;
+        stopKeepAlive();
+        originalPause();
+      };
+      
       // Add event listeners for debugging
       audioElement.addEventListener('waiting', function() {
         console.log('Audio buffering...');
       });
       
-      audioElement.addEventListener('playing', function() {
-        console.log('Audio playing');
-      });
-      
       audioElement.addEventListener('error', function(e) {
         console.error('Audio error:', e);
+      });
+
+      // Monitor for unexpected pauses
+      audioElement.addEventListener('pause', function(e) {
+        console.log('Audio paused, shouldBePlaying:', shouldBePlaying);
+        if (shouldBePlaying && !audioElement.ended) {
+          console.log('Unexpected pause detected, resuming...');
+          setTimeout(function() {
+            if (audioElement.paused && shouldBePlaying) {
+              audioElement.play().catch(err => console.log('Resume failed:', err));
+            }
+          }, 50);
+        }
       });
 
       const selector = document.getElementById('stream-quality');
@@ -126,6 +160,27 @@
     // Update every 10 seconds
     setTimeout(updateMiniNowPlaying, 1000);
     setInterval(updateMiniNowPlaying, 10000);
+
+    // Keep-alive functions to maintain playback
+    function startKeepAlive() {
+      if (keepAliveInterval) return;
+      console.log('Starting audio keep-alive');
+      keepAliveInterval = setInterval(function() {
+        const audioElement = document.getElementById('persistent-audio');
+        if (shouldBePlaying && audioElement.paused && !audioElement.ended) {
+          console.log('Keep-alive: resuming paused audio');
+          audioElement.play().catch(err => console.log('Keep-alive resume failed:', err));
+        }
+      }, 500); // Check every 500ms
+    }
+
+    function stopKeepAlive() {
+      if (keepAliveInterval) {
+        console.log('Stopping audio keep-alive');
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null;
+      }
+    }
 
     // Disable frameset mode function
     function disableFramesetMode() {

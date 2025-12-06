@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title data-text="title">Asteroid Radio - Admin Dashboard</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script src="/asteroid/static/js/auth-ui.js"></script>
+  <script src="/asteroid/static/js/admin.js"></script>
+  <script>
+    // Handle logout without navigation
+    function handleLogout() {
+      fetch('/asteroid/logout', {
+        method: 'GET',
+        redirect: 'manual'
+      })
+      .then(() => {
+        // Reload the current page content to show logged-out state
+        fetch(window.location.href)
+          .then(response => response.text())
+          .then(html => {
+            document.open();
+            document.write(html);
+            document.close();
+          });
+      })
+      .catch(error => {
+        console.error('Logout failed:', error);
+      });
+    }
+
+    // Load content via AJAX to prevent audio interruption
+    function loadInFrame(link) {
+      const url = link.href;
+      console.log('Loading via AJAX:', url);
+      
+      fetch(url)
+        .then(response => response.text())
+        .then(html => {
+          document.open();
+          document.write(html);
+          document.close();
+          
+          if (window.history && window.history.pushState) {
+            window.history.pushState({}, '', url);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to load content:', error);
+          return true;
+        });
+      
+      return false;
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>🎛️ ADMIN DASHBOARD</h1>
+    <div class="nav">
+      <a href="/asteroid/content" target="content-frame" onclick="return loadInFrame(this)">Home</a>
+      <a href="/asteroid/profile-content" target="content-frame" onclick="return loadInFrame(this)">Profile</a>
+      <a href="/asteroid/admin-content" target="content-frame" onclick="return loadInFrame(this)">Admin</a>
+      <a href="/asteroid/admin/users" target="content-frame" onclick="return loadInFrame(this)">👥 Users</a>
+      <a href="/asteroid/logout" class="btn-logout" onclick="handleLogout(); return false;">Logout</a>
+    </div>
+    
+    <!-- System Status -->
+    <div class="admin-section">
+      <h2>System Status</h2>
+      <div class="admin-grid">
+        <div class="status-card">
+          <h3>Server Status</h3>
+          <p class="status-good" data-text="server-status">🟢 Running</p>
+        </div>
+        <div class="status-card">
+          <h3>Database Status</h3>
+          <p class="status-good" data-text="database-status">🟢 Connected</p>
+        </div>
+        <div class="status-card">
+          <h3>Liquidsoap Status</h3>
+          <p class="status-error" data-text="liquidsoap-status">🔴 Not Running</p>
+        </div>
+        <div class="status-card">
+          <h3>Icecast Status</h3>
+          <p class="status-error" data-text="icecast-status">🔴 Not Running</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Music Library Management -->
+    <div class="admin-section">
+      <h2>Music Library Management</h2>
+      
+      <!-- File Upload -->
+      <div class="upload-section">
+        <h3>Add Music Files</h3>
+        <div class="upload-info">
+          <p><strong>To add your own MP3 files:</strong></p>
+          <ol>
+              <li>Copy your MP3/FLAC/OGG/WAV files to: <code>/home/glenn/Projects/Code/asteroid/music/incoming/</code></li>
+              <li>Click "Copy Files to Library" below</li>
+              <li>Files will be moved to the library and added to the database</li>
+          </ol>
+          <p><em>Supported formats: MP3, FLAC, OGG, WAV</em></p>
+        </div>
+        <div class="upload-controls">
+          <button id="copy-files" class="btn btn-success">📁 Copy Files to Library</button>
+          <button id="open-incoming" class="btn btn-info">📂 Open Incoming Folder</button>
+        </div>
+      </div>
+      
+      <div class="admin-controls">
+        <button id="scan-library" class="btn btn-primary">🔍 Scan Library</button>
+        <button id="refresh-tracks" class="btn btn-secondary">🔄 Refresh Track List</button>
+        <span id="scan-status" style="margin-left: 15px; font-weight: bold;"></span>
+      </div>
+      
+      <div class="track-stats">
+        <p>Total Tracks: <span id="track-count" data-text="track-count">0</span></p>
+      </div>
+    </div>
+
+    <!-- Track Management -->
+    <div class="admin-section">
+      <h2>Track Management</h2>
+      <div class="track-controls">
+        <input type="text" id="track-search" placeholder="Search tracks..." class="search-input">
+        <select id="sort-tracks" class="sort-select">
+          <option value="title">Sort by Title</option>
+          <option value="artist">Sort by Artist</option>
+          <option value="album">Sort by Album</option>
+        </select>
+        <select id="tracks-per-page" class="sort-select" onchange="changeTracksPerPage()">
+          <option value="10">10 per page</option>
+          <option value="20" selected>20 per page</option>
+          <option value="50">50 per page</option>
+          <option value="100">100 per page</option>
+        </select>
+      </div>
+      
+      <div id="tracks-container" class="tracks-list">
+        <div class="loading">Loading tracks...</div>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div id="pagination-controls" style="display: none; margin-top: 20px; text-align: center;">
+        <button onclick="goToPage(1)" class="btn btn-secondary">« First</button>
+        <button onclick="previousPage()" class="btn btn-secondary">‹ Prev</button>
+        <span id="page-info" style="margin: 0 15px; font-weight: bold;">Page 1 of 1</span>
+        <button onclick="nextPage()" class="btn btn-secondary">Next ›</button>
+        <button onclick="goToLastPage()" class="btn btn-secondary">Last »</button>
+      </div>
+    </div>
+
+    <!-- Live Stream Monitor -->
+    <div class="admin-section">
+      <h2>📻 Live Stream Monitor</h2>
+      <div class="live-stream-monitor">
+        <input type="hidden" id="stream-base-url" lquery="(val stream-base-url)">
+        <p><strong>Now Playing:</strong> <span id="live-now-playing">Loading...</span></p>
+        <audio id="live-stream-audio" controls style="width: 100%; max-width: 600px;">
+          <source id="live-stream-source" lquery="(attr :src default-stream-url)" type="audio/aac">
+          Your browser does not support the audio element.
+        </audio>
+      </div>
+    </div>
+
+    <!-- Stream Queue Management -->
+    <div class="admin-section">
+      <h2>🎵 Stream Queue Management</h2>
+      <p>Manage the live stream playback queue. Changes take effect within 5-10 seconds.</p>
+      
+      <div class="queue-controls">
+        <button id="refresh-queue" class="btn btn-secondary">🔄 Refresh Queue</button>
+        <button id="load-from-m3u" class="btn btn-success">📂 Load Queue from M3U</button>
+        <button id="clear-queue-btn" class="btn btn-warning">🗑️ Clear Queue</button>
+        <button id="add-random-tracks" class="btn btn-info">🎲 Add 10 Random Tracks</button>
+      </div>
+      
+      <div id="stream-queue-container" class="queue-list">
+        <div class="loading">Loading queue...</div>
+      </div>
+      
+      <div class="queue-actions">
+        <h3>Add Tracks to Queue</h3>
+        <input type="text" id="queue-track-search" placeholder="Search tracks to add..." class="search-input">
+        <div id="queue-track-results" class="track-results"></div>
+      </div>
+    </div>
+
+    <!-- Player Control -->
+    <div class="admin-section">
+      <h2>Player Control</h2>
+      <div class="card">
+        <h3>🎵 Player Control</h3>
+        <div class="player-controls">
+          <button id="player-play" class="btn btn-primary" onclick="playTrack()">▶️ Play</button>
+          <button id="player-pause" class="btn btn-secondary" onclick="pausePlayer()">⏸️ Pause</button>
+          <button id="player-stop" class="btn btn-secondary" onclick="stopPlayer()">⏹️ Stop</button>
+          <button id="player-resume" class="btn btn-secondary" onclick="resumePlayer()">▶️ Resume</button>
+        </div>
+        <div id="player-status" class="status-info">
+          Status: <span id="player-state">Unknown</span><br>
+          Current Track: <span id="current-track">None</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>👥 User Management</h3>
+        <p>Manage user accounts, roles, and permissions.</p>
+        <div class="controls">
+          <a href="/asteroid/admin/users" class="btn btn-primary">👥 Manage Users</a>
+        </div>
+        
+        <!-- Admin Password Reset Form -->
+        <div class="form-section" style="margin-top: 20px;">
+          <h4>🔒 Reset User Password</h4>
+          <form id="admin-reset-password-form" onsubmit="return resetUserPassword(event)">
+            <div class="form-group">
+              <label for="reset-username">Username:</label>
+              <input type="text" id="reset-username" name="username" required>
+            </div>
+            <div class="form-group">
+              <label for="reset-new-password">New Password:</label>
+              <input type="password" id="reset-new-password" name="new-password" required minlength="8">
+            </div>
+            <div class="form-group">
+              <label for="reset-confirm-password">Confirm Password:</label>
+              <input type="password" id="reset-confirm-password" name="confirm-password" required minlength="8">
+            </div>
+            <div id="reset-password-message" class="message"></div>
+            <button type="submit" class="btn btn-primary">Reset Password</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Admin password reset handler
+    function resetUserPassword(event) {
+      event.preventDefault();
+      
+      const username = document.getElementById('reset-username').value;
+      const newPassword = document.getElementById('reset-new-password').value;
+      const confirmPassword = document.getElementById('reset-confirm-password').value;
+      const messageDiv = document.getElementById('reset-password-message');
+      
+      // Client-side validation
+      if (newPassword.length < 8) {
+        messageDiv.textContent = 'New password must be at least 8 characters';
+        messageDiv.className = 'message error';
+        return false;
+      }
+      
+      if (newPassword !== confirmPassword) {
+        messageDiv.textContent = 'Passwords do not match';
+        messageDiv.className = 'message error';
+        return false;
+      }
+      
+      // Send request to API
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('new-password', newPassword);
+      
+      fetch('/api/asteroid/admin/reset-password', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success' || (data.data && data.data.status === 'success')) {
+          messageDiv.textContent = 'Password reset successfully for user: ' + username;
+          messageDiv.className = 'message success';
+          document.getElementById('admin-reset-password-form').reset();
+        } else {
+          messageDiv.textContent = data.message || data.data?.message || 'Failed to reset password';
+          messageDiv.className = 'message error';
+        }
+      })
+      .catch(error => {
+        console.error('Error resetting password:', error);
+        messageDiv.textContent = 'Error resetting password';
+        messageDiv.className = 'message error';
+      });
+      
+      return false;
+    }
+  </script>
+</body>
+</html>

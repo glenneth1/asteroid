@@ -552,6 +552,61 @@
    :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
    :default-stream-encoding "audio/aac"))
 
+;; Admin content frame (for frameset mode)
+(define-page admin-content #@"/admin-content" ()
+  "Admin dashboard content (displayed in content frame)"
+  (require-authentication)
+  (let ((track-count (handler-case 
+                       (length (dm:get "tracks" (db:query :all)))
+                       (error () 0))))
+    (clip:process-to-string 
+     (load-template "admin-content")
+     :title "🎵 ASTEROID RADIO - Admin Dashboard"
+     :server-status "🟢 Running"
+     :database-status (handler-case 
+                        (if (db:connected-p) "🟢 Connected" "🔴 Disconnected")
+                        (error () "🔴 No Database Backend"))
+     :liquidsoap-status (check-liquidsoap-status)
+     :icecast-status (check-icecast-status)
+     :track-count (format nil "~d" track-count)
+     :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
+     :stream-base-url *stream-base-url*
+     :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*))))
+
+;; Profile content frame (for frameset mode)
+(define-page profile-content #@"/profile-content" ()
+  "User profile content (displayed in content frame)"
+  (require-authentication)
+  (clip:process-to-string 
+   (load-template "profile-content")
+   :title "🎧 admin - Profile | Asteroid Radio"
+   :username "admin"
+   :user-role "admin"
+   :join-date "Unknown"
+   :last-active "Unknown"
+   :total-listen-time "0h 0m"
+   :tracks-played "0"
+   :session-count "0"
+   :favorite-genre "Unknown"
+   :recent-track-1-title ""
+   :recent-track-1-artist ""
+   :recent-track-1-duration ""
+   :recent-track-1-played-at ""
+   :recent-track-2-title ""
+   :recent-track-2-artist ""
+   :recent-track-2-duration ""
+   :recent-track-2-played-at ""
+   :recent-track-3-title ""
+   :recent-track-3-artist ""
+   :recent-track-3-duration ""
+   :recent-track-3-played-at ""
+   :top-artist-1 ""
+   :top-artist-1-plays ""
+   :top-artist-2 ""
+   :top-artist-2-plays ""
+   :top-artist-3 ""
+   :top-artist-3-plays ""))
+
 ;; Configure static file serving for other files
 ;; BUT exclude ParenScript-compiled JS files
 (define-page static #@"/static/(.*)" (:uri-groups (path))

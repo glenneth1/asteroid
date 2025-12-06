@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title data-text="title">Asteroid Radio - Login</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="/asteroid/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/asteroid/static/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/asteroid/static/favicon-16x16.png">
+  <link rel="stylesheet" type="text/css" href="/static/asteroid.css">
+  <script>
+    // Load content via AJAX to prevent audio interruption
+    function loadInFrame(link) {
+      const url = link.href;
+      console.log('Loading via AJAX:', url);
+      
+      fetch(url)
+        .then(response => response.text())
+        .then(html => {
+          document.open();
+          document.write(html);
+          document.close();
+          
+          if (window.history && window.history.pushState) {
+            window.history.pushState({}, '', url);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to load content:', error);
+          return true;
+        });
+      
+      return false;
+    }
+
+    // Handle form submission via AJAX
+    document.addEventListener('DOMContentLoaded', function() {
+      const form = document.querySelector('form');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          const formData = new FormData(form);
+          console.log('Submitting login via AJAX');
+          
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            redirect: 'follow'  // Follow redirects automatically
+          })
+          .then(response => {
+            console.log('Login response URL:', response.url);
+            return response.text();
+          })
+          .then(html => {
+            // Replace document content with response
+            document.open();
+            document.write(html);
+            document.close();
+          })
+          .catch(error => {
+            console.error('Login submission failed:', error);
+          });
+        });
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+        <img src="/asteroid/static/asteroid.png" alt="Asteroid" style="height: 50px; width: auto;">
+        <span>ASTEROID RADIO - LOGIN</span>
+      </h1>
+      <nav class="nav">
+        <a href="/asteroid/content" target="content-frame">Home</a>
+        <a href="/asteroid/status" target="content-frame">Status</a>
+        <a href="/asteroid/register-content" target="content-frame">Register</a>
+      </nav>
+    </header>
+
+    <div class="auth-container">
+      <div class="auth-form">
+        <h2>System Access</h2>
+        <div class="message error" lquery="(attr :style display-error)" style="display: none;">
+          <span data-text="error-message" lquery="(text error-message)">Invalid username or password</span>
+        </div>
+        <form method="post" action="/asteroid/login-content">
+          <div class="form-group">
+            <label>Username:</label>
+            <input type="text" name="username" required>
+          </div>
+          <div class="form-group">
+            <label>Password:</label>
+            <input type="password" name="password" required>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" style="width: 100%;">LOGIN</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -8,6 +8,56 @@
   <script src="/asteroid/static/js/auth-ui.js"></script>
   <script src="/asteroid/static/js/player.js"></script>
   <script src="/api/asteroid/spectrum-analyzer.js"></script>
+  <script>
+    // Handle logout without navigation
+    function handleLogout() {
+      fetch('/asteroid/logout', {
+        method: 'GET',
+        redirect: 'manual'
+      })
+      .then(() => {
+        // Reload the current page content to show logged-out state
+        fetch(window.location.href)
+          .then(response => response.text())
+          .then(html => {
+            document.open();
+            document.write(html);
+            document.close();
+          });
+      })
+      .catch(error => {
+        console.error('Logout failed:', error);
+      });
+    }
+
+    // Load content via AJAX to prevent audio interruption
+    function loadInFrame(link) {
+      const url = link.href;
+      console.log('Loading via AJAX:', url);
+      
+      fetch(url)
+        .then(response => response.text())
+        .then(html => {
+          // Replace entire document content
+          document.open();
+          document.write(html);
+          document.close();
+          
+          // Update browser history
+          if (window.history && window.history.pushState) {
+            window.history.pushState({}, '', url);
+          }
+        })
+        .catch(error => {
+          console.error('Failed to load content:', error);
+          // Fallback to normal navigation
+          return true;
+        });
+      
+      // Prevent default navigation
+      return false;
+    }
+  </script>
 </head>
 <body>
   <div class="container">
@@ -48,9 +98,9 @@
       <a href="/asteroid/content" target="content-frame">Home</a>
       <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>
       <a href="/asteroid/admin" target="content-frame" data-show-if-admin>Admin</a>
-      <a href="/asteroid/login" target="content-frame" data-show-if-logged-out>Login</a>
+      <a href="/asteroid/login-content" target="content-frame" data-show-if-logged-out onclick="return loadInFrame(this)">Login</a>
       <a href="/asteroid/register" target="content-frame" data-show-if-logged-out>Register</a>
-      <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout">Logout</a>
+      <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout" onclick="handleLogout(); return false;">Logout</a>
     </div>
     
     <!-- Live Stream Section - Note about persistent player -->

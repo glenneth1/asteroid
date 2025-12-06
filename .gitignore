@@ -56,3 +56,6 @@ logs/
 performance-logs/
 
 # Temporary files
+
+# Generated CSS (auto-generated from LASS)
+static/asteroid.css

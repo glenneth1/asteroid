@@ -47,11 +47,61 @@
          :error-message ""
          :display-error "display: none;"))))
 
+;; Login content page for frameset mode
+(define-page login-content #@"/login-content" ()
+  "User login page for frameset mode"
+  (let ((username (radiance:post-var "username"))
+        (password (radiance:post-var "password")))
+    (if (and username password)
+        ;; Handle login form submission
+        (let ((user (authenticate-user username password)))
+          (if user
+              (progn
+                ;; Login successful - store user ID in session
+                (format t "Login successful for user: ~a~%" (dm:field user "username"))
+                (handler-case
+                    (progn
+                      (let* ((user-id (dm:id user))
+                             (user-role (dm:field user "role"))
+                             (redirect-path (cond
+                                              ;; Admin users
+                                              ((string-equal user-role "admin") "/admin-content")
+                                              ;; Regular users
+                                              (t "/profile-content"))))
+                        (format t "User ID from DB: ~a~%" user-id)
+                        (format t "User role: ~a, redirecting to: ~a~%" user-role redirect-path)
+                        (setf (session:field "user-id") user-id)
+                        (format t "User ID #~a persisted in session.~%" (session:field "user-id"))
+                        (radiance:redirect redirect-path)))
+                  (error (e)
+                    (format t "Session error: ~a~%" e)
+                    "Login successful but session error occurred")))
+              ;; Login failed - show form with error
+              (progn
+                (format t "Login unsuccessful for user: ~a~%" username)
+                (clip:process-to-string
+                 (load-template "login-content")
+                 :title "Asteroid Radio - Login"
+                 :error-message "Invalid username or password"
+                 :display-error "display: block;"))))
+        ;; Show login form (no POST data)
+        (clip:process-to-string
+         (load-template "login-content")
+         :title "Asteroid Radio - Login"
+         :error-message ""
+         :display-error "display: none;"))))
+
 ;; Simple logout handler
 (define-page logout #@"/logout" ()
   "Handle user logout"
   (setf (session:field "user-id") nil)
-  (radiance:redirect "/"))
+  ;; Check if we're in a frameset by looking at the Referer header
+  (let* ((referer (radiance:header "Referer"))
+         (in-frameset (and referer 
+                          (or (search "/frameset" referer)
+                              (search "/content" referer)
+                              (search "-content" referer)))))
+    (radiance:redirect (if in-frameset "/content" "/"))))
 
 ;; API: Get all users (admin only)
 (define-api asteroid/users () ()
@@ -213,3 +263,4 @@
                           ("message" . ,(format nil "Could not set user '~a' as ~a."
                                                 (dm:field user "username")
                                                 role)))))))))
+
