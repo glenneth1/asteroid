@@ -181,15 +181,25 @@
         (setf *animation-id* nil)))
     
     (defun set-spectrum-theme (theme-name)
-      "Change the spectrum analyzer color theme"
+      "Change the spectrum analyzer color theme and update dropdown colors"
       (when (ps:getprop *themes* theme-name)
         (setf *current-theme* theme-name)
         (ps:chain local-storage (set-item "spectrum-theme" theme-name))
         
-        ;; Update canvas border color to match theme
-        (when *canvas*
-          (let ((theme (ps:getprop *themes* theme-name)))
-            (setf (ps:@ *canvas* style border-color) (ps:@ theme top))))
+        (let ((theme (ps:getprop *themes* theme-name)))
+          ;; Update canvas border color to match theme
+          (when *canvas*
+            (setf (ps:@ *canvas* style border-color) (ps:@ theme top)))
+          
+          ;; Update dropdown box colors
+          (let ((theme-selector (ps:chain document (get-element-by-id "spectrum-theme-selector")))
+                (style-selector (ps:chain document (get-element-by-id "spectrum-style-selector"))))
+            (when theme-selector
+              (setf (ps:@ theme-selector style color) (ps:@ theme top))
+              (setf (ps:@ theme-selector style border-color) (ps:@ theme top)))
+            (when style-selector
+              (setf (ps:@ style-selector style color) (ps:@ theme top))
+              (setf (ps:@ style-selector style border-color) (ps:@ theme top)))))
         
         (ps:chain console (log (+ "Spectrum theme changed to: " theme-name)))))
     
@@ -219,19 +229,23 @@
           (when (and saved-style (or (= saved-style "bars") (= saved-style "wave") (= saved-style "dots")))
             (setf *current-style* saved-style))
           
-          ;; Update UI selectors and canvas border if they exist
+          ;; Update UI selectors, canvas border, and dropdown colors
           (let ((theme-selector (ps:chain document (get-element-by-id "spectrum-theme-selector")))
                 (style-selector (ps:chain document (get-element-by-id "spectrum-style-selector")))
-                (canvas (ps:chain document (get-element-by-id "spectrum-canvas"))))
+                (canvas (ps:chain document (get-element-by-id "spectrum-canvas")))
+                (theme (ps:getprop *themes* *current-theme*)))
             (when theme-selector
-              (setf (ps:@ theme-selector value) *current-theme*))
+              (setf (ps:@ theme-selector value) *current-theme*)
+              (setf (ps:@ theme-selector style color) (ps:@ theme top))
+              (setf (ps:@ theme-selector style border-color) (ps:@ theme top)))
             (when style-selector
-              (setf (ps:@ style-selector value) *current-style*))
+              (setf (ps:@ style-selector value) *current-style*)
+              (setf (ps:@ style-selector style color) (ps:@ theme top))
+              (setf (ps:@ style-selector style border-color) (ps:@ theme top)))
             
             ;; Set initial canvas border color
             (when canvas
-              (let ((theme (ps:getprop *themes* *current-theme*)))
-                (setf (ps:@ canvas style border-color) (ps:@ theme top))))))
+              (setf (ps:@ canvas style border-color) (ps:@ theme top)))))
         
         (let ((audio-element (or (ps:chain document (get-element-by-id "live-audio"))
                                  (ps:chain document (get-element-by-id "persistent-audio")))))
