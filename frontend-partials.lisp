@@ -10,7 +10,6 @@
            (response (drakma:http-request icecast-url
                                          :want-stream nil
                                          :basic-authorization '("admin" "asteroid_admin_2024"))))
-      (format t "DEBUG: Fetching Icecast stats from ~a~%" icecast-url)
       (when response
         (let ((xml-string (if (stringp response)
                               response
@@ -34,7 +33,6 @@
                                    (aref groups 0)
                                    "Unknown")))
                            "Unknown")))
-            (format t "DEBUG: Parsed title=~a, total-listeners=~a~%" title total-listeners)
             
             ;; Track recently played if title changed
             (when (and title 
