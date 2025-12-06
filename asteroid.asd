@@ -41,7 +41,8 @@
                (:file "conditions")
                (:file "database")
                (:file "template-utils")
-               (:file "spectrum-analyzer")
+               (:module :parenscript
+                :components ((:file "spectrum-analyzer")))
                (:file "stream-media")
                (:file "user-management")
                (:file "playlist-management")
