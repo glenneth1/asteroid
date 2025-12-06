@@ -94,7 +94,7 @@
             }
             
             isReconnecting = false;
-          }, 500);
+          }, 200);
         } else {
           console.log('Audio playing');
         }

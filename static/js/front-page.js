@@ -158,7 +158,7 @@ window.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     isReconnecting = false;
-                }, 500);
+                }, 200);
             }
         });
         
