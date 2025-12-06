@@ -11,7 +11,11 @@
 </head>
 <body>
   <div class="container">
-    <h1>🎵 WEB PLAYER</h1>
+    <h1 style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+      <img src="/asteroid/static/asteroid.png" alt="Asteroid" style="height: 50px; width: auto;">
+      <span>WEB PLAYER</span>
+      <img src="/asteroid/static/asteroid.png" alt="Asteroid" style="height: 50px; width: auto;">
+    </h1>
     
     <!-- Spectrum Analyzer Canvas -->
     <div style="text-align: center; margin: 15px 0;">
