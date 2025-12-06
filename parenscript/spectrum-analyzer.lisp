@@ -20,6 +20,7 @@
     ;; Color themes for spectrum analyzer
     (defvar *themes* 
       (ps:create
+       "monotone" (ps:create "top" "#0047ab" "mid" "#002966" "bottom" "#000d1a")
        "green" (ps:create "top" "#00ff00" "mid" "#00aa00" "bottom" "#005500")
        "blue" (ps:create "top" "#00ffff" "mid" "#0088ff" "bottom" "#0044aa")
        "purple" (ps:create "top" "#ff00ff" "mid" "#aa00aa" "bottom" "#550055")
@@ -184,6 +185,12 @@
       (when (ps:getprop *themes* theme-name)
         (setf *current-theme* theme-name)
         (ps:chain local-storage (set-item "spectrum-theme" theme-name))
+        
+        ;; Update canvas border color to match theme
+        (when *canvas*
+          (let ((theme (ps:getprop *themes* theme-name)))
+            (setf (ps:@ *canvas* style border-color) (ps:@ theme top))))
+        
         (ps:chain console (log (+ "Spectrum theme changed to: " theme-name)))))
     
     (defun get-available-themes ()
@@ -212,13 +219,19 @@
           (when (and saved-style (or (= saved-style "bars") (= saved-style "wave") (= saved-style "dots")))
             (setf *current-style* saved-style))
           
-          ;; Update UI selectors if they exist
+          ;; Update UI selectors and canvas border if they exist
           (let ((theme-selector (ps:chain document (get-element-by-id "spectrum-theme-selector")))
-                (style-selector (ps:chain document (get-element-by-id "spectrum-style-selector"))))
+                (style-selector (ps:chain document (get-element-by-id "spectrum-style-selector")))
+                (canvas (ps:chain document (get-element-by-id "spectrum-canvas"))))
             (when theme-selector
               (setf (ps:@ theme-selector value) *current-theme*))
             (when style-selector
-              (setf (ps:@ style-selector value) *current-style*))))
+              (setf (ps:@ style-selector value) *current-style*))
+            
+            ;; Set initial canvas border color
+            (when canvas
+              (let ((theme (ps:getprop *themes* *current-theme*)))
+                (setf (ps:@ canvas style border-color) (ps:@ theme top))))))
         
         (let ((audio-element (or (ps:chain document (get-element-by-id "live-audio"))
                                  (ps:chain document (get-element-by-id "persistent-audio")))))
