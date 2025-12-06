@@ -181,7 +181,7 @@
                     }
                     
                     isReconnecting = false;
-                }, 500);
+                }, 200);
             }
         });
         
