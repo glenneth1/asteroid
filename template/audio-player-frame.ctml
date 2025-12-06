@@ -47,6 +47,15 @@
         });
       }
       
+      // Track pause timestamp to detect long pauses and reconnect
+      let pauseTimestamp = null;
+      const PAUSE_RECONNECT_THRESHOLD = 10000; // 10 seconds
+      
+      audioElement.addEventListener('pause', function() {
+        pauseTimestamp = Date.now();
+        console.log('Frame player stream paused at:', pauseTimestamp);
+      });
+      
       // Add event listeners for debugging
       audioElement.addEventListener('waiting', function() {
         console.log('Audio buffering...');
@@ -58,6 +67,30 @@
       
       audioElement.addEventListener('error', function(e) {
         console.error('Audio error:', e);
+      });
+
+      audioElement.addEventListener('play', function() {
+        if (pauseTimestamp && (Date.now() - pauseTimestamp) > PAUSE_RECONNECT_THRESHOLD) {
+          console.log('Reconnecting frame player stream after long pause to clear stale buffers...');
+          
+          // Reset spectrum analyzer before reconnect
+          if (typeof resetSpectrumAnalyzer === 'function') {
+            resetSpectrumAnalyzer();
+          }
+          
+          audioElement.load(); // Force reconnect to clear accumulated buffer
+          
+          // Start playing the fresh stream and reinitialize spectrum analyzer
+          setTimeout(function() {
+            audioElement.play().catch(err => console.log('Reconnect play failed:', err));
+            
+            if (typeof initSpectrumAnalyzer === 'function') {
+              initSpectrumAnalyzer();
+              console.log('Spectrum analyzer reinitialized after reconnect');
+            }
+          }, 500);
+        }
+        pauseTimestamp = null;
       });
 
       const selector = document.getElementById('stream-quality');
@@ -112,6 +145,12 @@
 
     // Update mini now playing display
     async function updateMiniNowPlaying() {
+      // Don't update if stream is paused
+      const audioElement = document.getElementById('persistent-audio');
+      if (audioElement && audioElement.paused) {
+        return;
+      }
+      
       try {
         const response = await fetch('/api/asteroid/partial/now-playing-inline');
         if (response.ok) {

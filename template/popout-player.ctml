@@ -97,6 +97,12 @@
 
         // Update now playing info for popout
         async function updatePopoutNowPlaying() {
+            // Don't update if stream is paused
+            const audioElement = document.getElementById('live-audio');
+            if (audioElement && audioElement.paused) {
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/asteroid/partial/now-playing-inline');
                 const html = await response.text();
@@ -125,8 +131,42 @@
         // Initial update
         updatePopoutNowPlaying();
 
-        // Auto-reconnect on stream errors
+        // Auto-reconnect on stream errors and after long pauses
         const audioElement = document.getElementById('live-audio');
+        
+        // Track pause timestamp to detect long pauses and reconnect
+        let pauseTimestamp = null;
+        const PAUSE_RECONNECT_THRESHOLD = 10000; // 10 seconds
+        
+        audioElement.addEventListener('pause', function() {
+            pauseTimestamp = Date.now();
+            console.log('Popout stream paused at:', pauseTimestamp);
+        });
+        
+        audioElement.addEventListener('play', function() {
+            if (pauseTimestamp && (Date.now() - pauseTimestamp) > PAUSE_RECONNECT_THRESHOLD) {
+                console.log('Reconnecting popout stream after long pause to clear stale buffers...');
+                
+                // Reset spectrum analyzer before reconnect
+                if (typeof resetSpectrumAnalyzer === 'function') {
+                    resetSpectrumAnalyzer();
+                }
+                
+                audioElement.load(); // Force reconnect to clear accumulated buffer
+                
+                // Start playing the fresh stream and reinitialize spectrum analyzer
+                setTimeout(function() {
+                    audioElement.play().catch(err => console.log('Reconnect play failed:', err));
+                    
+                    if (typeof initSpectrumAnalyzer === 'function') {
+                        initSpectrumAnalyzer();
+                        console.log('Spectrum analyzer reinitialized after reconnect');
+                    }
+                }, 500);
+            }
+            pauseTimestamp = null;
+        });
+        
         audioElement.addEventListener('error', function(e) {
             console.log('Stream error, attempting reconnect in 3 seconds...');
             setTimeout(function() {
