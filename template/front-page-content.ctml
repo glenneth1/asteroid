@@ -38,6 +38,7 @@
           <label>
             Theme: 
             <select id="spectrum-theme-selector" onchange="setSpectrumTheme(this.value)" style="padding: 3px; background: #000; color: #00ff00; border: 1px solid #00ff00;">
+              <option value="monotone">Monotone</option>
               <option value="green">Green</option>
               <option value="blue">Blue</option>
               <option value="purple">Purple</option>
