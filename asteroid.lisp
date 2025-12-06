@@ -558,11 +558,9 @@
   (cond
     ;; Serve ParenScript-compiled auth-ui.js
     ((string= path "js/auth-ui.js")
-     (format t "~%=== SERVING PARENSCRIPT auth-ui.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-auth-ui-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating auth-ui.js: ~a~%" e)
@@ -570,11 +568,9 @@
     
     ;; Serve ParenScript-compiled front-page.js
     ((string= path "js/front-page.js")
-     (format t "~%=== SERVING PARENSCRIPT front-page.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-front-page-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating front-page.js: ~a~%" e)
@@ -582,11 +578,9 @@
     
     ;; Serve ParenScript-compiled profile.js
     ((string= path "js/profile.js")
-     (format t "~%=== SERVING PARENSCRIPT profile.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-profile-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating profile.js: ~a~%" e)
@@ -594,11 +588,9 @@
     
     ;; Serve ParenScript-compiled users.js
     ((string= path "js/users.js")
-     (format t "~%=== SERVING PARENSCRIPT users.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-users-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating users.js: ~a~%" e)
@@ -606,11 +598,9 @@
     
     ;; Serve ParenScript-compiled admin.js
     ((string= path "js/admin.js")
-     (format t "~%=== SERVING PARENSCRIPT admin.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-admin-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating admin.js: ~a~%" e)
@@ -618,11 +608,9 @@
     
     ;; Serve ParenScript-compiled player.js
     ((string= path "js/player.js")
-     (format t "~%=== SERVING PARENSCRIPT player.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-player-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating player.js: ~a~%" e)
@@ -630,11 +618,9 @@
     
     ;; Serve ParenScript-compiled recently-played.js
     ((string= path "js/recently-played.js")
-     (format t "~%=== SERVING PARENSCRIPT recently-played.js ===~%")
      (setf (content-type *response*) "application/javascript")
      (handler-case
          (let ((js (generate-recently-played-js)))
-           (format t "DEBUG: Generated JS length: ~a~%" (if js (length js) "NIL"))
            (if js js "// Error: No JavaScript generated"))
        (error (e)
          (format t "ERROR generating recently-played.js: ~a~%" e)
