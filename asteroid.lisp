@@ -617,7 +617,8 @@
 ;; Configure static file serving for other files
 ;; BUT exclude ParenScript-compiled JS files
 (define-page static #@"/static/(.*)" (:uri-groups (path))
-  (cond
+  (handler-case
+      (cond
     ;; Serve ParenScript-compiled auth-ui.js
     ((string= path "js/auth-ui.js")
      (setf (content-type *response*) "application/javascript")
@@ -671,9 +672,19 @@
     ;; Serve ParenScript-compiled player.js
     ((string= path "js/player.js")
      (setf (content-type *response*) "application/javascript")
+     (setf (radiance:header "Cache-Control") "no-cache, no-store, must-revalidate")
+     (setf (radiance:header "Pragma") "no-cache")
+     (setf (radiance:header "Expires") "0")
      (handler-case
-         (let ((js (generate-player-js)))
-           (if js js "// Error: No JavaScript generated"))
+         (progn
+           (format t "Attempting to generate player.js...~%")
+           (let ((js (generate-player-js)))
+             (format t "Generated player.js: ~a bytes~%" (if js (length js) 0))
+             (if (and js (> (length js) 0))
+                 js
+                 (progn
+                   (format t "ERROR: player.js is empty or nil~%")
+                   "// Error: No JavaScript generated"))))
        (error (e)
          (format t "ERROR generating player.js: ~a~%" e)
          (format nil "// Error generating JavaScript: ~a~%" e))))
@@ -691,7 +702,11 @@
     ;; Serve regular static file
     (t
      (serve-file (merge-pathnames (format nil "static/~a" path) 
-                                  (asdf:system-source-directory :asteroid))))))
+                                  (asdf:system-source-directory :asteroid)))))
+    (error (e)
+      (format t "ERROR in static file handler for path ~a: ~a~%" path e)
+      (setf (return-code *response*) 500)
+      (format nil "Error serving file: ~a" e))))
 
 ;; Status check functions
 (defun check-icecast-status ()

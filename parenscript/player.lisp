@@ -94,21 +94,21 @@
                  ;; Restore user quality preference
                  (let ((selector (ps:chain document (get-element-by-id "live-stream-quality")))
                        (stream-quality (ps:chain (ps:@ local-storage (get-item "stream-quality")) "aac")))
-                   (when (and selector (not (== (ps:@ selector value) stream-quality)))
+                   (when (and selector (not (equal (ps:@ selector value) stream-quality)))
                      (setf (ps:@ selector value) stream-quality)
                      (ps:chain selector (dispatch-event (new "Event" "change"))))))))
     
     ;; Frame redirection logic
     (defun redirect-when-frame ()
-      (let ((path (ps:@ window location pathname))
-            (is-frameset-page (not (== (ps:@ window parent) (ps:@ window self))))
-            (is-content-frame (ps:chain path (includes "player-content"))))
-        
-        (when (and is-frameset-page (not is-content-frame))
-          (setf (ps:@ window location href) "/asteroid/player-content"))
-        
-        (when (and (not is-frameset-page) is-content-frame)
-          (setf (ps:@ window location href) "/asteroid/player"))))
+      (defvar path (ps:@ window location pathname))
+      (defvar is-frameset-page (not (equal (ps:@ window parent) (ps:@ window self))))
+      (defvar is-content-frame (ps:chain path (includes "player-content")))
+      
+      (when (and is-frameset-page (not is-content-frame))
+        (setf (ps:@ window location href) "/asteroid/player-content"))
+      
+      (when (and (not is-frameset-page) is-content-frame)
+        (setf (ps:@ window location href) "/asteroid/player")))
     
     ;; Setup all event listeners
     (defun setup-event-listeners ()
@@ -162,7 +162,7 @@
        (then (lambda (result)
                ;; Handle RADIANCE API wrapper format
                (let ((data (or (ps:@ result data) result)))
-                 (if (== (ps:@ data status) "success")
+                 (if (equal (ps:@ data status) "success")
                      (progn
                        (setf *tracks* (or (ps:@ data tracks) (array)))
                        (display-tracks *tracks*))
@@ -186,7 +186,7 @@
       (let ((container (ps:chain document (get-element-by-id "track-list")))
             (pagination-controls (ps:chain document (get-element-by-id "library-pagination-controls"))))
         
-        (if (== (ps:@ *filtered-library-tracks* length) 0)
+        (if (equal (ps:@ *filtered-library-tracks* length) 0)
             (progn
               (setf (ps:@ container inner-html) "<div class=\"no-tracks\">No tracks found</div>")
               (setf (ps:@ pagination-controls style display) "none")
@@ -203,7 +203,7 @@
                                       (map (lambda (track page-index)
                                              ;; Find the actual index in the full tracks array
                                              (let ((actual-index (ps:chain *tracks* 
-                                                                       (find-index (lambda (trk) (== (ps:@ trk id) (ps:@ track id)))))))
+                                                                       (find-index (lambda (trk) (equal (ps:@ trk id) (ps:@ track id)))))))
                                                (+ "<div class=\"track-item\" data-track-id=\"" (ps:@ track id) "\" data-index=\"" actual-index "\">"
                                                   "<div class=\"track-info\">"
                                                   "<div class=\"track-title\">" (or (ps:@ track title 0) "Unknown Title") "</div>"
@@ -312,7 +312,7 @@
           ;; Play from queue
           (let ((next-track (ps:chain *play-queue* (shift))))
             (play-track (ps:chain *tracks* 
-                                  (find-index (lambda (trk) (== (ps:@ trk id) (ps:@ next-track id))))))
+                                  (find-index (lambda (trk) (equal (ps:@ trk id) (ps:@ next-track id))))))
             (update-queue-display))
           ;; Play next track in library
           (let ((next-index (if *is-shuffled*
@@ -386,7 +386,7 @@
     ;; Update queue display
     (defun update-queue-display ()
       (let ((container (ps:chain document (get-element-by-id "play-queue"))))
-        (if (== (ps:@ *play-queue* length) 0)
+        (if (equal (ps:@ *play-queue* length) 0)
             (setf (ps:@ container inner-html) "<div class=\"empty-queue\">Queue is empty</div>")
             (let ((queue-html (ps:chain *play-queue*
                                          (map (lambda (track index)
@@ -413,7 +413,7 @@
     ;; Create playlist
     (defun create-playlist ()
       (let ((name (ps:chain (ps:chain document (get-element-by-id "new-playlist-name")) value (trim))))
-        (when (not (== name ""))
+        (when (not (equal name ""))
           (let ((form-data (new "FormData")))
             (ps:chain form-data (append "name" name))
             (ps:chain form-data (append "description" ""))
@@ -424,7 +424,7 @@
                       (then (lambda (result)
                               ;; Handle RADIANCE API wrapper format
                               (let ((data (or (ps:@ result data) result)))
-                                (if (== (ps:@ data status) "success")
+                                (if (equal (ps:@ data status) "success")
                                     (progn
                                       (alert (+ "Playlist \"" name "\" created successfully!"))
                                       (setf (ps:chain (ps:chain document (get-element-by-id "new-playlist-name")) value) "")
@@ -453,7 +453,7 @@
                           (then (lambda (create-result)
                                   ;; Handle RADIANCE API wrapper format
                                   (let ((create-data (or (ps:@ create-result data) create-result)))
-                                    (if (== (ps:@ create-data status) "success")
+                                    (if (equal (ps:@ create-data status) "success")
                                         (progn
                                           ;; Wait a moment for database to update
                                           (ps:chain (new "Promise" (lambda (resolve) (setTimeout resolve 500)))
@@ -464,12 +464,12 @@
                                                                       (then (lambda (playlists-result)
                                                                               ;; Handle RADIANCE API wrapper format
                                                                               (let ((playlist-result-data (or (ps:@ playlists-result data) playlists-result)))
-                                                                                (if (and (== (ps:@ playlist-result-data status) "success")
+                                                                                (if (and (equal (ps:@ playlist-result-data status) "success")
                                                                                          (> (ps:@ playlist-result-data playlists length) 0))
                                                                                     (progn
                                                                                       ;; Find the playlist with matching name (most recent)
                                                                                       (let ((new-playlist (or (ps:chain (ps:@ playlist-result-data playlists)
-                                                                                                                        (find (lambda (p) (== (ps:@ p name) name))))
+                                                                                                                        (find (lambda (p) (equal (ps:@ p name) name))))
                                                                                                               (aref (ps:@ playlist-result-data playlists)
                                                                                                                     (- (ps:@ playlist-result-data playlists length) 1)))))
                                                                                         
@@ -487,7 +487,7 @@
                                                                                                                                        (ps:create :method "POST" :body add-form-data))
                                                                                                                                 (then (lambda (response) (ps:chain response (json))))
                                                                                                                                 (then (lambda (add-result)
-                                                                                                                                        (when (== (ps:@ add-result data status) "success")
+                                                                                                                                        (when (equal (ps:@ add-result data status) "success")
                                                                                                                                           (setf added-count (+ added-count 1)))))
                                                                                                                                 (catch (lambda (err)
                                                                                                                                          (ps:chain console (log "Error adding track:" err)))))))))))
@@ -514,9 +514,9 @@
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
                (let ((playlists (cond
-                                  ((and (ps:@ result data) (== (ps:@ result data status) "success"))
+                                  ((and (ps:@ result data) (equal (ps:@ result data status) "success"))
                                    (or (ps:@ result data playlists) (array)))
-                                  ((== (ps:@ result status) "success")
+                                  ((equal (ps:@ result status) "success")
                                    (or (ps:@ result playlists) (array)))
                                   (t
                                    (array)))))
@@ -529,7 +529,7 @@
     (defun display-playlists (playlists)
       (let ((container (ps:chain document (get-element-by-id "playlists-container"))))
         
-        (if (or (not playlists) (== (ps:@ playlists length) 0))
+        (if (or (not playlists) (equal (ps:@ playlists length) 0))
             (setf (ps:@ container inner-html) "<div class=\"no-playlists\">No playlists created yet.</div>")
             (let ((playlists-html (ps:chain playlists
                                         (map (lambda (playlist)
@@ -554,7 +554,7 @@
        (then (lambda (result)
                ;; Handle RADIANCE API wrapper format
                (let ((data (or (ps:@ result data) result)))
-                 (if (and (== (ps:@ data status) "success") (ps:@ data playlist))
+                 (if (and (equal (ps:@ data status) "success") (ps:@ data playlist))
                      (let ((playlist (ps:@ data playlist)))
                        
                        ;; Clear current queue
@@ -566,7 +566,7 @@
                                    (for-each (lambda (track)
                                                ;; Find the full track object from our tracks array
                                                (let ((full-track (ps:chain *tracks* 
-                                                                         (find (lambda (trk) (== (ps:@ trk id) (ps:@ track id)))))))
+                                                                         (find (lambda (trk) (equal (ps:@ trk id) (ps:@ track id)))))))
                                                  (when full-track
                                                    (setf (aref *play-queue* (ps:@ *play-queue* length)) full-track)))))
                          
@@ -577,11 +577,11 @@
                          (when (> (ps:@ *play-queue* length) 0)
                            (let ((first-track (ps:chain *play-queue* (shift)))
                                  (track-index (ps:chain *tracks* 
-                                                         (find-index (lambda (trk) (== (ps:@ trk id) (ps:@ first-track id))))))
+                                                         (find-index (lambda (trk) (equal (ps:@ trk id) (ps:@ first-track id))))))
                                  )
                              (when (>= track-index 0)
                                (play-track track-index))))))
-                       (when (or (not (ps:@ playlist tracks)) (== (ps:@ playlist tracks length) 0))
+                       (when (or (not (ps:@ playlist tracks)) (equal (ps:@ playlist tracks length) 0))
                          (alert (+ "Playlist \"" (ps:@ playlist name) "\" is empty"))))
                      (alert (+ "Error loading playlist: " (or (ps:@ data message) "Unknown error")))))))
        (catch (lambda (error)
