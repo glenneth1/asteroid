@@ -577,35 +577,53 @@
 (define-page profile-content #@"/profile-content" ()
   "User profile content (displayed in content frame)"
   (require-authentication)
-  (clip:process-to-string 
-   (load-template "profile-content")
-   :title "🎧 admin - Profile | Asteroid Radio"
-   :username "admin"
-   :user-role "admin"
-   :join-date "Unknown"
-   :last-active "Unknown"
-   :total-listen-time "0h 0m"
-   :tracks-played "0"
-   :session-count "0"
-   :favorite-genre "Unknown"
-   :recent-track-1-title ""
-   :recent-track-1-artist ""
-   :recent-track-1-duration ""
-   :recent-track-1-played-at ""
-   :recent-track-2-title ""
-   :recent-track-2-artist ""
-   :recent-track-2-duration ""
-   :recent-track-2-played-at ""
-   :recent-track-3-title ""
-   :recent-track-3-artist ""
-   :recent-track-3-duration ""
-   :recent-track-3-played-at ""
-   :top-artist-1 ""
-   :top-artist-1-plays ""
-   :top-artist-2 ""
-   :top-artist-2-plays ""
-   :top-artist-3 ""
-   :top-artist-3-plays ""))
+  (handler-case
+      (let* ((user-id (session:field "user-id"))
+             (current-user (when user-id (find-user-by-id user-id)))
+             (username (if current-user 
+                          (let ((uname (dm:field current-user "username")))
+                            (format nil "~a" (or uname "Unknown")))
+                          "Unknown"))
+             (user-role (if current-user 
+                           (let ((role (dm:field current-user "role")))
+                             (format nil "~a" (or role "user")))
+                           "user")))
+        (clip:process-to-string 
+         (load-template "profile-content")
+         :title (format nil "🎧 ~a - Profile | Asteroid Radio" username)
+         :username username
+         :user-role user-role
+         :join-date "Unknown"
+         :last-active "Unknown"
+         :total-listen-time "0h 0m"
+         :tracks-played "0"
+         :session-count "0"
+         :favorite-genre "Unknown"
+         :recent-track-1-title ""
+         :recent-track-1-artist ""
+         :recent-track-1-duration ""
+         :recent-track-1-played-at ""
+         :recent-track-2-title ""
+         :recent-track-2-artist ""
+         :recent-track-2-duration ""
+         :recent-track-2-played-at ""
+         :recent-track-3-title ""
+         :recent-track-3-artist ""
+         :recent-track-3-duration ""
+         :recent-track-3-played-at ""
+         :top-artist-1 ""
+         :top-artist-1-plays ""
+         :top-artist-2 ""
+         :top-artist-2-plays ""
+         :top-artist-3 ""
+         :top-artist-3-plays ""
+         :top-artist-4 ""
+         :top-artist-4-plays ""
+         :top-artist-5 ""
+         :top-artist-5-plays ""))
+    (error (e)
+      (format t "ERROR in profile-content: ~a~%" e)
+      (format nil "<html><body><h1>Error loading profile</h1><pre>~a</pre></body></html>" e))))
 
 ;; Status content frame (for frameset mode)
 (define-page status-content #@"/status-content" ()

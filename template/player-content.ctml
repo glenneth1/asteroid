@@ -6,8 +6,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
   <script src="/asteroid/static/js/auth-ui.js"></script>
-  <script src="/asteroid/static/js/player.js"></script>
   <script src="/api/asteroid/spectrum-analyzer.js"></script>
+  <script>
+    // Simple Now Playing updater
+    function updateNowPlaying() {
+      fetch('/api/asteroid/partial/now-playing')
+        .then(response => {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('text/html')) {
+            return response.text();
+          }
+          return '';
+        })
+        .then(data => {
+          const nowPlayingDiv = document.getElementById('now-playing');
+          if (nowPlayingDiv) {
+            nowPlayingDiv.innerHTML = data;
+          }
+        })
+        .catch(error => console.log('Could not fetch now playing:', error));
+    }
+    
+    // Update on load and every 10 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(updateNowPlaying, 200);
+      setInterval(updateNowPlaying, 10000);
+    });
+  </script>
   <script>
     // Handle logout without navigation
     function handleLogout() {
