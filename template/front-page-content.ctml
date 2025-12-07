@@ -51,13 +51,14 @@
       </div>
       
       <nav class="nav">
-          <a href="/asteroid/content" target="content-frame">Home</a>
-          <a href="/asteroid/player-content" target="content-frame">Player</a>
-          <a href="/asteroid/status" target="content-frame">Status</a>
-          <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>
-          <a href="/asteroid/admin" target="content-frame" data-show-if-admin>Admin</a>
-          <a href="/asteroid/login" target="content-frame" data-show-if-logged-out>Login</a>
-          <a href="/asteroid/register" target="content-frame" data-show-if-logged-out>Register</a>
+          <a href="/asteroid/content" target="_self">Home</a>
+          <a href="/asteroid/player-content" target="_self">Player</a>
+          <a href="/asteroid/about-content" target="_self">About</a>
+          <a href="/asteroid/status" target="_self">Status</a>
+          <a href="/asteroid/profile" target="_self" data-show-if-logged-in>Profile</a>
+          <a href="/asteroid/admin" target="_self" data-show-if-admin>Admin</a>
+          <a href="/asteroid/login" target="_self" data-show-if-logged-out>Login</a>
+          <a href="/asteroid/register" target="_self" data-show-if-logged-out>Register</a>
           <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout">Logout</a>
       </nav>
     </header>

@@ -9,6 +9,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/asteroid/static/favicon-16x16.png">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
   <script src="/asteroid/static/js/auth-ui.js"></script>
+  <script src="/asteroid/static/js/front-page.js"></script>
   <script src="/asteroid/static/js/player.js"></script>
 </head>
 <body>

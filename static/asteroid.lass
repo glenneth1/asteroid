@@ -1041,6 +1041,20 @@
     :flex 1
     :min-width "300px")
 
+   (.persistent-reconnect-btn
+    :background transparent
+    :color "#00ff00"
+    :border "1px solid #00ff00"
+    :padding "5px 10px"
+    :cursor "pointer"
+    :font-family #(main-font)
+    :font-size "0.85em"
+    :white-space nowrap
+    :margin-right "5px")
+
+   ((:and .persistent-reconnect-btn :hover)
+    :background "#2a3441")
+
    (.persistent-disable-btn
     :background transparent
     :color "#00ff00"

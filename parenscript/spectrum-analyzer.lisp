@@ -33,9 +33,16 @@
       (when *animation-id*
         (cancel-animation-frame *animation-id*)
         (setf *animation-id* nil))
+      ;; Close the old AudioContext if it exists
+      (when *audio-context*
+        (ps:try
+         (ps:chain *audio-context* (close))
+         (:catch (e)
+           (ps:chain console (log "Error closing AudioContext:" e)))))
       (setf *audio-context* nil)
       (setf *analyser* nil)
       (setf *media-source* nil)
+      (setf *current-audio-element* nil)
       (ps:chain console (log "Spectrum analyzer reset for reconnection")))
     
     (defun init-spectrum-analyzer ()

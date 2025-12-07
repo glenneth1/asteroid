@@ -930,6 +930,20 @@
    :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
    :default-stream-encoding "audio/aac"))
 
+;; About page (non-frameset mode)
+(define-page about-page #@"/about" ()
+  "About Asteroid Radio"
+  (clip:process-to-string 
+   (load-template "about")
+   :title "About - Asteroid Radio"))
+
+;; About content (for frameset mode)
+(define-page about-content #@"/about-content" ()
+  "About page content (displayed in content frame)"
+  (clip:process-to-string 
+   (load-template "about-content")
+   :title "About - Asteroid Radio"))
+
 (define-api asteroid/status () ()
   "Get server status"
   (api-output `(("status" . "running")

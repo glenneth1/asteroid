@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
   <script src="/asteroid/static/js/auth-ui.js"></script>
+  <script src="/asteroid/static/js/front-page.js"></script>
   <script src="/asteroid/static/js/player.js"></script>
   <script src="/api/asteroid/spectrum-analyzer.js"></script>
 </head>
