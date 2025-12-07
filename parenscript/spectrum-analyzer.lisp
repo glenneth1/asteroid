@@ -45,7 +45,8 @@
         
         ;; Try current document first
         (setf audio-element (or (ps:chain document (get-element-by-id "live-audio"))
-                                (ps:chain document (get-element-by-id "persistent-audio"))))
+                                (ps:chain document (get-element-by-id "persistent-audio"))
+                                (ps:chain document (get-element-by-id "live-stream-audio"))))
         
         ;; If not found and we're in a frame, try parent frame (frameset mode)
         (when (and (not audio-element)
@@ -253,7 +254,8 @@
         
         ;; Try current document first
         (setf audio-element (or (ps:chain document (get-element-by-id "live-audio"))
-                                (ps:chain document (get-element-by-id "persistent-audio"))))
+                                (ps:chain document (get-element-by-id "persistent-audio"))
+                                (ps:chain document (get-element-by-id "live-stream-audio"))))
         
         ;; If not found and we're in a frame, try parent frame (frameset mode)
         (when (and (not audio-element)

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script src="/api/asteroid/spectrum-analyzer.js"></script>
 </head>
 <body class="persistent-player-container">
   <div class="persistent-player">
@@ -31,6 +32,25 @@
     <button onclick="disableFramesetMode()" class="persistent-disable-btn">
       ✕ Disable
     </button>
+    
+    <!-- Compact Spectrum Analyzer -->
+    <div style="display: inline-block; margin-left: 15px;">
+      <canvas id="spectrum-canvas" width="400" height="40" style="border: 1px solid #00ff00; background: #000; border-radius: 3px; vertical-align: middle;"></canvas>
+      <select id="spectrum-style-selector" onchange="setSpectrumStyle(this.value)" style="margin-left: 5px; padding: 2px; background: #000; color: #00ff00; border: 1px solid #00ff00; font-size: 0.8em; vertical-align: middle;">
+        <option value="bars">Bars</option>
+        <option value="wave">Wave</option>
+        <option value="dots">Dots</option>
+      </select>
+      <select id="spectrum-theme-selector" onchange="setSpectrumTheme(this.value)" style="margin-left: 3px; padding: 2px; background: #000; color: #00ff00; border: 1px solid #00ff00; font-size: 0.8em; vertical-align: middle;">
+        <option value="monotone">Monotone</option>
+        <option value="green">Green</option>
+        <option value="blue">Blue</option>
+        <option value="purple">Purple</option>
+        <option value="red">Red</option>
+        <option value="amber">Amber</option>
+        <option value="rainbow">Rainbow</option>
+      </select>
+    </div>
   </div>
 
   <script>
@@ -186,8 +206,8 @@
     function disableFramesetMode() {
       // Clear preference
       localStorage.removeItem('useFrameset');
-      // Redirect parent window to regular view
-      window.parent.location.href = '/asteroid/';
+      // Redirect parent window to player page (non-frameset)
+      window.parent.location.href = '/asteroid/player';
     }
   </script>
 </body>

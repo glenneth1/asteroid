@@ -625,12 +625,33 @@
       (format t "ERROR in profile-content: ~a~%" e)
       (format nil "<html><body><h1>Error loading profile</h1><pre>~a</pre></body></html>" e))))
 
+;; Status page (non-frameset mode)
+(define-page status-page #@"/status" ()
+  "Status page"
+  (clip:process-to-string 
+   (load-template "status")
+   :title " Asteroid Radio - Status"))
+
 ;; Status content frame (for frameset mode)
 (define-page status-content #@"/status-content" ()
   "Status page content (displayed in content frame)"
   (clip:process-to-string 
    (load-template "status-content")
-   :title "📡 Asteroid Radio - Status"))
+   :title " Asteroid Radio - Status"))
+
+;; About page
+(define-page about-page #@"/about" ()
+  "About Asteroid Radio"
+  (clip:process-to-string 
+   (load-template "about")
+   :title "About - Asteroid Radio"))
+
+;; About content (for frameset mode)
+(define-page about-content #@"/about-content" ()
+  "About content (displayed in content frame)"
+  (clip:process-to-string 
+   (load-template "about-content")
+   :title "About - Asteroid Radio"))
 
 ;; Configure static file serving for other files
 ;; BUT exclude ParenScript-compiled JS files

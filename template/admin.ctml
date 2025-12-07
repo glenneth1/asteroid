@@ -12,11 +12,12 @@
   <div class="container">
     <h1>🎛️ ADMIN DASHBOARD</h1>
     <div class="nav">
-      <a href="/asteroid">Home</a>
+      <a href="/asteroid/frameset">Home</a>
       <a href="/asteroid/player">Player</a>
+      <a href="/asteroid/about">About</a>
       <a href="/asteroid/profile">Profile</a>
       <a href="/asteroid/admin/users">👥 Users</a>
-      <a href="/asteroid/logout" class="btn-logout">Logout</a>
+      <a href="/asteroid/logout" class="btn-logout" onclick="event.preventDefault(); fetch('/asteroid/logout').then(() => window.location.href='/asteroid/frameset');">Logout</a>
     </div>
     
     <!-- System Status -->

@@ -9,7 +9,9 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/asteroid/static/favicon-16x16.png">
   <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
   <script src="/asteroid/static/js/auth-ui.js"></script>
+  <script src="/asteroid/static/js/front-page.js"></script>
   <script src="/asteroid/static/js/player.js"></script>
+  <script src="/api/asteroid/spectrum-analyzer.js"></script>
 </head>
 <body>
   <div class="container">
@@ -19,8 +21,11 @@
       <img src="/asteroid/static/asteroid.png" alt="Asteroid" style="height: 50px; width: auto;">
     </h1>
     <div class="nav">
-      <a href="/asteroid">Home</a>
-      <a href="/asteroid/profile">Profile</a>
+      <a href="/asteroid/frameset">Home</a>
+      <a href="/asteroid/player">Player</a>
+      <a href="/asteroid/about">About</a>
+      <a href="/asteroid/status">Status</a>
+      <a href="/asteroid/profile" data-show-if-logged-in>Profile</a>
       <a href="/asteroid/admin" data-show-if-admin>Admin</a>
       <a href="/asteroid/login" data-show-if-logged-out>Login</a>
       <a href="/asteroid/register" data-show-if-logged-out>Register</a>
@@ -45,10 +50,38 @@
           </select>
         </div>
         
-        <audio id="live-stream-audio" controls style="width: 100%; margin-top: 20px;">
+        <audio id="live-stream-audio" controls crossorigin="anonymous" style="width: 100%; margin-top: 20px;">
           <source id="live-stream-source" lquery="(attr :src default-stream-url)" type="audio/aac">
           Your browser does not support the audio element.
         </audio>
+        
+        <!-- Spectrum Analyzer -->
+        <div style="text-align: center; margin: 20px 0;">
+          <canvas id="spectrum-canvas" width="800" height="100" style="max-width: 100%; border: 1px solid #00ff00; background: #000; border-radius: 4px;"></canvas>
+          <div style="margin-top: 8px; font-size: 0.9em;">
+            <label style="margin-right: 10px;">
+              Style: 
+              <select id="spectrum-style-selector" onchange="setSpectrumStyle(this.value)" style="padding: 3px; background: #000; color: #00ff00; border: 1px solid #00ff00;">
+                <option value="bars">Bars</option>
+                <option value="wave">Wave</option>
+                <option value="dots">Dots</option>
+              </select>
+            </label>
+            <label>
+              Theme: 
+              <select id="spectrum-theme-selector" onchange="setSpectrumTheme(this.value)" style="padding: 3px; background: #000; color: #00ff00; border: 1px solid #00ff00;">
+                <option value="monotone">Monotone</option>
+                <option value="green">Green</option>
+                <option value="blue">Blue</option>
+                <option value="purple">Purple</option>
+                <option value="red">Red</option>
+                <option value="amber">Amber</option>
+                <option value="rainbow">Rainbow</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        
         <p><em>Listen to the live Asteroid Radio stream</em></p>
       </div>
     </div>
