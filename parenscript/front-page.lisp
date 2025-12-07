@@ -7,6 +7,12 @@
   (ps:ps*
    '(progn
      
+     ;; Stream connection state
+     (defvar *stream-error-count* 0)
+     (defvar *last-play-attempt* 0)
+     (defvar *is-reconnecting* false)
+     (defvar *reconnect-timeout* nil)
+     
      ;; Stream quality configuration
      (defun get-stream-config (stream-base-url encoding)
        (let ((config (ps:create
@@ -137,6 +143,249 @@
        (ps:chain local-storage (remove-item "useFrameset"))
        (setf (ps:@ window location href) "/asteroid/"))
      
+     ;; Stream status UI functions
+     (defun show-stream-status (message status-type)
+       "Show a status message to the user. status-type: 'error', 'warning', 'success', 'info'"
+       (let ((indicator (ps:chain document (get-element-by-id "stream-status-indicator"))))
+         (when indicator
+           (setf (ps:@ indicator inner-text) message)
+           (setf (ps:@ indicator style display) "block")
+           (setf (ps:@ indicator style background)
+                 (cond
+                   ((= status-type "error") "#550000")
+                   ((= status-type "warning") "#554400")
+                   ((= status-type "success") "#005500")
+                   (t "#003355")))
+           (setf (ps:@ indicator style border)
+                 (cond
+                   ((= status-type "error") "1px solid #ff0000")
+                   ((= status-type "warning") "1px solid #ffaa00")
+                   ((= status-type "success") "1px solid #00ff00")
+                   (t "1px solid #00aaff"))))))
+     
+     (defun hide-stream-status ()
+       "Hide the status indicator"
+       (let ((indicator (ps:chain document (get-element-by-id "stream-status-indicator"))))
+         (when indicator
+           (setf (ps:@ indicator style display) "none"))))
+     
+     (defun show-reconnect-button ()
+       "Show the reconnect button"
+       (let ((btn (ps:chain document (get-element-by-id "reconnect-btn"))))
+         (when btn
+           (setf (ps:@ btn style display) "inline-block"))))
+     
+     (defun hide-reconnect-button ()
+       "Hide the reconnect button"
+       (let ((btn (ps:chain document (get-element-by-id "reconnect-btn"))))
+         (when btn
+           (setf (ps:@ btn style display) "none"))))
+     
+     ;; Recreate audio element to fix wedged state
+     (defun recreate-audio-element ()
+       "Recreate the audio element entirely to fix wedged MediaElementSource"
+       (let* ((container (ps:chain document (get-element-by-id "audio-container")))
+              (old-audio (ps:chain document (get-element-by-id "live-audio")))
+              (stream-base-url (ps:chain document (get-element-by-id "stream-base-url")))
+              (stream-quality (or (ps:chain local-storage (get-item "stream-quality")) "aac"))
+              (config (get-stream-config (ps:@ stream-base-url value) stream-quality)))
+         
+         (when (and container old-audio)
+           ;; Reset spectrum analyzer before removing audio
+           (when (ps:@ window |resetSpectrumAnalyzer|)
+             (ps:chain window (reset-spectrum-analyzer)))
+           
+           ;; Remove old audio element
+           (ps:chain old-audio (pause))
+           (setf (ps:@ old-audio src) "")
+           (ps:chain old-audio (remove))
+           
+           ;; Create new audio element
+           (let ((new-audio (ps:chain document (create-element "audio"))))
+             (setf (ps:@ new-audio id) "live-audio")
+             (setf (ps:@ new-audio controls) t)
+             (setf (ps:@ new-audio crossorigin) "anonymous")
+             (setf (ps:@ new-audio style width) "100%")
+             (setf (ps:@ new-audio style margin) "10px 0")
+             
+             ;; Create source element
+             (let ((source (ps:chain document (create-element "source"))))
+               (setf (ps:@ source id) "audio-source")
+               (setf (ps:@ source src) (ps:@ config url))
+               (setf (ps:@ source type) (ps:@ config type))
+               (ps:chain new-audio (append-child source)))
+             
+             ;; Add to container
+             (ps:chain container (append-child new-audio))
+             
+             ;; Re-attach event listeners
+             (attach-audio-event-listeners new-audio)
+             
+             (ps:chain console (log "Audio element recreated"))
+             new-audio))))
+     
+     ;; Main reconnect function
+     (defun reconnect-stream ()
+       "Reconnect the stream - called by user or automatically"
+       (when *is-reconnecting*
+         (return))
+       
+       (setf *is-reconnecting* t)
+       (show-stream-status "🔄 Reconnecting to stream..." "info")
+       (hide-reconnect-button)
+       
+       ;; Clear any pending reconnect timeout
+       (when *reconnect-timeout*
+         (clear-timeout *reconnect-timeout*)
+         (setf *reconnect-timeout* nil))
+       
+       (let ((audio-element (ps:chain document (get-element-by-id "live-audio"))))
+         (if audio-element
+             ;; Try simple reload first
+             (progn
+               (ps:chain audio-element (pause))
+               (ps:chain audio-element (load))
+               
+               ;; Resume AudioContext if suspended
+               (when (ps:@ window |resetSpectrumAnalyzer|)
+                 (ps:chain window (reset-spectrum-analyzer)))
+               
+               ;; Try to play after a short delay
+               (set-timeout
+                (lambda ()
+                  (ps:chain audio-element (play)
+                            (then (lambda ()
+                                    (setf *stream-error-count* 0)
+                                    (setf *is-reconnecting* false)
+                                    (show-stream-status "✓ Stream reconnected!" "success")
+                                    (set-timeout hide-stream-status 3000)
+                                    
+                                    ;; Reinitialize spectrum analyzer
+                                    (when (ps:@ window |initSpectrumAnalyzer|)
+                                      (set-timeout
+                                       (lambda ()
+                                         (ps:chain window (init-spectrum-analyzer)))
+                                       500))))
+                            (catch (lambda (err)
+                                     (ps:chain console (log "Simple reconnect failed, recreating audio element:" err))
+                                     ;; Simple reload failed, recreate the audio element
+                                     (let ((new-audio (recreate-audio-element)))
+                                       (when new-audio
+                                         (set-timeout
+                                          (lambda ()
+                                            (ps:chain new-audio (play)
+                                                      (then (lambda ()
+                                                              (setf *stream-error-count* 0)
+                                                              (setf *is-reconnecting* false)
+                                                              (show-stream-status "✓ Stream reconnected!" "success")
+                                                              (set-timeout hide-stream-status 3000)))
+                                                      (catch (lambda (err2)
+                                                               (setf *is-reconnecting* false)
+                                                               (incf *stream-error-count*)
+                                                               (show-stream-status "❌ Could not reconnect. Click play to try again." "error")
+                                                               (show-reconnect-button)
+                                                               (ps:chain console (log "Reconnect failed:" err2))))))
+                                          500)))))))
+                500))
+             
+             ;; No audio element found, try to recreate
+             (let ((new-audio (recreate-audio-element)))
+               (if new-audio
+                   (set-timeout
+                    (lambda ()
+                      (ps:chain new-audio (play)
+                                (then (lambda ()
+                                        (setf *is-reconnecting* false)
+                                        (show-stream-status "✓ Stream connected!" "success")
+                                        (set-timeout hide-stream-status 3000)))
+                                (catch (lambda (err)
+                                         (setf *is-reconnecting* false)
+                                         (show-stream-status "❌ Could not connect. Click play to try again." "error")
+                                         (show-reconnect-button)))))
+                    500)
+                   (progn
+                     (setf *is-reconnecting* false)
+                     (show-stream-status "❌ Could not create audio player. Please reload the page." "error")))))))
+     
+     ;; Attach event listeners to audio element
+     (defun attach-audio-event-listeners (audio-element)
+       "Attach all necessary event listeners to an audio element"
+       
+       ;; Error handler
+       (ps:chain audio-element
+                 (add-event-listener "error"
+                   (lambda (err)
+                     (incf *stream-error-count*)
+                     (ps:chain console (log "Stream error:" err))
+                     
+                     (if (< *stream-error-count* 3)
+                         ;; Auto-retry for first few errors
+                         (progn
+                           (show-stream-status (+ "⚠️ Stream error. Reconnecting... (attempt " *stream-error-count* ")") "warning")
+                           (setf *reconnect-timeout*
+                                 (set-timeout reconnect-stream 3000)))
+                         ;; Too many errors, show manual reconnect
+                         (progn
+                           (show-stream-status "❌ Stream connection lost. Click Reconnect to try again." "error")
+                           (show-reconnect-button))))))
+       
+       ;; Stalled handler
+       (ps:chain audio-element
+                 (add-event-listener "stalled"
+                   (lambda ()
+                     (ps:chain console (log "Stream stalled"))
+                     (show-stream-status "⚠️ Stream stalled. Attempting to recover..." "warning")
+                     (setf *reconnect-timeout*
+                           (set-timeout
+                            (lambda ()
+                              ;; Only reconnect if still stalled
+                              (when (ps:@ audio-element paused)
+                                (reconnect-stream)))
+                            5000)))))
+       
+       ;; Waiting handler (buffering)
+       (ps:chain audio-element
+                 (add-event-listener "waiting"
+                   (lambda ()
+                     (ps:chain console (log "Stream buffering..."))
+                     (show-stream-status "⏳ Buffering..." "info"))))
+       
+       ;; Playing handler - clear any error states
+       (ps:chain audio-element
+                 (add-event-listener "playing"
+                   (lambda ()
+                     (setf *stream-error-count* 0)
+                     (hide-stream-status)
+                     (hide-reconnect-button)
+                     (when *reconnect-timeout*
+                       (clear-timeout *reconnect-timeout*)
+                       (setf *reconnect-timeout* nil)))))
+       
+       ;; Pause handler - track when paused for long pause detection
+       (ps:chain audio-element
+                 (add-event-listener "pause"
+                   (lambda ()
+                     (setf *last-play-attempt* (ps:chain |Date| (now))))))
+       
+       ;; Play handler - detect long pauses that need reconnection
+       (ps:chain audio-element
+                 (add-event-listener "play"
+                   (lambda ()
+                     (let ((pause-duration (- (ps:chain |Date| (now)) *last-play-attempt*)))
+                       ;; If paused for more than 30 seconds, reconnect to get fresh stream
+                       (when (> pause-duration 30000)
+                         (ps:chain console (log "Long pause detected, reconnecting for fresh stream..."))
+                         (reconnect-stream))))))
+       
+       ;; Spectrum analyzer hooks
+       (when (ps:@ window |initSpectrumAnalyzer|)
+         (ps:chain audio-element (add-event-listener "play"
+           (lambda () (ps:chain window (init-spectrum-analyzer))))))
+       
+       (when (ps:@ window |stopSpectrumAnalyzer|)
+         (ps:chain audio-element (add-event-listener "pause"
+           (lambda () (ps:chain window (stop-spectrum-analyzer)))))))
+     
      (defun redirect-when-frame ()
        (let* ((path (ps:@ window location pathname))
               (is-frameset-page (not (= (ps:@ window parent) (ps:@ window self))))
@@ -164,80 +413,10 @@
                   ;; Update now playing
                   (update-now-playing)
                   
-                  ;; Auto-reconnect on stream errors
+                  ;; Attach event listeners to audio element
                   (let ((audio-element (ps:chain document (get-element-by-id "live-audio"))))
                     (when audio-element
-                      (ps:chain audio-element
-                                (add-event-listener
-                                 "error"
-                                 (lambda (err)
-                                   (ps:chain console (log "Stream error, attempting reconnect in 3 seconds..." err))
-                                   (set-timeout
-                                    (lambda ()
-                                      (ps:chain audio-element (load))
-                                      (ps:chain (ps:chain audio-element (play))
-                                                (catch (lambda (err)
-                                                         (ps:chain console (log "Reconnect failed:" err))))))
-                                    3000))))
-                      
-                      (ps:chain audio-element
-                                (add-event-listener
-                                 "stalled"
-                                 (lambda ()
-                                   (ps:chain console (log "Stream stalled, reloading..."))
-                                   (ps:chain audio-element (load))
-                                   (ps:chain (ps:chain audio-element (play))
-                                             (catch (lambda (err)
-                                                      (ps:chain console (log "Reload failed:" err))))))))
-                      
-                      (let ((pause-timestamp nil)
-                            (is-reconnecting false)
-                            (needs-reconnect false)
-                            (pause-reconnect-threshold 10000))
-                        
-                        (ps:chain audio-element
-                                  (add-event-listener "pause"
-                                    (lambda ()
-                                      (setf pause-timestamp (ps:chain |Date| (now)))
-                                      (ps:chain console (log "Stream paused at:" pause-timestamp)))))
-                        
-                        (ps:chain audio-element
-                                  (add-event-listener "play"
-                                    (lambda ()
-                                      (when (and (not is-reconnecting)
-                                                 pause-timestamp
-                                                 (> (- (ps:chain |Date| (now)) pause-timestamp) pause-reconnect-threshold))
-                                        (setf needs-reconnect true)
-                                        (ps:chain console (log "Long pause detected, will reconnect when playing starts...")))
-                                      (setf pause-timestamp nil))))
-                        
-                        (ps:chain audio-element
-                                  (add-event-listener "playing"
-                                    (lambda ()
-                                      (when (and needs-reconnect (not is-reconnecting))
-                                        (setf is-reconnecting true)
-                                        (setf needs-reconnect false)
-                                        (ps:chain console (log "Reconnecting stream after long pause to clear stale buffers..."))
-                                        
-                                        (ps:chain audio-element (pause))
-                                        
-                                        (when (ps:@ window |resetSpectrumAnalyzer|)
-                                          (ps:chain window (reset-spectrum-analyzer)))
-                                        
-                                        (ps:chain audio-element (load))
-                                        
-                                        (set-timeout
-                                          (lambda ()
-                                            (ps:chain audio-element (play)
-                                                      (catch (lambda (err)
-                                                               (ps:chain console (log "Reconnect play failed:" err)))))
-                                            
-                                            (when (ps:@ window |initSpectrumAnalyzer|)
-                                              (ps:chain window (init-spectrum-analyzer))
-                                              (ps:chain console (log "Spectrum analyzer reinitialized after reconnect")))
-                                            
-                                            (setf is-reconnecting false))
-                                          200))))))))
+                      (attach-audio-event-listeners audio-element)))
                   
                   ;; Check frameset preference
                   (let ((path (ps:@ window location pathname))
@@ -249,8 +428,8 @@
                     
                     (redirect-when-frame)))))
      
-     ;; Update now playing every 10 seconds
-     (set-interval update-now-playing 10000)
+     ;; Update now playing every 5 seconds
+     (set-interval update-now-playing 5000)
      
      ;; Listen for messages from popout window
      (ps:chain window

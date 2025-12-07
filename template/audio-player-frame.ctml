@@ -28,10 +28,17 @@
     
     <span class="now-playing-mini" id="mini-now-playing">Loading...</span>
     
+    <button id="reconnect-btn" onclick="reconnectStream()" class="persistent-reconnect-btn" title="Reconnect if audio stops working">
+      🔄
+    </button>
+    
     <button onclick="disableFramesetMode()" class="persistent-disable-btn">
       ✕ Disable
     </button>
   </div>
+  
+  <!-- Status indicator for connection issues -->
+  <div id="stream-status" style="display: none; background: #550000; color: #ff6666; padding: 4px 10px; text-align: center; font-size: 0.85em;"></div>
 
   <script>
     // Configure audio element for better streaming
@@ -134,6 +141,145 @@
       // Redirect parent window to regular view
       window.parent.location.href = '/asteroid/';
     }
+
+    // Show status message
+    function showStatus(message, isError) {
+      const status = document.getElementById('stream-status');
+      if (status) {
+        status.textContent = message;
+        status.style.display = 'block';
+        status.style.background = isError ? '#550000' : '#005500';
+        status.style.color = isError ? '#ff6666' : '#66ff66';
+        if (!isError) {
+          setTimeout(() => { status.style.display = 'none'; }, 3000);
+        }
+      }
+    }
+
+    function hideStatus() {
+      const status = document.getElementById('stream-status');
+      if (status) {
+        status.style.display = 'none';
+      }
+    }
+
+    // Reconnect stream - recreates audio element to fix wedged state
+    function reconnectStream() {
+      console.log('Reconnecting stream...');
+      showStatus('🔄 Reconnecting...', false);
+      
+      const container = document.querySelector('.persistent-player');
+      const oldAudio = document.getElementById('persistent-audio');
+      const streamBaseUrl = document.getElementById('stream-base-url').value;
+      const streamQuality = localStorage.getItem('stream-quality') || 'aac';
+      const config = getStreamConfig(streamBaseUrl, streamQuality);
+      
+      if (!container || !oldAudio) {
+        showStatus('❌ Could not reconnect - reload page', true);
+        return;
+      }
+      
+      // Save current volume and muted state
+      const savedVolume = oldAudio.volume;
+      const savedMuted = oldAudio.muted;
+      console.log('Saving volume:', savedVolume, 'muted:', savedMuted);
+      
+      // Reset spectrum analyzer if it exists
+      if (window.resetSpectrumAnalyzer) {
+        window.resetSpectrumAnalyzer();
+      }
+      
+      // Stop and remove old audio
+      oldAudio.pause();
+      oldAudio.src = '';
+      oldAudio.load();
+      
+      // Create new audio element
+      const newAudio = document.createElement('audio');
+      newAudio.id = 'persistent-audio';
+      newAudio.controls = true;
+      newAudio.preload = 'metadata';
+      newAudio.crossOrigin = 'anonymous';
+      
+      // Restore volume and muted state
+      newAudio.volume = savedVolume;
+      newAudio.muted = savedMuted;
+      
+      // Create source
+      const source = document.createElement('source');
+      source.id = 'audio-source';
+      source.src = config.url;
+      source.type = config.type;
+      newAudio.appendChild(source);
+      
+      // Replace old audio with new
+      oldAudio.replaceWith(newAudio);
+      
+      // Re-attach event listeners
+      attachAudioListeners(newAudio);
+      
+      // Try to play
+      setTimeout(() => {
+        newAudio.play()
+          .then(() => {
+            console.log('Reconnected successfully');
+            showStatus('✓ Reconnected!', false);
+            // Reinitialize spectrum analyzer - try in this frame first
+            if (window.initSpectrumAnalyzer) {
+              setTimeout(() => window.initSpectrumAnalyzer(), 500);
+            }
+            // Also try in content frame (where spectrum canvas usually is)
+            try {
+              const contentFrame = window.parent.frames['content-frame'];
+              if (contentFrame && contentFrame.initSpectrumAnalyzer) {
+                setTimeout(() => {
+                  if (contentFrame.resetSpectrumAnalyzer) {
+                    contentFrame.resetSpectrumAnalyzer();
+                  }
+                  contentFrame.initSpectrumAnalyzer();
+                  console.log('Spectrum analyzer reinitialized in content frame');
+                }, 600);
+              }
+            } catch(e) {
+              console.log('Could not reinit spectrum in content frame:', e);
+            }
+          })
+          .catch(err => {
+            console.log('Reconnect play failed:', err);
+            showStatus('Click play to start stream', false);
+          });
+      }, 300);
+    }
+
+    // Attach event listeners to audio element
+    function attachAudioListeners(audioElement) {
+      audioElement.addEventListener('waiting', function() {
+        console.log('Audio buffering...');
+      });
+      
+      audioElement.addEventListener('playing', function() {
+        console.log('Audio playing');
+        hideStatus();
+      });
+      
+      audioElement.addEventListener('error', function(e) {
+        console.error('Audio error:', e);
+        showStatus('⚠️ Stream error - click 🔄 to reconnect', true);
+      });
+      
+      audioElement.addEventListener('stalled', function() {
+        console.log('Audio stalled');
+        showStatus('⚠️ Stream stalled - click 🔄 if no audio', true);
+      });
+    }
+
+    // Attach listeners to initial audio element
+    document.addEventListener('DOMContentLoaded', function() {
+      const audioElement = document.getElementById('persistent-audio');
+      if (audioElement) {
+        attachAudioListeners(audioElement);
+      }
+    });
   </script>
 </body>
 </html>
