@@ -39,6 +39,13 @@
       const url = link.href;
       console.log('Loading via AJAX:', url);
       
+      // Clear all intervals to prevent old page scripts from running
+      const highestId = window.setTimeout(() => {}, 0);
+      for (let i = 0; i < highestId; i++) {
+        window.clearInterval(i);
+        window.clearTimeout(i);
+      }
+      
       fetch(url)
         .then(response => response.text())
         .then(html => {
@@ -46,6 +53,23 @@
           document.open();
           document.write(html);
           document.close();
+          
+          // Execute scripts in the new content
+          const scripts = document.querySelectorAll('script');
+          scripts.forEach(oldScript => {
+            const newScript = document.createElement('script');
+            if (oldScript.src) {
+              newScript.src = oldScript.src;
+            } else {
+              newScript.textContent = oldScript.textContent;
+            }
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+          });
+          
+          // Re-initialize spectrum analyzer after navigation
+          if (window.initializeSpectrumAnalyzer) {
+            setTimeout(() => window.initializeSpectrumAnalyzer(), 100);
+          }
           
           // Update browser history
           if (window.history && window.history.pushState) {
@@ -101,13 +125,13 @@
       </div>
       
       <nav class="nav">
-        <a href="/asteroid/content" target="content-frame">Home</a>
-        <a href="/asteroid/player-content" target="content-frame">Player</a>
-        <a href="/asteroid/status" target="content-frame">Status</a>
-        <a href="/asteroid/profile" target="content-frame" data-show-if-logged-in>Profile</a>
-        <a href="/asteroid/admin" target="content-frame" data-show-if-admin>Admin</a>
+        <a href="/asteroid/content" target="content-frame" onclick="return loadInFrame(this)">Home</a>
+        <a href="/asteroid/player-content" target="content-frame" onclick="return loadInFrame(this)">Player</a>
+        <a href="/asteroid/status-content" target="content-frame" onclick="return loadInFrame(this)">Status</a>
+        <a href="/asteroid/profile-content" target="content-frame" data-show-if-logged-in onclick="return loadInFrame(this)">Profile</a>
+        <a href="/asteroid/admin-content" target="content-frame" data-show-if-admin onclick="return loadInFrame(this)">Admin</a>
         <a href="/asteroid/login-content" target="content-frame" data-show-if-logged-out onclick="return loadInFrame(this)">Login</a>
-        <a href="/asteroid/register" target="content-frame" data-show-if-logged-out>Register</a>
+        <a href="/asteroid/register-content" target="content-frame" data-show-if-logged-out onclick="return loadInFrame(this)">Register</a>
         <a href="/asteroid/logout" data-show-if-logged-in class="btn-logout" onclick="handleLogout(); return false;">Logout</a>
       </nav>
     </header>

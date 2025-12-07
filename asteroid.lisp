@@ -607,6 +607,13 @@
    :top-artist-3 ""
    :top-artist-3-plays ""))
 
+;; Status content frame (for frameset mode)
+(define-page status-content #@"/status-content" ()
+  "Status page content (displayed in content frame)"
+  (clip:process-to-string 
+   (load-template "status-content")
+   :title "📡 Asteroid Radio - Status"))
+
 ;; Configure static file serving for other files
 ;; BUT exclude ParenScript-compiled JS files
 (define-page static #@"/static/(.*)" (:uri-groups (path))

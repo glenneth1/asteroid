@@ -43,24 +43,22 @@
       (let ((audio-element nil)
             (canvas-element (ps:chain document (get-element-by-id "spectrum-canvas"))))
         
-        ;; Try to find audio element in current frame first
+        ;; Try current document first
         (setf audio-element (or (ps:chain document (get-element-by-id "live-audio"))
                                 (ps:chain document (get-element-by-id "persistent-audio"))))
         
-        ;; If not found and we're in a frame, try to access from parent frameset
+        ;; If not found and we're in a frame, try parent frame (frameset mode)
         (when (and (not audio-element)
                    (ps:@ window parent)
                    (not (eq (ps:@ window parent) window)))
-          (ps:chain console (log "Trying to access audio from parent frame..."))
           (ps:try
-           (progn
-             ;; Try accessing via parent.frames
-             (let ((player-frame (ps:getprop (ps:@ window parent) "player-frame")))
-               (when player-frame
-                 (setf audio-element (ps:chain player-frame document (get-element-by-id "persistent-audio")))
-                 (ps:chain console (log "Found audio in player-frame:" audio-element)))))
+           (let ((player-frame (ps:getprop (ps:@ window parent frames) "player-frame")))
+             (when player-frame
+               (setf audio-element (ps:chain player-frame document (get-element-by-id "persistent-audio")))
+               (when audio-element
+                 (ps:chain console (log "Found persistent-audio in player-frame")))))
            (:catch (e)
-             (ps:chain console (log "Cross-frame access error:" e)))))
+             (ps:chain console (log "Could not access parent frame:" e)))))
         
         (when (and audio-element canvas-element)
           ;; Store current audio element
@@ -218,49 +216,72 @@
       "Return array of available visualization styles"
       (array "bars" "wave" "dots"))
     
-    ;; Initialize when audio starts playing
-    (ps:chain document (add-event-listener "DOMContentLoaded"
-      (lambda ()
-        ;; Load saved theme and style preferences
-        (let ((saved-theme (ps:chain local-storage (get-item "spectrum-theme")))
-              (saved-style (ps:chain local-storage (get-item "spectrum-style"))))
-          (when (and saved-theme (ps:getprop *themes* saved-theme))
-            (setf *current-theme* saved-theme))
-          (when (and saved-style (or (= saved-style "bars") (= saved-style "wave") (= saved-style "dots")))
-            (setf *current-style* saved-style))
-          
-          ;; Update UI selectors, canvas border, and dropdown colors
-          (let ((theme-selector (ps:chain document (get-element-by-id "spectrum-theme-selector")))
-                (style-selector (ps:chain document (get-element-by-id "spectrum-style-selector")))
-                (canvas (ps:chain document (get-element-by-id "spectrum-canvas")))
-                (theme (ps:getprop *themes* *current-theme*)))
-            (when theme-selector
-              (setf (ps:@ theme-selector value) *current-theme*)
-              (setf (ps:@ theme-selector style color) (ps:@ theme top))
-              (setf (ps:@ theme-selector style border-color) (ps:@ theme top)))
-            (when style-selector
-              (setf (ps:@ style-selector value) *current-style*)
-              (setf (ps:@ style-selector style color) (ps:@ theme top))
-              (setf (ps:@ style-selector style border-color) (ps:@ theme top)))
-            
-            ;; Set initial canvas border color
-            (when canvas
-              (setf (ps:@ canvas style border-color) (ps:@ theme top)))))
+    (defun initialize-spectrum-analyzer ()
+      "Initialize or re-initialize the spectrum analyzer (can be called after AJAX navigation)"
+      ;; Stop existing analyzer if running
+      (when *animation-id*
+        (ps:chain window (cancel-animation-frame *animation-id*))
+        (setf *animation-id* nil))
+      
+      ;; Load saved theme and style preferences
+      (let ((saved-theme (ps:chain local-storage (get-item "spectrum-theme")))
+            (saved-style (ps:chain local-storage (get-item "spectrum-style"))))
+        (when (and saved-theme (ps:getprop *themes* saved-theme))
+          (setf *current-theme* saved-theme))
+        (when (and saved-style (or (= saved-style "bars") (= saved-style "wave") (= saved-style "dots")))
+          (setf *current-style* saved-style))
         
-        (let ((audio-element (or (ps:chain document (get-element-by-id "live-audio"))
-                                 (ps:chain document (get-element-by-id "persistent-audio")))))
+        ;; Update UI selectors, canvas border, and dropdown colors
+        (let ((theme-selector (ps:chain document (get-element-by-id "spectrum-theme-selector")))
+              (style-selector (ps:chain document (get-element-by-id "spectrum-style-selector")))
+              (canvas (ps:chain document (get-element-by-id "spectrum-canvas")))
+              (theme (ps:getprop *themes* *current-theme*)))
+          (when theme-selector
+            (setf (ps:@ theme-selector value) *current-theme*)
+            (setf (ps:@ theme-selector style color) (ps:@ theme top))
+            (setf (ps:@ theme-selector style border-color) (ps:@ theme top)))
+          (when style-selector
+            (setf (ps:@ style-selector value) *current-style*)
+            (setf (ps:@ style-selector style color) (ps:@ theme top))
+            (setf (ps:@ style-selector style border-color) (ps:@ theme top)))
           
-          ;; If not found and we're in a frame, try parent
-          (when (and (not audio-element)
-                     (ps:@ window parent)
-                     (not (eq (ps:@ window parent) window)))
-            (ps:try
-             (let ((player-frame (ps:getprop (ps:@ window parent) "player-frame")))
-               (when player-frame
-                 (setf audio-element (ps:chain player-frame document (get-element-by-id "persistent-audio")))))
-             (:catch (e)
-               (ps:chain console (log "Event listener cross-frame error:" e)))))
+          ;; Set initial canvas border color
+          (when canvas
+            (setf (ps:@ canvas style border-color) (ps:@ theme top)))))
+      
+      (let ((audio-element nil))
+        
+        ;; Try current document first
+        (setf audio-element (or (ps:chain document (get-element-by-id "live-audio"))
+                                (ps:chain document (get-element-by-id "persistent-audio"))))
+        
+        ;; If not found and we're in a frame, try parent frame (frameset mode)
+        (when (and (not audio-element)
+                   (ps:@ window parent)
+                   (not (eq (ps:@ window parent) window)))
+          (ps:try
+           (let ((player-frame (ps:getprop (ps:@ window parent frames) "player-frame")))
+             (when player-frame
+               (setf audio-element (ps:chain player-frame document (get-element-by-id "persistent-audio")))
+               (when audio-element
+                 (ps:chain console (log "Found persistent-audio in player-frame")))))
+           (:catch (e)
+             (ps:chain console (log "Could not access parent frame:" e)))))
+        
+        (when audio-element
+          ;; Store reference for muted detection
+          (setf *current-audio-element* audio-element)
+          (ps:chain audio-element (add-event-listener "play" init-spectrum-analyzer))
+          (ps:chain audio-element (add-event-listener "pause" stop-spectrum-analyzer))
           
-          (when audio-element
-            (ps:chain audio-element (add-event-listener "play" init-spectrum-analyzer))
-            (ps:chain audio-element (add-event-listener "pause" stop-spectrum-analyzer)))))))))
+          ;; If audio is already playing, restart the analyzer with new reference
+          (when (and (not (ps:@ audio-element paused))
+                     (ps:chain document (get-element-by-id "spectrum-canvas")))
+            (ps:chain console (log "Audio already playing, restarting spectrum analyzer"))
+            (init-spectrum-analyzer)))))
+    
+    ;; Make initialization function globally accessible
+    (setf (ps:@ window |initializeSpectrumAnalyzer|) initialize-spectrum-analyzer)
+    
+    ;; Initialize when audio starts playing
+    (ps:chain document (add-event-listener "DOMContentLoaded" initialize-spectrum-analyzer))))
