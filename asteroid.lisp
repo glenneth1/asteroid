@@ -944,6 +944,13 @@
    (load-template "about-content")
    :title "About - Asteroid Radio"))
 
+;; Status content (for frameset mode)
+(define-page status-content #@"/status-content" ()
+  "Status page content (displayed in content frame)"
+  (clip:process-to-string 
+   (load-template "status-content")
+   :title "Status - Asteroid Radio"))
+
 (define-api asteroid/status () ()
   "Get server status"
   (api-output `(("status" . "running")
