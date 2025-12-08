@@ -44,36 +44,57 @@
 
     <!-- Listener Statistics -->
     <div class="admin-section">
-      <h2>📊 Listener Statistics</h2>
-      <div class="admin-grid" id="listener-stats-grid">
-        <div class="status-card">
-          <h3>🎵 asteroid.mp3</h3>
-          <p class="stat-number" id="listeners-mp3">0</p>
-          <p class="stat-label">Current Listeners</p>
-          <p class="stat-detail">Peak: <span id="peak-mp3">0</span></p>
-        </div>
-        <div class="status-card">
-          <h3>🎧 asteroid.aac</h3>
-          <p class="stat-number" id="listeners-aac">0</p>
-          <p class="stat-label">Current Listeners</p>
-          <p class="stat-detail">Peak: <span id="peak-aac">0</span></p>
-        </div>
-        <div class="status-card">
-          <h3>📱 asteroid-low.mp3</h3>
-          <p class="stat-number" id="listeners-low">0</p>
-          <p class="stat-label">Current Listeners</p>
-          <p class="stat-detail">Peak: <span id="peak-low">0</span></p>
-        </div>
-        <div class="status-card">
-          <h3>📈 Total Listeners</h3>
-          <p class="stat-number" id="listeners-total">0</p>
-          <p class="stat-label">All Streams</p>
-          <p class="stat-detail">Updated: <span id="stats-updated">--</span></p>
-        </div>
-      </div>
-      <div class="admin-controls" style="margin-top: 15px;">
-        <button id="refresh-stats" class="btn btn-secondary" onclick="refreshListenerStats()">🔄 Refresh Stats</button>
+      <h2>📊 Current Listeners</h2>
+      <table class="listener-stats-table" style="table-layout: fixed; width: 100%;">
+        <colgroup>
+          <col style="width: 25%;">
+          <col style="width: 25%;">
+          <col style="width: 25%;">
+          <col style="width: 25%;">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>🎵 MP3</th>
+            <th>🎧 AAC</th>
+            <th>📱 Low</th>
+            <th>📈 Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center;"><span class="stat-number" id="listeners-mp3">0</span></td>
+            <td style="text-align: center;"><span class="stat-number" id="listeners-aac">0</span></td>
+            <td style="text-align: center;"><span class="stat-number" id="listeners-low">0</span></td>
+            <td style="text-align: center;"><span class="stat-number" id="listeners-total">0</span></td>
+          </tr>
+          <tr class="stat-peak-row">
+            <td style="text-align: center;">Peak: <span id="peak-mp3">0</span></td>
+            <td style="text-align: center;">Peak: <span id="peak-aac">0</span></td>
+            <td style="text-align: center;">Peak: <span id="peak-low">0</span></td>
+            <td style="text-align: center;">Updated: <span id="stats-updated">--</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="admin-controls" style="margin-top: 10px;">
+        <button id="refresh-stats" class="btn btn-secondary" onclick="refreshListenerStats()">🔄 Refresh</button>
         <span id="stats-status" style="margin-left: 15px;"></span>
+      </div>
+      
+      <!-- Geo Stats -->
+      <h3 style="margin-top: 20px;">🌍 Listener Locations (Last 7 Days)</h3>
+      <div id="geo-stats-container">
+        <table class="listener-stats-table" id="geo-stats-table">
+          <thead>
+            <tr>
+              <th>Country</th>
+              <th>Listeners</th>
+              <th>Minutes</th>
+            </tr>
+          </thead>
+          <tbody id="geo-stats-body">
+            <tr><td colspan="3" style="color: #888;">Loading...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -273,12 +294,54 @@
         });
     }
     
+    // Country code to flag emoji
+    function countryToFlag(countryCode) {
+      if (!countryCode || countryCode.length !== 2) return '🌍';
+      const codePoints = countryCode
+        .toUpperCase()
+        .split('')
+        .map(char => 127397 + char.charCodeAt(0));
+      return String.fromCodePoint(...codePoints);
+    }
+    
+    // Fetch and display geo stats
+    function refreshGeoStats() {
+      fetch('/api/asteroid/stats/geo?days=7')
+        .then(response => response.json())
+        .then(result => {
+          const data = result.data || result;
+          const tbody = document.getElementById('geo-stats-body');
+          
+          if (data.status === 'success' && data.geo && data.geo.length > 0) {
+            tbody.innerHTML = data.geo.map(item => {
+              const country = item.country_code || item[0];
+              const listeners = item.total_listeners || item[1] || 0;
+              const minutes = item.total_minutes || item[2] || 0;
+              return `<tr>
+                <td>${countryToFlag(country)} ${country}</td>
+                <td>${listeners}</td>
+                <td>${minutes}</td>
+              </tr>`;
+            }).join('');
+          } else {
+            tbody.innerHTML = '<tr><td colspan="3" style="color: #888;">No geo data yet</td></tr>';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching geo stats:', error);
+          document.getElementById('geo-stats-body').innerHTML = 
+            '<tr><td colspan="3" style="color: #ff6666;">Error loading geo data</td></tr>';
+        });
+    }
+    
     // Auto-refresh stats every 30 seconds
     setInterval(refreshListenerStats, 30000);
+    setInterval(refreshGeoStats, 60000);
     
     // Initial load
     document.addEventListener('DOMContentLoaded', function() {
       refreshListenerStats();
+      refreshGeoStats();
     });
 
     // Admin password reset handler

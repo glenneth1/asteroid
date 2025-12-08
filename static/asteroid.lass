@@ -982,7 +982,39 @@
      
      (.stat-detail :color "#888"
                    :font-size 0.75rem
-                   :margin-top 0.25rem))
+                   :margin-top 0.25rem)
+     
+     (.listener-stats-table
+      :width 100%
+      :border-collapse collapse
+      :background "#111"
+      :border "1px solid #333"
+      :table-layout fixed
+      
+      (th :background "#1a1a1a"
+          :color "#00ff00"
+          :padding "12px 20px"
+          :text-align center
+          :border "1px solid #333"
+          :font-size "0.9rem"
+          :width "25%")
+      
+      (td :padding "12px 20px"
+          :text-align "center"
+          :border "1px solid #333"
+          :vertical-align "middle"
+          :width "25%")
+      
+      (.stat-number :font-size 1.75rem
+                    :font-weight bold
+                    :color "#00ffff"
+                    :display block
+                    :text-align "center")
+      
+      (.stat-peak-row
+       :font-size 0.8rem
+       :color "#888"
+       :background "#0a0a0a")))
 
     ;; Center alignment for player page
     ;; (body.player-page

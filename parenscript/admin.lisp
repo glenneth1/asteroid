@@ -367,16 +367,11 @@
     
     ;; Live stream info update
     (defun update-live-stream-info ()
-      ;; Don't update if stream is paused
-      (let ((live-audio (ps:chain document (get-element-by-id "live-stream-audio"))))
-        (when (and live-audio (ps:@ live-audio paused))
-          (return)))
-      
       (ps:chain
        (fetch "/api/asteroid/partial/now-playing-inline")
        (then (lambda (response)
                (let ((content-type (ps:chain response headers (get "content-type"))))
-                 (unless (ps:chain content-type (includes "text/plain"))
+                 (unless (and content-type (ps:chain content-type (includes "text/plain")))
                    (ps:chain console (error "Unexpected content type:" content-type))
                    (return))
                  (ps:chain response (text)))))
