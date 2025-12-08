@@ -1,0 +1,337 @@
+#+TITLE: Listener Statistics Feature Design
+#+AUTHOR: Glenn / Cascade
+#+DATE: 2025-12-08
+#+OPTIONS: toc:2 num:t
+
+* Overview
+
+This document outlines the design for implementing listener statistics
+in Asteroid Radio, including real-time listener counts, historical
+trends, geographic distribution, and user engagement metrics.
+
+* Requirements
+
+** Functional Requirements
+- [ ] Display current listener count per stream/mount
+- [ ] Track peak listeners by hour/day/week/month
+- [ ] Show geographic distribution of listeners (country/city)
+- [ ] Track new vs returning listeners
+- [ ] Calculate average listen duration
+- [ ] Provide breakdown by time of day
+- [ ] Export statistics as CSV/JSON
+
+** Non-Functional Requirements
+- Minimal performance impact on streaming
+- Privacy-conscious data collection
+- GDPR compliance for EU listeners
+- Data retention policy (configurable)
+
+* Architecture
+
+** Data Sources
+
+*** Icecast Statistics API
+Icecast provides listener data via its admin interface:
+
+| Endpoint              | Format | Auth Required |
+|-----------------------+--------+---------------|
+| /admin/stats          | XML    | Yes           |
+| /status-json.xsl      | JSON   | No            |
+| /admin/listclients    | XML    | Yes           |
+
+Data available per listener:
+- IP address
+- User agent (browser/player)
+- Connection duration
+- Mount point
+- Connected timestamp
+
+*** Radiance User Sessions
+For registered users:
+- Login timestamps
+- Session duration
+- User preferences
+
+** Data Flow
+
+#+BEGIN_SRC
+  Icecast ──► Polling Service ──► PostgreSQL ──► Admin Dashboard
+    │              │                   │
+    │              ▼                   │
+    │         GeoIP Lookup             │
+    │              │                   │
+    └──────────────┴───────────────────┘
+#+END_SRC
+
+* Database Schema
+
+** listener_snapshots
+Periodic snapshots of listener counts (every 1-5 minutes).
+
+#+BEGIN_SRC sql
+CREATE TABLE listener_snapshots (
+    _id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    mount VARCHAR(100) NOT NULL,
+    listener_count INTEGER NOT NULL,
+    INDEX idx_snapshots_timestamp (timestamp),
+    INDEX idx_snapshots_mount (mount)
+);
+#+END_SRC
+
+** listener_sessions
+Individual listener connection records.
+
+#+BEGIN_SRC sql
+CREATE TABLE listener_sessions (
+    _id SERIAL PRIMARY KEY,
+    session_id VARCHAR(64) UNIQUE NOT NULL,
+    session_start TIMESTAMP NOT NULL,
+    session_end TIMESTAMP,
+    ip_hash VARCHAR(64) NOT NULL,  -- SHA256 hash for privacy
+    country_code VARCHAR(2),
+    city VARCHAR(100),
+    region VARCHAR(100),
+    user_agent TEXT,
+    mount VARCHAR(100) NOT NULL,
+    duration_seconds INTEGER,
+    INDEX idx_sessions_start (session_start),
+    INDEX idx_sessions_country (country_code)
+);
+#+END_SRC
+
+** listener_daily_stats
+Pre-aggregated daily statistics for efficient querying.
+
+#+BEGIN_SRC sql
+CREATE TABLE listener_daily_stats (
+    _id SERIAL PRIMARY KEY,
+    date DATE UNIQUE NOT NULL,
+    mount VARCHAR(100) NOT NULL,
+    unique_listeners INTEGER DEFAULT 0,
+    peak_concurrent INTEGER DEFAULT 0,
+    total_listen_minutes INTEGER DEFAULT 0,
+    new_listeners INTEGER DEFAULT 0,
+    returning_listeners INTEGER DEFAULT 0,
+    avg_session_minutes DECIMAL(10,2),
+    UNIQUE(date, mount)
+);
+#+END_SRC
+
+** listener_hourly_stats
+Hourly breakdown for time-of-day analysis.
+
+#+BEGIN_SRC sql
+CREATE TABLE listener_hourly_stats (
+    _id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    hour INTEGER NOT NULL CHECK (hour >= 0 AND hour <= 23),
+    mount VARCHAR(100) NOT NULL,
+    unique_listeners INTEGER DEFAULT 0,
+    peak_concurrent INTEGER DEFAULT 0,
+    UNIQUE(date, hour, mount)
+);
+#+END_SRC
+
+** listener_geo_stats
+Geographic aggregates.
+
+#+BEGIN_SRC sql
+CREATE TABLE listener_geo_stats (
+    _id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    country_code VARCHAR(2) NOT NULL,
+    city VARCHAR(100),
+    listener_count INTEGER DEFAULT 0,
+    listen_minutes INTEGER DEFAULT 0,
+    UNIQUE(date, country_code, city)
+);
+#+END_SRC
+
+* Implementation Components
+
+** 1. Icecast Polling Service
+
+A background thread in Asteroid that polls Icecast periodically.
+
+#+BEGIN_SRC lisp
+(defvar *stats-polling-thread* nil)
+(defvar *stats-polling-interval* 60) ; seconds
+
+(defun start-stats-polling ()
+  "Start the background statistics polling thread"
+  (setf *stats-polling-thread*
+        (bt:make-thread
+         (lambda ()
+           (loop
+             (handler-case
+                 (poll-icecast-stats)
+               (error (e)
+                 (log:error "Stats polling error: ~a" e)))
+             (sleep *stats-polling-interval*)))
+         :name "stats-poller")))
+
+(defun poll-icecast-stats ()
+  "Fetch current stats from Icecast and store snapshot"
+  (let* ((response (drakma:http-request 
+                    "http://localhost:8000/status-json.xsl"
+                    :want-stream nil))
+         (stats (cl-json:decode-json-from-string response)))
+    (process-icecast-stats stats)))
+#+END_SRC
+
+** 2. GeoIP Integration
+
+Options for geographic lookup:
+
+*** Option A: MaxMind GeoLite2 (Recommended)
+- Free database, requires account
+- ~60MB database file, updated weekly
+- No API rate limits
+- Requires: cl-geoip or FFI to libmaxminddb
+
+*** Option B: External API (ip-api.com)
+- Free tier: 45 requests/minute
+- No local database needed
+- Simpler implementation
+- Rate limiting concerns with many listeners
+
+*** Option C: ipinfo.io
+- Free tier: 50,000 requests/month
+- Good accuracy
+- Simple REST API
+
+Recommended: MaxMind GeoLite2 for production, ip-api.com for development.
+
+#+BEGIN_SRC lisp
+(defun lookup-geo-ip (ip-address)
+  "Look up geographic location for an IP address"
+  (handler-case
+      (let* ((url (format nil "http://ip-api.com/json/~a" ip-address))
+             (response (drakma:http-request url))
+             (data (cl-json:decode-json-from-string response)))
+        (list :country (cdr (assoc :country-code data))
+              :city (cdr (assoc :city data))
+              :region (cdr (assoc :region-name data))))
+    (error () nil)))
+#+END_SRC
+
+** 3. Aggregation Jobs
+
+Daily/hourly jobs to compute aggregates from raw data.
+
+#+BEGIN_SRC lisp
+(defun aggregate-daily-stats (date)
+  "Compute daily aggregates from listener_sessions"
+  (db:query
+   "INSERT INTO listener_daily_stats 
+    (date, mount, unique_listeners, peak_concurrent, total_listen_minutes)
+    SELECT 
+      $1::date,
+      mount,
+      COUNT(DISTINCT ip_hash),
+      (SELECT MAX(listener_count) FROM listener_snapshots 
+       WHERE timestamp::date = $1::date),
+      SUM(duration_seconds) / 60
+    FROM listener_sessions
+    WHERE session_start::date = $1::date
+    GROUP BY mount
+    ON CONFLICT (date, mount) DO UPDATE SET
+      unique_listeners = EXCLUDED.unique_listeners,
+      peak_concurrent = EXCLUDED.peak_concurrent,
+      total_listen_minutes = EXCLUDED.total_listen_minutes"
+   date))
+#+END_SRC
+
+** 4. Admin Dashboard UI
+
+New admin page showing:
+- Real-time listener count (WebSocket or polling)
+- Charts: listeners over time (Chart.js or similar)
+- Geographic map (Leaflet.js)
+- Tables: top countries, peak hours, user agents
+
+* Privacy Considerations
+
+** IP Address Handling
+- Hash IP addresses before storage (SHA256)
+- Original IPs only held in memory during GeoIP lookup
+- Never log or store raw IPs
+
+** Data Retention
+- Raw session data: 30 days (configurable)
+- Aggregated stats: indefinite
+- Automated cleanup job
+
+** GDPR Compliance
+- No personally identifiable information stored
+- Hashed IPs cannot be reversed
+- Geographic data is approximate (city-level)
+
+* API Endpoints
+
+| Endpoint                        | Method | Description                    |
+|---------------------------------+--------+--------------------------------|
+| /api/asteroid/stats/current     | GET    | Current listener count         |
+| /api/asteroid/stats/daily       | GET    | Daily stats (date range)       |
+| /api/asteroid/stats/hourly      | GET    | Hourly breakdown               |
+| /api/asteroid/stats/geo         | GET    | Geographic distribution        |
+| /api/asteroid/stats/export      | GET    | Export as CSV/JSON             |
+
+* Implementation Phases
+
+** Phase 1: Basic Polling & Storage [0/4]
+- [ ] Create database tables
+- [ ] Implement Icecast polling service
+- [ ] Store listener snapshots
+- [ ] Display current count in admin
+
+** Phase 2: Session Tracking [0/3]
+- [ ] Track individual listener sessions
+- [ ] Implement IP hashing
+- [ ] Calculate session durations
+
+** Phase 3: Geographic Data [0/3]
+- [ ] Integrate GeoIP lookup
+- [ ] Store geographic data
+- [ ] Display country/city breakdown
+
+** Phase 4: Aggregation & Analytics [0/4]
+- [ ] Daily aggregation job
+- [ ] Hourly breakdown
+- [ ] New vs returning listeners
+- [ ] Charts in admin dashboard
+
+** Phase 5: Advanced Features [0/3]
+- [ ] Real-time updates (WebSocket)
+- [ ] Geographic map visualization
+- [ ] Export functionality
+
+* Dependencies
+
+** Lisp Libraries
+- drakma (HTTP client) - already included
+- cl-json (JSON parsing) - already included
+- bordeaux-threads (background polling) - already included
+- ironclad (IP hashing) - already included
+
+** JavaScript Libraries (for dashboard)
+- Chart.js - charting
+- Leaflet.js - geographic maps (optional)
+
+** External Services
+- MaxMind GeoLite2 or ip-api.com for GeoIP
+
+* Open Questions
+
+1. What polling interval is acceptable? (1 min, 5 min?)
+2. How long to retain raw session data?
+3. Should we track user agents for browser/app breakdown?
+4. Do we need real-time WebSocket updates or is polling OK?
+5. Geographic map - worth the complexity?
+
+* References
+
+- Icecast Admin API: https://icecast.org/docs/icecast-2.4.1/admin-interface.html
+- MaxMind GeoLite2: https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
+- ip-api.com: https://ip-api.com/docs
