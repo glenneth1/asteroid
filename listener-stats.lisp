@@ -1,0 +1,352 @@
+;;;; listener-stats.lisp - Listener Statistics Collection Service
+;;;; Polls Icecast for listener data and stores with GDPR compliance
+
+(in-package #:asteroid)
+
+;;; Use postmodern for direct SQL queries
+;;; Connection params from environment or defaults matching config/radiance-postgres.lisp
+(defun get-db-connection-params ()
+  "Get database connection parameters"
+  (list (or (uiop:getenv "ASTEROID_DB_NAME") "asteroid")
+        (or (uiop:getenv "ASTEROID_DB_USER") "asteroid")
+        (or (uiop:getenv "ASTEROID_DB_PASSWORD") "asteroid_db_2025")
+        "localhost"
+        :port 5432))
+
+(defmacro with-db (&body body)
+  "Execute body with database connection"
+  `(postmodern:with-connection (get-db-connection-params)
+     ,@body))
+
+;;; Configuration
+(defvar *stats-polling-interval* 60
+  "Seconds between Icecast polls")
+
+(defvar *stats-polling-thread* nil
+  "Background thread for polling")
+
+(defvar *stats-polling-active* nil
+  "Flag to control polling loop")
+
+(defvar *icecast-stats-url* "http://localhost:8000/admin/stats"
+  "Icecast admin stats endpoint (XML)")
+
+(defvar *icecast-admin-user* "admin"
+  "Icecast admin username")
+
+(defvar *icecast-admin-pass* "asteroid_admin_2024"
+  "Icecast admin password")
+
+(defvar *geoip-api-url* "http://ip-api.com/json/~a?fields=status,countryCode,city,regionName"
+  "GeoIP lookup API (free tier: 45 req/min)")
+
+(defvar *session-retention-days* 30
+  "Days to retain individual session data")
+
+;;; Active listener tracking (in-memory)
+(defvar *active-listeners* (make-hash-table :test 'equal)
+  "Hash table tracking active listeners by IP hash")
+
+;;; Utility Functions
+
+(defun hash-ip-address (ip-address)
+  "Hash an IP address using SHA256 for privacy-safe storage"
+  (let ((digest (ironclad:make-digest :sha256)))
+    (ironclad:update-digest digest (babel:string-to-octets ip-address))
+    (ironclad:byte-array-to-hex-string (ironclad:produce-digest digest))))
+
+(defun generate-session-id ()
+  "Generate a unique session ID"
+  (let ((digest (ironclad:make-digest :sha256)))
+    (ironclad:update-digest digest 
+                            (babel:string-to-octets 
+                             (format nil "~a-~a" (get-universal-time) (random 1000000))))
+    (subseq (ironclad:byte-array-to-hex-string (ironclad:produce-digest digest)) 0 32)))
+
+;;; GeoIP Lookup
+
+(defun lookup-geoip (ip-address)
+  "Look up geographic location for an IP address.
+   Returns plist with :country-code :city :region or NIL on failure.
+   Note: Does not store the raw IP - only uses it for lookup."
+  (handler-case
+      (let* ((url (format nil *geoip-api-url* ip-address))
+             (response (drakma:http-request url :want-stream nil))
+             (data (cl-json:decode-json-from-string response)))
+        (when (string= (cdr (assoc :status data)) "success")
+          (list :country-code (cdr (assoc :country-code data))
+                :city (cdr (assoc :city data))
+                :region (cdr (assoc :region-name data)))))
+    (error (e)
+      (log:debug "GeoIP lookup failed for ~a: ~a" ip-address e)
+      nil)))
+
+;;; Icecast Polling
+
+(defun extract-xml-value (xml tag)
+  "Extract value between XML tags. Simple regex-based extraction."
+  (let ((pattern (format nil "<~a>([^<]*)</~a>" tag tag)))
+    (multiple-value-bind (match groups)
+        (cl-ppcre:scan-to-strings pattern xml)
+      (when match
+        (aref groups 0)))))
+
+(defun extract-xml-sources (xml)
+  "Extract all source blocks from Icecast XML"
+  (let ((sources nil)
+        (pattern "<source mount=\"([^\"]+)\">(.*?)</source>"))
+    (cl-ppcre:do-register-groups (mount content) (pattern xml)
+      (let ((listeners (extract-xml-value content "listeners"))
+            (listener-peak (extract-xml-value content "listener_peak"))
+            (server-name (extract-xml-value content "server_name")))
+        (push (list :mount mount
+                    :server-name server-name
+                    :listeners (if listeners (parse-integer listeners :junk-allowed t) 0)
+                    :listener-peak (if listener-peak (parse-integer listener-peak :junk-allowed t) 0))
+              sources)))
+    (nreverse sources)))
+
+(defun fetch-icecast-stats ()
+  "Fetch current statistics from Icecast admin XML endpoint"
+  (handler-case
+      (let ((response (drakma:http-request *icecast-stats-url* 
+                                           :want-stream nil
+                                           :connection-timeout 5
+                                           :basic-authorization (list *icecast-admin-user* 
+                                                                      *icecast-admin-pass*))))
+        ;; Response is XML, return as string for parsing
+        (if (stringp response)
+            response
+            (babel:octets-to-string response :encoding :utf-8)))
+    (error (e)
+      (log:warn "Failed to fetch Icecast stats: ~a" e)
+      nil)))
+
+(defun parse-icecast-sources (xml-string)
+  "Parse Icecast XML stats and extract source/mount information.
+   Returns list of plists with mount info."
+  (when xml-string
+    (extract-xml-sources xml-string)))
+
+;;; Database Operations
+
+(defun store-listener-snapshot (mount listener-count)
+  "Store a listener count snapshot"
+  (handler-case
+      (with-db
+        (postmodern:query 
+         (:insert-into 'listener_snapshots :set 'mount mount 'listener_count listener-count)))
+    (error (e)
+      (log:error "Failed to store snapshot: ~a" e))))
+
+(defun store-listener-session (session-id ip-hash mount &key country-code city region user-agent user-id)
+  "Create a new listener session record"
+  (handler-case
+      (with-db
+        (postmodern:query 
+         (:insert-into 'listener_sessions 
+          :set 'session_id session-id 
+               'ip_hash ip-hash 
+               'mount mount
+               'country_code country-code
+               'city city
+               'region region
+               'user_agent user-agent
+               'user_id user-id)))
+    (error (e)
+      (log:error "Failed to store session: ~a" e))))
+
+(defun end-listener-session (session-id)
+  "Mark a listener session as ended and calculate duration"
+  (handler-case
+      (with-db
+        (postmodern:execute 
+         (format nil "UPDATE listener_sessions 
+                      SET session_end = NOW(),
+                          duration_seconds = EXTRACT(EPOCH FROM (NOW() - session_start))::INTEGER
+                      WHERE session_id = '~a' AND session_end IS NULL" session-id)))
+    (error (e)
+      (log:error "Failed to end session: ~a" e))))
+
+(defun cleanup-old-sessions ()
+  "Remove session data older than retention period (GDPR compliance)"
+  (handler-case
+      (with-db
+        (let ((result (postmodern:query 
+                       (format nil "SELECT cleanup_old_listener_data(~a)" *session-retention-days*))))
+          (log:info "Session cleanup completed: ~a records removed" (caar result))))
+    (error (e)
+      (log:error "Session cleanup failed: ~a" e))))
+
+;;; Statistics Aggregation
+;;; Note: Complex aggregation queries use raw SQL via postmodern:execute
+
+(defun aggregate-daily-stats (date)
+  "Compute daily aggregates from session data"
+  (handler-case
+      (with-db
+        (postmodern:execute 
+         (format nil "INSERT INTO listener_daily_stats 
+          (date, mount, unique_listeners, peak_concurrent, total_listen_minutes, avg_session_minutes)
+          SELECT 
+            '~a'::date,
+            mount,
+            COUNT(DISTINCT ip_hash),
+            (SELECT COALESCE(MAX(listener_count), 0) FROM listener_snapshots 
+             WHERE timestamp::date = '~a'::date AND listener_snapshots.mount = listener_sessions.mount),
+            COALESCE(SUM(duration_seconds) / 60, 0),
+            COALESCE(AVG(duration_seconds) / 60.0, 0)
+          FROM listener_sessions
+          WHERE session_start::date = '~a'::date
+          GROUP BY mount
+          ON CONFLICT (date, mount) DO UPDATE SET
+            unique_listeners = EXCLUDED.unique_listeners,
+            peak_concurrent = EXCLUDED.peak_concurrent,
+            total_listen_minutes = EXCLUDED.total_listen_minutes,
+            avg_session_minutes = EXCLUDED.avg_session_minutes" date date date)))
+    (error (e)
+      (log:error "Failed to aggregate daily stats: ~a" e))))
+
+(defun aggregate-hourly-stats (date hour)
+  "Compute hourly aggregates"
+  (handler-case
+      (with-db
+        (postmodern:execute
+         (format nil "INSERT INTO listener_hourly_stats (date, hour, mount, unique_listeners, peak_concurrent)
+          SELECT 
+            '~a'::date,
+            ~a,
+            mount,
+            COUNT(DISTINCT ip_hash),
+            COALESCE(MAX(listener_count), 0)
+          FROM listener_sessions ls
+          LEFT JOIN listener_snapshots lsn ON lsn.mount = ls.mount 
+            AND DATE_TRUNC('hour', lsn.timestamp) = DATE_TRUNC('hour', ls.session_start)
+          WHERE session_start::date = '~a'::date 
+            AND EXTRACT(HOUR FROM session_start) = ~a
+          GROUP BY mount
+          ON CONFLICT (date, hour, mount) DO UPDATE SET
+            unique_listeners = EXCLUDED.unique_listeners,
+            peak_concurrent = EXCLUDED.peak_concurrent" date hour date hour)))
+    (error (e)
+      (log:error "Failed to aggregate hourly stats: ~a" e))))
+
+;;; Query Functions (for API endpoints)
+
+(defun get-current-listeners ()
+  "Get current listener count from most recent snapshot"
+  (handler-case
+      (with-db
+        (let ((result (postmodern:query 
+                       "SELECT mount, listener_count, timestamp 
+                        FROM listener_snapshots 
+                        WHERE timestamp > NOW() - INTERVAL '5 minutes'
+                        ORDER BY timestamp DESC")))
+          (mapcar (lambda (row)
+                    (list :mount (first row)
+                          :listeners (second row)
+                          :timestamp (third row)))
+                  result)))
+    (error (e)
+      (log:error "Failed to get current listeners: ~a" e)
+      nil)))
+
+(defun get-daily-stats (&optional (days 30))
+  "Get daily statistics for the last N days"
+  (handler-case
+      (with-db
+        (postmodern:query 
+         (format nil "SELECT date, mount, unique_listeners, peak_concurrent, total_listen_minutes, avg_session_minutes
+          FROM listener_daily_stats 
+          WHERE date > NOW() - INTERVAL '~a days'
+          ORDER BY date DESC" days)))
+    (error (e)
+      (log:error "Failed to get daily stats: ~a" e)
+      nil)))
+
+(defun get-geo-stats (&optional (days 7))
+  "Get geographic distribution for the last N days"
+  (handler-case
+      (with-db
+        (postmodern:query
+         (format nil "SELECT country_code, SUM(listener_count) as total_listeners, SUM(listen_minutes) as total_minutes
+          FROM listener_geo_stats
+          WHERE date > NOW() - INTERVAL '~a days'
+          GROUP BY country_code
+          ORDER BY total_listeners DESC
+          LIMIT 20" days)))
+    (error (e)
+      (log:error "Failed to get geo stats: ~a" e)
+      nil)))
+
+(defun get-user-listening-stats (user-id)
+  "Get listening statistics for a specific user"
+  (handler-case
+      (with-db
+        (let ((total-time (caar (postmodern:query 
+                                 (format nil "SELECT COALESCE(SUM(duration_seconds), 0) 
+                                  FROM listener_sessions WHERE user_id = ~a" user-id))))
+              (session-count (caar (postmodern:query
+                                    (format nil "SELECT COUNT(*) FROM listener_sessions WHERE user_id = ~a" user-id))))
+              (track-count (caar (postmodern:query
+                                  (format nil "SELECT COUNT(*) FROM user_listening_history WHERE user_id = ~a" user-id)))))
+          (list :total-listen-time (or total-time 0)
+                :session-count (or session-count 0)
+                :tracks-played (or track-count 0))))
+    (error (e)
+      (log:error "Failed to get user stats: ~a" e)
+      (list :total-listen-time 0 :session-count 0 :tracks-played 0))))
+
+;;; Polling Service
+
+(defun poll-and-store-stats ()
+  "Single poll iteration: fetch stats and store"
+  (let ((stats (fetch-icecast-stats)))
+    (when stats
+      (let ((sources (parse-icecast-sources stats)))
+        (dolist (source sources)
+          (let ((mount (getf source :mount))
+                (listeners (getf source :listeners)))
+            (when mount
+              (store-listener-snapshot mount listeners)
+              (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))))))
+
+(defun stats-polling-loop ()
+  "Main polling loop - runs in background thread"
+  (log:info "Listener statistics polling started (interval: ~as)" *stats-polling-interval*)
+  (loop while *stats-polling-active*
+        do (handler-case
+               (poll-and-store-stats)
+             (error (e)
+               (log:error "Polling error: ~a" e)))
+           (sleep *stats-polling-interval*))
+  (log:info "Listener statistics polling stopped"))
+
+(defun start-stats-polling ()
+  "Start the background statistics polling thread"
+  (when *stats-polling-thread*
+    (stop-stats-polling))
+  (setf *stats-polling-active* t)
+  (setf *stats-polling-thread*
+        (bt:make-thread #'stats-polling-loop :name "stats-poller"))
+  (log:info "Stats polling thread started"))
+
+(defun stop-stats-polling ()
+  "Stop the background statistics polling thread"
+  (setf *stats-polling-active* nil)
+  (when (and *stats-polling-thread* (bt:thread-alive-p *stats-polling-thread*))
+    (bt:join-thread *stats-polling-thread* :timeout 5))
+  (setf *stats-polling-thread* nil)
+  (log:info "Stats polling thread stopped"))
+
+;;; Initialization
+
+(defun init-listener-stats ()
+  "Initialize the listener statistics system"
+  (log:info "Initializing listener statistics system...")
+  (start-stats-polling))
+
+(defun shutdown-listener-stats ()
+  "Shutdown the listener statistics system"
+  (log:info "Shutting down listener statistics system...")
+  (stop-stats-polling))

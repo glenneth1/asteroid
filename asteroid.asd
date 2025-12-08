@@ -58,6 +58,7 @@
                (:file "user-management")
                (:file "playlist-management")
                (:file "stream-control")
+               (:file "listener-stats")
                (:file "auth-routes")
                (:file "frontend-partials")
                (:file "asteroid")))

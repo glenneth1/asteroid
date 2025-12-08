@@ -1224,6 +1224,12 @@ body .stat-card .stat-label{
     margin-top: 0.5rem;
 }
 
+body .stat-card .stat-detail{
+    color: #888;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
 body.persistent-player-container{
     margin: 0;
     padding: 10px;;

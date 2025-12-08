@@ -42,6 +42,41 @@
       </div>
     </div>
 
+    <!-- Listener Statistics -->
+    <div class="admin-section">
+      <h2>📊 Listener Statistics</h2>
+      <div class="admin-grid" id="listener-stats-grid">
+        <div class="status-card">
+          <h3>🎵 asteroid.mp3</h3>
+          <p class="stat-number" id="listeners-mp3">0</p>
+          <p class="stat-label">Current Listeners</p>
+          <p class="stat-detail">Peak: <span id="peak-mp3">0</span></p>
+        </div>
+        <div class="status-card">
+          <h3>🎧 asteroid.aac</h3>
+          <p class="stat-number" id="listeners-aac">0</p>
+          <p class="stat-label">Current Listeners</p>
+          <p class="stat-detail">Peak: <span id="peak-aac">0</span></p>
+        </div>
+        <div class="status-card">
+          <h3>📱 asteroid-low.mp3</h3>
+          <p class="stat-number" id="listeners-low">0</p>
+          <p class="stat-label">Current Listeners</p>
+          <p class="stat-detail">Peak: <span id="peak-low">0</span></p>
+        </div>
+        <div class="status-card">
+          <h3>📈 Total Listeners</h3>
+          <p class="stat-number" id="listeners-total">0</p>
+          <p class="stat-label">All Streams</p>
+          <p class="stat-detail">Updated: <span id="stats-updated">--</span></p>
+        </div>
+      </div>
+      <div class="admin-controls" style="margin-top: 15px;">
+        <button id="refresh-stats" class="btn btn-secondary" onclick="refreshListenerStats()">🔄 Refresh Stats</button>
+        <span id="stats-status" style="margin-left: 15px;"></span>
+      </div>
+    </div>
+
     <!-- Music Library Management -->
     <div class="admin-section">
       <h2>Music Library Management</h2>
@@ -192,6 +227,60 @@
   </div>
 
   <script>
+    // Listener Statistics
+    function refreshListenerStats() {
+      const statusEl = document.getElementById('stats-status');
+      statusEl.textContent = 'Loading...';
+      
+      fetch('/api/asteroid/stats/current')
+        .then(response => response.json())
+        .then(result => {
+          const data = result.data || result;
+          if (data.status === 'success' && data.listeners) {
+            // Process listener data - get most recent for each mount
+            const mounts = {};
+            data.listeners.forEach(item => {
+              // item is [mount, "/asteroid.mp3", listeners, 1, timestamp, 123456]
+              const mount = item[1];
+              const listeners = item[3];
+              if (!mounts[mount] || item[5] > mounts[mount].timestamp) {
+                mounts[mount] = { listeners: listeners, timestamp: item[5] };
+              }
+            });
+            
+            // Update UI
+            const mp3 = mounts['/asteroid.mp3']?.listeners || 0;
+            const aac = mounts['/asteroid.aac']?.listeners || 0;
+            const low = mounts['/asteroid-low.mp3']?.listeners || 0;
+            
+            document.getElementById('listeners-mp3').textContent = mp3;
+            document.getElementById('listeners-aac').textContent = aac;
+            document.getElementById('listeners-low').textContent = low;
+            document.getElementById('listeners-total').textContent = mp3 + aac + low;
+            
+            const now = new Date();
+            document.getElementById('stats-updated').textContent = 
+              now.toLocaleTimeString();
+            
+            statusEl.textContent = '';
+          } else {
+            statusEl.textContent = 'No data available';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching stats:', error);
+          statusEl.textContent = 'Error loading stats';
+        });
+    }
+    
+    // Auto-refresh stats every 30 seconds
+    setInterval(refreshListenerStats, 30000);
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', function() {
+      refreshListenerStats();
+    });
+
     // Admin password reset handler
     function resetUserPassword(event) {
       event.preventDefault();
