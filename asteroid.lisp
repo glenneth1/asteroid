@@ -823,11 +823,16 @@
 (define-api asteroid/user/listening-stats () ()
   "Get user listening statistics"
   (require-authentication)
-  (api-output `(("status" . "success")
-                ("stats" . (("total_listen_time" . 0)
-                            ("tracks_played" . 0)
-                            ("session_count" . 0)
-                            ("favorite_genre" . "Unknown"))))))
+  (let* ((current-user (get-current-user))
+         (user-id (when current-user (dm:id current-user)))
+         (stats (if user-id 
+                    (get-user-listening-stats user-id)
+                    (list :total-listen-time 0 :session-count 0 :tracks-played 0))))
+    (api-output `(("status" . "success")
+                  ("stats" . (("total_listen_time" . ,(getf stats :total-listen-time 0))
+                              ("tracks_played" . ,(getf stats :tracks-played 0))
+                              ("session_count" . ,(getf stats :session-count 0))
+                              ("favorite_genre" . "Unknown")))))))
 
 (define-api asteroid/user/recent-tracks (&optional (limit "3")) ()
   "Get recently played tracks for user"
@@ -1000,6 +1005,39 @@
            `(("error" . "Could not connect to Icecast server"))
            :status 503)))))
 
+;;; Listener Statistics API Endpoints
+
+(define-api asteroid/stats/current () ()
+  "Get current listener count from recent snapshots"
+  (let ((listeners (get-current-listeners)))
+    (api-output `(("status" . "success")
+                  ("listeners" . ,listeners)
+                  ("timestamp" . ,(get-universal-time))))))
+
+(define-api asteroid/stats/daily (&optional (days "30")) ()
+  "Get daily listener statistics (admin only)"
+  (require-role :admin)
+  (let ((stats (get-daily-stats (parse-integer days :junk-allowed t))))
+    (api-output `(("status" . "success")
+                  ("stats" . ,(mapcar (lambda (row)
+                                        `(("date" . ,(first row))
+                                          ("mount" . ,(second row))
+                                          ("unique_listeners" . ,(third row))
+                                          ("peak_concurrent" . ,(fourth row))
+                                          ("total_listen_minutes" . ,(fifth row))
+                                          ("avg_session_minutes" . ,(sixth row))))
+                                      stats))))))
+
+(define-api asteroid/stats/geo (&optional (days "7")) ()
+  "Get geographic distribution of listeners (admin only)"
+  (require-role :admin)
+  (let ((stats (get-geo-stats (parse-integer days :junk-allowed t))))
+    (api-output `(("status" . "success")
+                  ("geo" . ,(mapcar (lambda (row)
+                                      `(("country_code" . ,(first row))
+                                        ("total_listeners" . ,(second row))
+                                        ("total_minutes" . ,(third row))))
+                                    stats))))))
 
 ;; RADIANCE server management functions
 
@@ -1012,11 +1050,24 @@
   ;; (unless (radiance:environment)
   ;;   (setf (radiance:environment) "asteroid"))
   
-  (radiance:startup))
+  (radiance:startup)
+  
+  ;; Start listener statistics polling
+  (handler-case
+      (progn
+        (format t "Starting listener statistics polling...~%")
+        (start-stats-polling))
+    (error (e)
+      (format t "Warning: Could not start stats polling: ~a~%" e))))
 
 (defun stop-server ()
   "Stop the Asteroid Radio RADIANCE server"
   (format t "Stopping Asteroid Radio server...~%")
+  ;; Stop listener statistics polling
+  (handler-case
+      (stop-stats-polling)
+    (error (e)
+      (format t "Warning: Error stopping stats polling: ~a~%" e)))
   (radiance:shutdown)
   (format t "Server stopped.~%"))
 

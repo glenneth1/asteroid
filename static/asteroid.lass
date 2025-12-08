@@ -978,7 +978,11 @@
 
      (.stat-label :color "#ccc"
                   :font-size 0.875rem
-                  :margin-top 0.5rem))
+                  :margin-top 0.5rem)
+     
+     (.stat-detail :color "#888"
+                   :font-size 0.75rem
+                   :margin-top 0.25rem))
 
     ;; Center alignment for player page
     ;; (body.player-page
