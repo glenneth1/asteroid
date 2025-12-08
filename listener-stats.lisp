@@ -47,6 +47,13 @@
 (defvar *active-listeners* (make-hash-table :test 'equal)
   "Hash table tracking active listeners by IP hash")
 
+;;; Geo lookup cache (IP hash -> country code)
+(defvar *geo-cache* (make-hash-table :test 'equal)
+  "Cache of IP hash to country code mappings")
+
+(defvar *geo-cache-ttl* 3600
+  "Seconds to cache geo lookups (1 hour)")
+
 ;;; Utility Functions
 
 (defun hash-ip-address (ip-address)
@@ -128,6 +135,30 @@
   (when xml-string
     (extract-xml-sources xml-string)))
 
+(defun fetch-icecast-listclients (mount)
+  "Fetch listener list for a specific mount from Icecast admin"
+  (handler-case
+      (let* ((url (format nil "http://localhost:8000/admin/listclients?mount=~a" mount))
+             (response (drakma:http-request url
+                                            :want-stream nil
+                                            :connection-timeout 5
+                                            :basic-authorization (list *icecast-admin-user* 
+                                                                       *icecast-admin-pass*))))
+        (if (stringp response)
+            response
+            (babel:octets-to-string response :encoding :utf-8)))
+    (error (e)
+      (log:debug "Failed to fetch listclients for ~a: ~a" mount e)
+      nil)))
+
+(defun extract-listener-ips (xml-string)
+  "Extract listener IPs from Icecast listclients XML"
+  (let ((ips nil)
+        (pattern "<IP>([^<]+)</IP>"))
+    (cl-ppcre:do-register-groups (ip) (pattern xml-string)
+      (push ip ips))
+    (nreverse ips)))
+
 ;;; Database Operations
 
 (defun store-listener-snapshot (mount listener-count)
@@ -177,6 +208,21 @@
           (log:info "Session cleanup completed: ~a records removed" (caar result))))
     (error (e)
       (log:error "Session cleanup failed: ~a" e))))
+
+(defun update-geo-stats (country-code listener-count)
+  "Update geo stats for today"
+  (when country-code
+    (handler-case
+        (with-db
+          (postmodern:execute
+           (format nil "INSERT INTO listener_geo_stats (date, country_code, listener_count, listen_minutes)
+                        VALUES (CURRENT_DATE, '~a', ~a, 1)
+                        ON CONFLICT (date, country_code) 
+                        DO UPDATE SET listener_count = listener_geo_stats.listener_count + ~a,
+                                      listen_minutes = listener_geo_stats.listen_minutes + 1"
+                   country-code listener-count listener-count)))
+      (error (e)
+        (log:error "Failed to update geo stats: ~a" e)))))
 
 ;;; Statistics Aggregation
 ;;; Note: Complex aggregation queries use raw SQL via postmodern:execute
@@ -299,6 +345,36 @@
 
 ;;; Polling Service
 
+(defun get-cached-geo (ip)
+  "Get cached geo data for IP, or lookup and cache"
+  (let* ((ip-hash (hash-ip-address ip))
+         (cached (gethash ip-hash *geo-cache*)))
+    (if (and cached (< (- (get-universal-time) (getf cached :time)) *geo-cache-ttl*))
+        (getf cached :country)
+        ;; Lookup and cache
+        (let ((geo (lookup-geoip ip)))
+          (when geo
+            (let ((country (getf geo :country-code)))
+              (setf (gethash ip-hash *geo-cache*)
+                    (list :country country :time (get-universal-time)))
+              country))))))
+
+(defun collect-geo-stats-for-mount (mount)
+  "Collect geo stats for all listeners on a mount"
+  (let ((listclients-xml (fetch-icecast-listclients mount)))
+    (when listclients-xml
+      (let ((ips (extract-listener-ips listclients-xml))
+            (country-counts (make-hash-table :test 'equal)))
+        ;; Group by country
+        (dolist (ip ips)
+          (let ((country (get-cached-geo ip)))
+            (when country
+              (incf (gethash country country-counts 0)))))
+        ;; Store each country's count
+        (maphash (lambda (country count)
+                   (update-geo-stats country count))
+                 country-counts)))))
+
 (defun poll-and-store-stats ()
   "Single poll iteration: fetch stats and store"
   (let ((stats (fetch-icecast-stats)))
@@ -309,6 +385,9 @@
                 (listeners (getf source :listeners)))
             (when mount
               (store-listener-snapshot mount listeners)
+              ;; Collect geo stats if there are listeners
+              (when (and listeners (> listeners 0))
+                (collect-geo-stats-for-mount mount))
               (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))))))
 
 (defun stats-polling-loop ()

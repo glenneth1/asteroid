@@ -1230,6 +1230,46 @@ body .stat-card .stat-detail{
     margin-top: 0.25rem;
 }
 
+body .stat-card .listener-stats-table{
+    width: 100%;
+    border-collapse: collapse;
+    background: #111;
+    border: 1px solid #333;
+    table-layout: fixed;
+}
+
+body .stat-card .listener-stats-table th{
+    background: #1a1a1a;
+    color: #00ff00;
+    padding: 12px 20px;
+    text-align: center;
+    border: 1px solid #333;
+    font-size: 0.9rem;
+    width: 25%;
+}
+
+body .stat-card .listener-stats-table td{
+    padding: 12px 20px;
+    text-align: center;
+    border: 1px solid #333;
+    vertical-align: middle;
+    width: 25%;
+}
+
+body .stat-card .listener-stats-table .stat-number{
+    font-size: 1.75rem;
+    font-weight: bold;
+    color: #00ffff;
+    display: block;
+    text-align: center;
+}
+
+body .stat-card .listener-stats-table .stat-peak-row{
+    font-size: 0.8rem;
+    color: #888;
+    background: #0a0a0a;
+}
+
 body.persistent-player-container{
     margin: 0;
     padding: 10px;;
