@@ -303,6 +303,246 @@
                     ("message" . "Queue loaded from M3U file")
                     ("count" . ,count))))))
 
+;;; Playlist File Management APIs
+;;; These manage .m3u files in the playlists/ directory
+;;; stream-queue.m3u lives at PROJECT ROOT (for Docker mount), saved playlists in playlists/
+
+(defun get-playlists-directory ()
+  "Get the path to the playlists directory (for saved playlists)"
+  (merge-pathnames "playlists/" (asdf:system-source-directory :asteroid)))
+
+(defun get-stream-queue-path ()
+  "Get the path to stream-queue.m3u (in playlists/ directory for Docker mount)"
+  (merge-pathnames "playlists/stream-queue.m3u" (asdf:system-source-directory :asteroid)))
+
+(defun list-playlist-files ()
+  "List all .m3u files in the playlists directory, excluding stream-queue.m3u"
+  (let ((playlist-dir (get-playlists-directory)))
+    (when (probe-file playlist-dir)
+      (remove-if (lambda (path)
+                   (string= (file-namestring path) "stream-queue.m3u"))
+                 (directory (merge-pathnames "*.m3u" playlist-dir))))))
+
+(defun read-m3u-file-paths (filepath)
+  "Read an m3u file and return list of file paths (excluding comments)"
+  (when (probe-file filepath)
+    (with-open-file (stream filepath :direction :input)
+      (loop for line = (read-line stream nil)
+            while line
+            unless (or (string= line "")
+                      (and (> (length line) 0) (char= (char line 0) #\#)))
+            collect (string-trim '(#\Space #\Tab #\Return #\Newline) line)))))
+
+(defun copy-playlist-to-stream-queue (source-path)
+  "Copy a playlist file to stream-queue.m3u at project root"
+  (let ((dest-path (get-stream-queue-path)))
+    (with-open-file (in source-path :direction :input)
+      (with-open-file (out dest-path :direction :output 
+                                     :if-exists :supersede 
+                                     :if-does-not-exist :create)
+        (loop for line = (read-line in nil)
+              while line
+              do (write-line line out))))
+    t))
+
+(define-api asteroid/stream/playlists () ()
+  "List available playlist files (excluding stream-queue.m3u)"
+  (require-role :admin)
+  (with-error-handling
+    (let ((files (list-playlist-files)))
+      (api-output `(("status" . "success")
+                    ("playlists" . ,(mapcar (lambda (path)
+                                              (file-namestring path))
+                                            files)))))))
+
+(define-api asteroid/stream/playlists/load (name) ()
+  "Load a playlist file into stream-queue.m3u and return its contents"
+  (require-role :admin)
+  (with-error-handling
+    (let* ((playlist-path (merge-pathnames name (get-playlists-directory)))
+           (stream-queue-path (get-stream-queue-path)))
+      (if (probe-file playlist-path)
+          (progn
+            ;; Copy playlist to stream-queue.m3u
+            (copy-playlist-to-stream-queue playlist-path)
+            ;; Load into in-memory queue
+            (let ((count (load-queue-from-m3u-file)))
+              (api-output `(("status" . "success")
+                            ("message" . ,(format nil "Loaded playlist: ~a" name))
+                            ("count" . ,count)
+                            ("paths" . ,(read-m3u-file-paths stream-queue-path))))))
+          (api-output `(("status" . "error")
+                        ("message" . "Playlist file not found"))
+                      :status 404)))))
+
+(define-api asteroid/stream/playlists/save () ()
+  "Save current stream queue to stream-queue.m3u"
+  (require-role :admin)
+  (with-error-handling
+    (regenerate-stream-playlist)
+    (api-output `(("status" . "success")
+                  ("message" . "Stream queue saved")))))
+
+(define-api asteroid/stream/playlists/save-as (name) ()
+  "Save current stream queue to a new playlist file"
+  (require-role :admin)
+  (with-error-handling
+    (let* ((safe-name (if (cl-ppcre:scan "\\.m3u$" name) name (format nil "~a.m3u" name)))
+           (playlist-path (merge-pathnames safe-name (get-playlists-directory))))
+      ;; Generate playlist to the new file
+      (generate-m3u-playlist *stream-queue* playlist-path)
+      ;; Also save to stream-queue.m3u
+      (regenerate-stream-playlist)
+      (api-output `(("status" . "success")
+                    ("message" . ,(format nil "Saved as: ~a" safe-name)))))))
+
+(define-api asteroid/stream/playlists/clear () ()
+  "Clear stream-queue.m3u (Liquidsoap will fall back to random)"
+  (require-role :admin)
+  (with-error-handling
+    (let ((stream-queue-path (get-stream-queue-path)))
+      ;; Write empty m3u file
+      (with-open-file (out stream-queue-path :direction :output 
+                                             :if-exists :supersede 
+                                             :if-does-not-exist :create)
+        (format out "#EXTM3U~%"))
+      ;; Clear in-memory queue
+      (setf *stream-queue* '())
+      (api-output `(("status" . "success")
+                    ("message" . "Stream queue cleared - Liquidsoap will use random playback"))))))
+
+(define-api asteroid/stream/playlists/current () ()
+  "Get current stream-queue.m3u contents with track info"
+  (require-role :admin)
+  (with-error-handling
+    (let* ((stream-queue-path (get-stream-queue-path))
+           (paths (read-m3u-file-paths stream-queue-path))
+           (all-tracks (dm:get "tracks" (db:query :all))))
+      (api-output `(("status" . "success")
+                    ("count" . ,(length paths))
+                    ("tracks" . ,(mapcar (lambda (docker-path)
+                                           (let* ((host-path (convert-from-docker-path docker-path))
+                                                  (track (find-if 
+                                                          (lambda (trk)
+                                                            (string= (dm:field trk "file-path") host-path))
+                                                          all-tracks)))
+                                             (if track
+                                                 `(("id" . ,(dm:id track))
+                                                   ("title" . ,(dm:field track "title"))
+                                                   ("artist" . ,(dm:field track "artist"))
+                                                   ("album" . ,(dm:field track "album"))
+                                                   ("path" . ,docker-path))
+                                                 `(("id" . nil)
+                                                   ("title" . ,(file-namestring docker-path))
+                                                   ("artist" . "Unknown")
+                                                   ("album" . "Unknown")
+                                                   ("path" . ,docker-path)))))
+                                         paths)))))))
+
+;;; Liquidsoap Control APIs
+;;; Control Liquidsoap via telnet interface on port 1234
+
+(defun liquidsoap-command (command)
+  "Send a command to Liquidsoap via telnet and return the response"
+  (handler-case
+      (let ((result (uiop:run-program 
+                     (format nil "echo '~a' | nc -q1 127.0.0.1 1234" command)
+                     :output :string
+                     :error-output :string
+                     :ignore-error-status t)))
+        ;; Remove the trailing "END" line
+        (let ((lines (cl-ppcre:split "\\n" result)))
+          (string-trim '(#\Space #\Newline #\Return)
+                       (format nil "~{~a~^~%~}" 
+                               (remove-if (lambda (l) (string= (string-trim '(#\Space #\Return) l) "END")) 
+                                          lines)))))
+    (error (e)
+      (format nil "Error: ~a" e))))
+
+(defun parse-liquidsoap-metadata (raw-metadata)
+  "Parse Liquidsoap metadata string and extract current track info"
+  (when (and raw-metadata (> (length raw-metadata) 0))
+    ;; The metadata contains multiple tracks, separated by --- N ---
+    ;; --- 1 --- is the CURRENT track (most recent), at the end of the output
+    ;; Split by --- N --- pattern and get the last section
+    (let* ((sections (cl-ppcre:split "---\\s*\\d+\\s*---" raw-metadata))
+           (current-section (car (last sections))))
+      (when current-section
+        (let ((artist (cl-ppcre:register-groups-bind (val) 
+                          ("artist=\"([^\"]+)\"" current-section) val))
+              (title (cl-ppcre:register-groups-bind (val) 
+                         ("title=\"([^\"]+)\"" current-section) val))
+              (album (cl-ppcre:register-groups-bind (val) 
+                         ("album=\"([^\"]+)\"" current-section) val)))
+          (if (or artist title)
+              (format nil "~@[~a~]~@[ - ~a~]~@[ (~a)~]" 
+                      artist title album)
+              "Unknown"))))))
+
+(defun format-remaining-time (seconds-str)
+  "Format remaining seconds as MM:SS"
+  (handler-case
+      (let ((seconds (parse-integer (cl-ppcre:regex-replace "\\..*" seconds-str ""))))
+        (format nil "~d:~2,'0d" (floor seconds 60) (mod seconds 60)))
+    (error () seconds-str)))
+
+(define-api asteroid/liquidsoap/status () ()
+  "Get Liquidsoap status including uptime and current track"
+  (require-role :admin)
+  (with-error-handling
+    (let ((uptime (liquidsoap-command "uptime"))
+          (metadata-raw (liquidsoap-command "output.icecast.1.metadata"))
+          (remaining-raw (liquidsoap-command "output.icecast.1.remaining")))
+      (api-output `(("status" . "success")
+                    ("uptime" . ,(string-trim '(#\Space #\Newline #\Return) uptime))
+                    ("metadata" . ,(parse-liquidsoap-metadata metadata-raw))
+                    ("remaining" . ,(format-remaining-time 
+                                     (string-trim '(#\Space #\Newline #\Return) remaining-raw))))))))
+
+(define-api asteroid/liquidsoap/skip () ()
+  "Skip the current track in Liquidsoap"
+  (require-role :admin)
+  (with-error-handling
+    (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
+      (api-output `(("status" . "success")
+                    ("message" . "Track skipped")
+                    ("result" . ,(string-trim '(#\Space #\Newline #\Return) result)))))))
+
+(define-api asteroid/liquidsoap/reload () ()
+  "Force Liquidsoap to reload the playlist"
+  (require-role :admin)
+  (with-error-handling
+    (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
+      (api-output `(("status" . "success")
+                    ("message" . "Playlist reloaded")
+                    ("result" . ,(string-trim '(#\Space #\Newline #\Return) result)))))))
+
+(define-api asteroid/liquidsoap/restart () ()
+  "Restart the Liquidsoap Docker container"
+  (require-role :admin)
+  (with-error-handling
+    (let ((result (uiop:run-program 
+                   "docker restart asteroid-liquidsoap"
+                   :output :string
+                   :error-output :string
+                   :ignore-error-status t)))
+      (api-output `(("status" . "success")
+                    ("message" . "Liquidsoap container restarting")
+                    ("result" . ,result))))))
+
+(define-api asteroid/icecast/restart () ()
+  "Restart the Icecast Docker container"
+  (require-role :admin)
+  (with-error-handling
+    (let ((result (uiop:run-program 
+                   "docker restart asteroid-icecast"
+                   :output :string
+                   :error-output :string
+                   :ignore-error-status t)))
+      (api-output `(("status" . "success")
+                    ("message" . "Icecast container restarting")
+                    ("result" . ,result))))))
+
 (defun get-track-by-id (track-id)
   "Get a track by its ID - handles type mismatches"
   (dm:get-one "tracks" (db:query (:= '_id track-id))))

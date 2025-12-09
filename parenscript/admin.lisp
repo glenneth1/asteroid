@@ -23,11 +23,12 @@
                "DOMContentLoaded"
                (lambda ()
                  (load-tracks)
-                 (update-player-status)
                  (setup-event-listeners)
-                 (load-stream-queue)
-                 ;; Update player status every 5 seconds
-                 (set-interval update-player-status 5000))))
+                 (load-playlist-list)
+                 (load-current-queue)
+                 (refresh-liquidsoap-status)
+                 ;; Update Liquidsoap status every 10 seconds
+                 (set-interval refresh-liquidsoap-status 10000))))
     
     ;; Setup all event listeners
     (defun setup-event-listeners ()
@@ -70,21 +71,52 @@
       
       ;; Queue controls
       (let ((refresh-queue-btn (ps:chain document (get-element-by-id "refresh-queue")))
-            (load-m3u-btn (ps:chain document (get-element-by-id "load-from-m3u")))
             (clear-queue-btn (ps:chain document (get-element-by-id "clear-queue-btn")))
+            (save-queue-btn (ps:chain document (get-element-by-id "save-queue-btn")))
+            (save-as-btn (ps:chain document (get-element-by-id "save-as-btn")))
             (add-random-btn (ps:chain document (get-element-by-id "add-random-tracks")))
-            (queue-search-input (ps:chain document (get-element-by-id "queue-track-search"))))
+            (queue-search-input (ps:chain document (get-element-by-id "queue-track-search")))
+            ;; Playlist controls
+            (playlist-select (ps:chain document (get-element-by-id "playlist-select")))
+            (load-playlist-btn (ps:chain document (get-element-by-id "load-playlist-btn")))
+            (refresh-playlists-btn (ps:chain document (get-element-by-id "refresh-playlists-btn"))))
         
         (when refresh-queue-btn
-          (ps:chain refresh-queue-btn (add-event-listener "click" load-stream-queue)))
-        (when load-m3u-btn
-          (ps:chain load-m3u-btn (add-event-listener "click" load-queue-from-m3u)))
+          (ps:chain refresh-queue-btn (add-event-listener "click" load-current-queue)))
         (when clear-queue-btn
           (ps:chain clear-queue-btn (add-event-listener "click" clear-stream-queue)))
+        (when save-queue-btn
+          (ps:chain save-queue-btn (add-event-listener "click" save-stream-queue)))
+        (when save-as-btn
+          (ps:chain save-as-btn (add-event-listener "click" save-queue-as-new)))
         (when add-random-btn
           (ps:chain add-random-btn (add-event-listener "click" add-random-tracks)))
         (when queue-search-input
-          (ps:chain queue-search-input (add-event-listener "input" search-tracks-for-queue)))))
+          (ps:chain queue-search-input (add-event-listener "input" search-tracks-for-queue)))
+        ;; Playlist controls
+        (when load-playlist-btn
+          (ps:chain load-playlist-btn (add-event-listener "click" load-selected-playlist)))
+        (when refresh-playlists-btn
+          (ps:chain refresh-playlists-btn (add-event-listener "click" load-playlist-list))))
+      
+      ;; Liquidsoap controls
+      (let ((ls-refresh-btn (ps:chain document (get-element-by-id "ls-refresh-status")))
+            (ls-skip-btn (ps:chain document (get-element-by-id "ls-skip")))
+            (ls-reload-btn (ps:chain document (get-element-by-id "ls-reload")))
+            (ls-restart-btn (ps:chain document (get-element-by-id "ls-restart"))))
+        (when ls-refresh-btn
+          (ps:chain ls-refresh-btn (add-event-listener "click" refresh-liquidsoap-status)))
+        (when ls-skip-btn
+          (ps:chain ls-skip-btn (add-event-listener "click" liquidsoap-skip)))
+        (when ls-reload-btn
+          (ps:chain ls-reload-btn (add-event-listener "click" liquidsoap-reload)))
+        (when ls-restart-btn
+          (ps:chain ls-restart-btn (add-event-listener "click" liquidsoap-restart))))
+      
+      ;; Icecast restart
+      (let ((icecast-restart-btn (ps:chain document (get-element-by-id "icecast-restart"))))
+        (when icecast-restart-btn
+          (ps:chain icecast-restart-btn (add-event-listener "click" icecast-restart)))))
     
     ;; Load tracks from API
     (defun load-tracks ()
@@ -406,44 +438,6 @@
                 (setf html (+ html "</div>"))
                 (setf (ps:@ container inner-h-t-m-l) html))))))
     
-    ;; Clear stream queue
-    (defun clear-stream-queue ()
-      (unless (confirm "Clear the entire stream queue? This will stop playback until new tracks are added.")
-        (return))
-      
-      (ps:chain
-       (fetch "/api/asteroid/stream/queue/clear" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (alert "Queue cleared successfully")
-                       (load-stream-queue))
-                     (alert (+ "Error clearing queue: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error clearing queue:" error))
-                (alert "Error clearing queue")))))
-    
-    ;; Load queue from M3U file
-    (defun load-queue-from-m3u ()
-      (unless (confirm "Load queue from stream-queue.m3u file? This will replace the current queue.")
-        (return))
-      
-      (ps:chain
-       (fetch "/api/asteroid/stream/queue/load-m3u" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (alert (+ "Successfully loaded " (ps:@ data count) " tracks from M3U file!"))
-                       (load-stream-queue))
-                     (alert (+ "Error loading from M3U: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error loading from M3U:" error))
-                (alert (+ "Error loading from M3U: " (ps:@ error message)))))))
-    
     ;; Move track up in queue
     (defun move-track-up (index)
       (when (= index 0) (return))
@@ -609,6 +603,256 @@
                                                "</div>")))))
                 (setf html (+ html "</div>"))
                 (setf (ps:@ container inner-h-t-m-l) html))))))
+    
+    ;; ========================================
+    ;; Playlist File Management
+    ;; ========================================
+    
+    ;; Load list of available playlists into dropdown
+    (defun load-playlist-list ()
+      (ps:chain
+       (fetch "/api/asteroid/stream/playlists")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (when (= (ps:@ data status) "success")
+                   (let ((select (ps:chain document (get-element-by-id "playlist-select")))
+                         (playlists (or (ps:@ data playlists) (array))))
+                     (when select
+                       ;; Clear existing options except the first one
+                       (setf (ps:@ select inner-h-t-m-l) 
+                             "<option value=\"\">-- Select a playlist --</option>")
+                       ;; Add playlist options
+                       (ps:chain playlists
+                                 (for-each (lambda (name)
+                                             (let ((option (ps:chain document (create-element "option"))))
+                                               (setf (ps:@ option value) name)
+                                               (setf (ps:@ option text-content) name)
+                                               (ps:chain select (append-child option))))))))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error loading playlists:" error))))))
+    
+    ;; Load selected playlist
+    (defun load-selected-playlist ()
+      (let* ((select (ps:chain document (get-element-by-id "playlist-select")))
+             (name (ps:@ select value)))
+        (when (= name "")
+          (alert "Please select a playlist first")
+          (return))
+        
+        (unless (confirm (+ "Load playlist '" name "'? This will replace the current stream queue."))
+          (return))
+        
+        (ps:chain
+         (fetch (+ "/api/asteroid/stream/playlists/load?name=" (encode-u-r-i-component name))
+                (ps:create :method "POST"))
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (if (= (ps:@ data status) "success")
+                       (progn
+                         (show-toast (+ "✓ Loaded " (ps:@ data count) " tracks from " name))
+                         (load-current-queue))
+                       (alert (+ "Error loading playlist: " (or (ps:@ data message) "Unknown error")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error loading playlist:" error))
+                  (alert "Error loading playlist"))))))
+    
+    ;; Load current queue contents (from stream-queue.m3u)
+    (defun load-current-queue ()
+      (ps:chain
+       (fetch "/api/asteroid/stream/playlists/current")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (when (= (ps:@ data status) "success")
+                   (let ((tracks (or (ps:@ data tracks) (array)))
+                         (count (or (ps:@ data count) 0)))
+                     ;; Update count display
+                     (let ((count-el (ps:chain document (get-element-by-id "queue-count"))))
+                       (when count-el
+                         (setf (ps:@ count-el text-content) count)))
+                     ;; Display tracks
+                     (display-current-queue tracks))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error loading current queue:" error))
+                (let ((container (ps:chain document (get-element-by-id "stream-queue-container"))))
+                  (when container
+                    (setf (ps:@ container inner-h-t-m-l) 
+                          "<div class=\"error\">Error loading queue</div>")))))))
+    
+    ;; Display current queue contents
+    (defun display-current-queue (tracks)
+      (let ((container (ps:chain document (get-element-by-id "stream-queue-container"))))
+        (when container
+          (if (= (ps:@ tracks length) 0)
+              (setf (ps:@ container inner-h-t-m-l) 
+                    "<div class=\"empty-state\">Queue is empty. Liquidsoap will use random playback from the music library.</div>")
+              (let ((html "<div class=\"queue-items\">"))
+                (ps:chain tracks
+                          (for-each (lambda (track index)
+                                      (setf html 
+                                            (+ html
+                                               "<div class=\"queue-item\" data-index=\"" index "\">"
+                                               "<span class=\"queue-position\">" (+ index 1) "</span>"
+                                               "<div class=\"queue-track-info\">"
+                                               "<div class=\"track-title\">" (or (ps:@ track title) "Unknown") "</div>"
+                                               "<div class=\"track-artist\">" (or (ps:@ track artist) "Unknown Artist") 
+                                               (if (ps:@ track album) (+ " - " (ps:@ track album)) "") "</div>"
+                                               "</div>"
+                                               "</div>")))))
+                (setf html (+ html "</div>"))
+                (setf (ps:@ container inner-h-t-m-l) html))))))
+    
+    ;; Save current queue to stream-queue.m3u
+    (defun save-stream-queue ()
+      (ps:chain
+       (fetch "/api/asteroid/stream/playlists/save" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (show-toast "✓ Queue saved")
+                     (alert (+ "Error saving queue: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error saving queue:" error))
+                (alert "Error saving queue")))))
+    
+    ;; Save queue as new playlist
+    (defun save-queue-as-new ()
+      (let* ((input (ps:chain document (get-element-by-id "save-as-name")))
+             (name (ps:chain (ps:@ input value) (trim))))
+        (when (= name "")
+          (alert "Please enter a name for the new playlist")
+          (return))
+        
+        (ps:chain
+         (fetch (+ "/api/asteroid/stream/playlists/save-as?name=" (encode-u-r-i-component name))
+                (ps:create :method "POST"))
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (if (= (ps:@ data status) "success")
+                       (progn
+                         (show-toast (+ "✓ Saved as " name))
+                         (setf (ps:@ input value) "")
+                         (load-playlist-list))
+                       (alert (+ "Error saving playlist: " (or (ps:@ data message) "Unknown error")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error saving playlist:" error))
+                  (alert "Error saving playlist"))))))
+    
+    ;; Clear stream queue (updated to use new API)
+    (defun clear-stream-queue ()
+      (unless (confirm "Clear the stream queue? Liquidsoap will fall back to random playback from the music library.")
+        (return))
+      
+      (ps:chain
+       (fetch "/api/asteroid/stream/playlists/clear" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast "✓ Queue cleared")
+                       (load-current-queue))
+                     (alert (+ "Error clearing queue: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error clearing queue:" error))
+                (alert "Error clearing queue")))))
+    
+    ;; ========================================
+    ;; Liquidsoap Control Functions
+    ;; ========================================
+    
+    ;; Refresh Liquidsoap status
+    (defun refresh-liquidsoap-status ()
+      (ps:chain
+       (fetch "/api/asteroid/liquidsoap/status")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (when (= (ps:@ data status) "success")
+                   (let ((uptime-el (ps:chain document (get-element-by-id "ls-uptime")))
+                         (remaining-el (ps:chain document (get-element-by-id "ls-remaining")))
+                         (metadata-el (ps:chain document (get-element-by-id "ls-metadata"))))
+                     (when uptime-el
+                       (setf (ps:@ uptime-el text-content) (or (ps:@ data uptime) "--")))
+                     (when remaining-el
+                       (setf (ps:@ remaining-el text-content) (or (ps:@ data remaining) "--")))
+                     (when metadata-el
+                       (setf (ps:@ metadata-el text-content) (or (ps:@ data metadata) "--"))))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error fetching Liquidsoap status:" error))))))
+    
+    ;; Skip current track
+    (defun liquidsoap-skip ()
+      (ps:chain
+       (fetch "/api/asteroid/liquidsoap/skip" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast "⏭️ Track skipped")
+                       (set-timeout refresh-liquidsoap-status 1000))
+                     (alert (+ "Error skipping track: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error skipping track:" error))
+                (alert "Error skipping track")))))
+    
+    ;; Reload playlist
+    (defun liquidsoap-reload ()
+      (ps:chain
+       (fetch "/api/asteroid/liquidsoap/reload" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (show-toast "📂 Playlist reloaded")
+                     (alert (+ "Error reloading playlist: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error reloading playlist:" error))
+                (alert "Error reloading playlist")))))
+    
+    ;; Restart Liquidsoap container
+    (defun liquidsoap-restart ()
+      (unless (confirm "Restart Liquidsoap container? This will cause a brief interruption to the stream.")
+        (return))
+      
+      (show-toast "🔄 Restarting Liquidsoap...")
+      (ps:chain
+       (fetch "/api/asteroid/liquidsoap/restart" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast "✓ Liquidsoap restarting")
+                       ;; Refresh status after a delay to let container restart
+                       (set-timeout refresh-liquidsoap-status 5000))
+                     (alert (+ "Error restarting Liquidsoap: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error restarting Liquidsoap:" error))
+                (alert "Error restarting Liquidsoap")))))
+    
+    ;; Restart Icecast container
+    (defun icecast-restart ()
+      (unless (confirm "Restart Icecast container? This will disconnect all listeners temporarily.")
+        (return))
+      
+      (show-toast "🔄 Restarting Icecast...")
+      (ps:chain
+       (fetch "/api/asteroid/icecast/restart" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (show-toast "✓ Icecast restarting - listeners will reconnect automatically")
+                     (alert (+ "Error restarting Icecast: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error restarting Icecast:" error))
+                (alert "Error restarting Icecast")))))
     
     ;; Make functions globally accessible for onclick handlers
     (setf (ps:@ window go-to-page) go-to-page)

@@ -10,13 +10,14 @@
   "Recursively scan directory for supported audio files"
   (when (cl-fad:directory-exists-p directory)
     (remove-if-not #'supported-audio-file-p
-                   (cl-fad:list-directory directory :follow-symlinks nil))))
+                   (cl-fad:list-directory directory :follow-symlinks t))))
 
 (defun scan-directory-for-music-recursively (path)
   "Recursively scan directory and all subdirectories for music files"
-  (let ((files-in-current-dir (scan-directory-for-music path))
-        (files-in-subdirs (loop for directory in (uiop:subdirectories path)
-                                appending (scan-directory-for-music-recursively directory))))
+  (let* ((resolved-path (truename path))
+         (files-in-current-dir (scan-directory-for-music resolved-path))
+         (files-in-subdirs (loop for directory in (uiop:subdirectories resolved-path)
+                                 appending (scan-directory-for-music-recursively directory))))
     (append files-in-current-dir files-in-subdirs)))
 
 (defun extract-metadata-with-taglib (file-path)
@@ -92,16 +93,25 @@
           (setf (dm:field track "file-path") file-path)
           (setf (dm:field track "format") (getf metadata :format))
           (setf (dm:field track "bitrate") (getf metadata :bitrate))
-          (setf (dm:field track "added-date") (local-time:timestamp-to-unix (local-time:now)))
+          ;; Let database default handle added-date (CURRENT_TIMESTAMP)
           (setf (dm:field track "play-count") 0)
           (dm:insert track)
           t))))
 
 (defun scan-music-library (&optional (directory *music-library-path*))
   "Scan music library directory and add tracks to database"
+  (format t "~%=== SCAN DEBUG ===~%")
+  (format t "Input directory: ~a~%" directory)
+  (format t "Directory exists: ~a~%" (probe-file directory))
+  (handler-case
+      (format t "Resolved path: ~a~%" (truename directory))
+    (error (e) (format t "Cannot resolve truename: ~a~%" e)))
   (let ((audio-files (scan-directory-for-music-recursively directory))
         (added-count 0)
         (skipped-count 0))
+    (format t "Found ~a audio files~%" (length audio-files))
+    (when (> (length audio-files) 0)
+      (format t "First few files: ~{~a~%~}~%" (subseq audio-files 0 (min 3 (length audio-files)))))
     (dolist (file audio-files)
       (let ((metadata (extract-metadata-with-taglib file)))
         (when metadata
@@ -111,6 +121,7 @@
                   (incf skipped-count))
             (error (e)
               (format t "Error adding ~a: ~a~%" file e))))))
+    (format t "Added: ~a, Skipped: ~a~%" added-count skipped-count)
     added-count))
 
 ;; Initialize music directory structure

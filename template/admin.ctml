@@ -38,6 +38,7 @@
         <div class="status-card">
           <h3>Icecast Status</h3>
           <p class="status-error" data-text="icecast-status">🔴 Not Running</p>
+          <button id="icecast-restart" class="btn btn-danger btn-sm" style="margin-top: 8px;">🔄 Restart</button>
         </div>
       </div>
     </div>
@@ -162,43 +163,91 @@
     <!-- Stream Queue Management -->
     <div class="admin-section">
       <h2>🎵 Stream Queue Management</h2>
-      <p>Manage the live stream playback queue. Changes take effect within 5-10 seconds.</p>
+      <p>Manage the live stream playback queue. Liquidsoap watches <code>stream-queue.m3u</code> and reloads automatically.</p>
       
-      <div class="queue-controls">
-        <button id="refresh-queue" class="btn btn-secondary">🔄 Refresh Queue</button>
-        <button id="load-from-m3u" class="btn btn-success">📂 Load Queue from M3U</button>
-        <button id="clear-queue-btn" class="btn btn-warning">🗑️ Clear Queue</button>
-        <button id="add-random-tracks" class="btn btn-info">🎲 Add 10 Random Tracks</button>
+      <!-- Playlist Selection -->
+      <div class="playlist-controls" style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px;">
+        <h3 style="margin-top: 0;">📋 Load Playlist</h3>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <select id="playlist-select" class="sort-select" style="min-width: 250px;">
+            <option value="">-- Select a playlist --</option>
+          </select>
+          <button id="load-playlist-btn" class="btn btn-success">📂 Load Selected</button>
+          <button id="refresh-playlists-btn" class="btn btn-secondary">🔄 Refresh List</button>
+        </div>
+        <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #888;">
+          Loading a playlist will copy it to <code>stream-queue.m3u</code> and Liquidsoap will start playing it.
+        </p>
       </div>
       
-      <div id="stream-queue-container" class="queue-list">
+      <!-- Queue Controls -->
+      <div class="queue-controls" style="margin-bottom: 15px;">
+        <button id="refresh-queue" class="btn btn-secondary">🔄 Refresh Queue</button>
+        <button id="save-queue-btn" class="btn btn-primary">💾 Save Queue</button>
+        <button id="clear-queue-btn" class="btn btn-warning">🗑️ Clear Queue</button>
+        <button id="add-random-tracks" class="btn btn-info">🎲 Add 10 Random</button>
+      </div>
+      
+      <!-- Save As -->
+      <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center;">
+        <input type="text" id="save-as-name" placeholder="New playlist name..." class="search-input" style="max-width: 250px;">
+        <button id="save-as-btn" class="btn btn-success">💾 Save As New Playlist</button>
+      </div>
+      
+      <!-- Queue Status -->
+      <div id="queue-status" style="margin-bottom: 15px; padding: 10px; background: #1a1a1a; border-radius: 4px;">
+        <span id="queue-count">0</span> tracks in queue
+      </div>
+      
+      <!-- Queue Contents -->
+      <div id="stream-queue-container" class="queue-list" style="max-height: 400px; overflow-y: auto;">
         <div class="loading">Loading queue...</div>
       </div>
       
-      <div class="queue-actions">
+      <div class="queue-actions" style="margin-top: 20px;">
         <h3>Add Tracks to Queue</h3>
         <input type="text" id="queue-track-search" placeholder="Search tracks to add..." class="search-input">
         <div id="queue-track-results" class="track-results"></div>
       </div>
     </div>
 
-    <!-- Player Control -->
+    <!-- Liquidsoap Stream Control -->
     <div class="admin-section">
-      <h2>Player Control</h2>
-      <div class="card">
-        <h3>🎵 Player Control</h3>
-        <div class="player-controls">
-          <button id="player-play" class="btn btn-primary" onclick="playTrack()">▶️ Play</button>
-          <button id="player-pause" class="btn btn-secondary" onclick="pausePlayer()">⏸️ Pause</button>
-          <button id="player-stop" class="btn btn-secondary" onclick="stopPlayer()">⏹️ Stop</button>
-          <button id="player-resume" class="btn btn-secondary" onclick="resumePlayer()">▶️ Resume</button>
+      <h2>📡 Stream Control (Liquidsoap)</h2>
+      <p>Control the live audio stream. Commands are sent directly to Liquidsoap.</p>
+      
+      <!-- Status Display -->
+      <div id="liquidsoap-status" style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div>
+            <strong>Uptime:</strong> <span id="ls-uptime">--</span>
+          </div>
+          <div>
+            <strong>Remaining:</strong> <span id="ls-remaining">--</span>
+          </div>
         </div>
-        <div id="player-status" class="status-info">
-          Status: <span id="player-state">Unknown</span><br>
-          Current Track: <span id="current-track">None</span>
+        <div style="margin-top: 10px;">
+          <strong>Now Playing:</strong> <span id="ls-metadata">--</span>
         </div>
       </div>
+      
+      <!-- Control Buttons -->
+      <div class="queue-controls" style="margin-bottom: 15px;">
+        <button id="ls-refresh-status" class="btn btn-secondary">🔄 Refresh Status</button>
+        <button id="ls-skip" class="btn btn-warning">⏭️ Skip Track</button>
+        <button id="ls-reload" class="btn btn-info">📂 Reload Playlist</button>
+        <button id="ls-restart" class="btn btn-danger">🔄 Restart Container</button>
+      </div>
+      
+      <p style="font-size: 0.9em; color: #888;">
+        <strong>Skip Track:</strong> Immediately skip to the next track in the playlist.<br>
+        <strong>Reload Playlist:</strong> Force Liquidsoap to re-read stream-queue.m3u.<br>
+        <strong>Restart Container:</strong> Restart the Liquidsoap Docker container (causes brief stream interruption).
+      </p>
+    </div>
 
+    <!-- User Management -->
+    <div class="admin-section">
       <div class="card">
         <h3>👥 User Management</h3>
         <p>Manage user accounts, roles, and permissions.</p>
