@@ -26,10 +26,6 @@
                  (update-player-status)
                  (setup-event-listeners)
                  (load-stream-queue)
-                 (setup-live-stream-monitor)
-                 (update-live-stream-info)
-                 ;; Update live stream info every 10 seconds
-                 (set-interval update-live-stream-info 10000)
                  ;; Update player status every 5 seconds
                  (set-interval update-player-status 5000))))
     
@@ -358,32 +354,6 @@
     
     (defun open-incoming-folder ()
       (alert "Copy your MP3 files to: /home/glenn/Projects/Code/asteroid/music/incoming/\n\nThen click \"Copy Files to Library\" to add them to your music collection."))
-    
-    ;; Setup live stream monitor
-    (defun setup-live-stream-monitor ()
-      (let ((live-audio (ps:chain document (get-element-by-id "live-stream-audio"))))
-        (when live-audio
-          (setf (ps:@ live-audio preload) "none"))))
-    
-    ;; Live stream info update
-    (defun update-live-stream-info ()
-      (ps:chain
-       (fetch "/api/asteroid/partial/now-playing-inline")
-       (then (lambda (response)
-               (let ((content-type (ps:chain response headers (get "content-type"))))
-                 (unless (and content-type (ps:chain content-type (includes "text/plain")))
-                   (ps:chain console (error "Unexpected content type:" content-type))
-                   (return))
-                 (ps:chain response (text)))))
-       (then (lambda (now-playing-text)
-               (let ((now-playing-el (ps:chain document (get-element-by-id "live-now-playing"))))
-                 (when now-playing-el
-                   (setf (ps:@ now-playing-el text-content) now-playing-text)))))
-       (catch (lambda (error)
-                (ps:chain console (error "Could not fetch stream info:" error))
-                (let ((now-playing-el (ps:chain document (get-element-by-id "live-now-playing"))))
-                  (when now-playing-el
-                    (setf (ps:@ now-playing-el text-content) "Error loading stream info")))))))
     
     ;; ========================================
     ;; Stream Queue Management

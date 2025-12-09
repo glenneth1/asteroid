@@ -102,21 +102,17 @@
     <div class="admin-section">
       <h2>Music Library Management</h2>
       
-      <!-- File Upload -->
+      <!-- Music Library Info -->
       <div class="upload-section">
-        <h3>Add Music Files</h3>
+        <h3>Music Library</h3>
         <div class="upload-info">
-          <p><strong>To add your own MP3 files:</strong></p>
+          <p>The music library is mounted from your local filesystem into the Liquidsoap container.</p>
+          <p><strong>To add music:</strong></p>
           <ol>
-              <li>Copy your MP3/FLAC/OGG/WAV files to: <code>/home/glenn/Projects/Code/asteroid/music/incoming/</code></li>
-              <li>Click "Copy Files to Library" below</li>
-              <li>Files will be moved to the library and added to the database</li>
+              <li>Add files to your music library directory (set via <code>MUSIC_LIBRARY</code> env var)</li>
+              <li>Click "Scan Library" to index new tracks into the database</li>
           </ol>
-          <p><em>Supported formats: MP3, FLAC, OGG, WAV</em></p>
-        </div>
-        <div class="upload-controls">
-          <button id="copy-files" class="btn btn-success">📁 Copy Files to Library</button>
-          <button id="open-incoming" class="btn btn-info">📂 Open Incoming Folder</button>
+          <p><em>Supported formats: MP3, FLAC, OGG, WAV, OPUS</em></p>
         </div>
       </div>
       
@@ -160,19 +156,6 @@
         <span id="page-info" style="margin: 0 15px; font-weight: bold;">Page 1 of 1</span>
         <button onclick="nextPage()" class="btn btn-secondary">Next ›</button>
         <button onclick="goToLastPage()" class="btn btn-secondary">Last »</button>
-      </div>
-    </div>
-
-    <!-- Live Stream Monitor -->
-    <div class="admin-section">
-      <h2>📻 Live Stream Monitor</h2>
-      <div class="live-stream-monitor">
-        <input type="hidden" id="stream-base-url" lquery="(val stream-base-url)">
-        <p><strong>Now Playing:</strong> <span id="live-now-playing">Loading...</span></p>
-        <audio id="live-stream-audio" controls style="width: 100%; max-width: 600px;">
-          <source id="live-stream-source" lquery="(attr :src default-stream-url)" type="audio/aac">
-          Your browser does not support the audio element.
-        </audio>
       </div>
     </div>
 
