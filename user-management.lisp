@@ -16,7 +16,7 @@
           (dm:field user "password-hash") password-hash
           (dm:field user "role") (string-downcase (symbol-name role))
           (dm:field user "active") (if active 1 0)
-          (dm:field user "created-date") (local-time:timestamp-to-unix (local-time:now))
+          ;; Let database defaults handle created-date (CURRENT_TIMESTAMP)
           (dm:field user "last-login") nil)
     (handler-case
         (db:with-transaction ()
@@ -69,10 +69,14 @@
             (format t "Error during user data access: ~a~%" e)))
         (when (and (= 1 user-active)
                    (verify-password password user-password))
-          ;; Update last login
-          (setf (dm:field user "last-login") (local-time:timestamp-to-unix (local-time:now)))
-          ;; (dm:save user)
-          (data-model-save user)
+          ;; Update last login using raw SQL to set CURRENT_TIMESTAMP
+          (handler-case
+              (postmodern:with-connection (get-db-connection-params)
+                (postmodern:execute 
+                 (format nil "UPDATE \"USERS\" SET \"last-login\" = CURRENT_TIMESTAMP WHERE _id = ~a" 
+                         (dm:id user))))
+            (error (e)
+              (format t "Warning: Could not update last-login: ~a~%" e)))
           user)))))
 
 (defun hash-password (password)
