@@ -194,7 +194,7 @@
         
         ;; Calculate pagination
         (let ((total-pages (ceiling (/ (ps:@ *filtered-library-tracks* length) *library-tracks-per-page*)))
-              (start-index (* (* *library-current-page* -1) *library-tracks-per-page* *library-tracks-per-page*))
+              (start-index (* (- *library-current-page* 1) *library-tracks-per-page*))
               (end-index (+ start-index *library-tracks-per-page*))
               (tracks-to-show (ps:chain *filtered-library-tracks* (slice start-index end-index))))
           
@@ -206,8 +206,8 @@
                                                                        (find-index (lambda (trk) (== (ps:@ trk id) (ps:@ track id)))))))
                                                (+ "<div class=\"track-item\" data-track-id=\"" (ps:@ track id) "\" data-index=\"" actual-index "\">"
                                                   "<div class=\"track-info\">"
-                                                  "<div class=\"track-title\">" (or (ps:@ track title 0) "Unknown Title") "</div>"
-                                                  "<div class=\"track-meta\">" (or (ps:@ track artist 0) "Unknown Artist") " • " (or (ps:@ track album 0) "Unknown Album") "</div>"
+                                                  "<div class=\"track-title\">" (or (ps:@ track title) "Unknown Title") "</div>"
+                                                  "<div class=\"track-meta\">" (or (ps:@ track artist) "Unknown Artist") " • " (or (ps:@ track album) "Unknown Album") "</div>"
                                                   "</div>"
                                                   "<div class=\"track-actions\">"
                                                   "<button onclick=\"playTrack(" actual-index ")\" class=\"btn btn-sm btn-success\">▶️</button>"
@@ -258,29 +258,29 @@
       (let ((query (ps:chain (ps:chain document (get-element-by-id "search-tracks")) value (to-lower-case))))
         (let ((filtered (ps:chain *tracks* 
                                    (filter (lambda (track)
-                                             (or (ps:chain (or (ps:@ track title 0) "") (to-lower-case) (includes query))
-                                                 (ps:chain (or (ps:@ track artist 0) "") (to-lower-case) (includes query))
-                                                 (ps:chain (or (ps:@ track album 0) "") (to-lower-case) (includes query))))))))
+                                             (or (ps:chain (or (ps:@ track title) "") (to-lower-case) (includes query))
+                                                 (ps:chain (or (ps:@ track artist) "") (to-lower-case) (includes query))
+                                                 (ps:chain (or (ps:@ track album) "") (to-lower-case) (includes query))))))))
           (display-tracks filtered))))
     
     ;; Play a specific track by index
     (defun play-track (index)
       (when (and (>= index 0) (< index (ps:@ *tracks* length)))
         (setf *current-track* (aref *tracks* index))
-      (setf *current-track-index* index)
-      
-      ;; Load track into audio player
-      (setf (ps:@ *audio-player* src) (+ "/asteroid/tracks/" (ps:@ *current-track* id) "/stream"))
-      (ps:chain *audio-player* (load))
-      (ps:chain *audio-player* 
-                (play)
-                (catch (lambda (error)
-                         (ps:chain console (error "Playback error:" error))
-                         (alert "Error playing track. The track may not be available."))))
-      
-      (update-player-display)
-      
-      ;; Update server-side player state
+        (setf *current-track-index* index)
+        
+        ;; Load track into audio player
+        (setf (ps:@ *audio-player* src) (+ "/asteroid/tracks/" (ps:@ *current-track* id) "/stream"))
+        (ps:chain *audio-player* (load))
+        (ps:chain *audio-player* 
+                  (play)
+                  (catch (lambda (error)
+                           (ps:chain console (error "Playback error:" error))
+                           (alert "Error playing track. The track may not be available."))))
+        
+        (update-player-display)
+        
+        ;; Update server-side player state
         (ps:chain (fetch (+ "/api/asteroid/player/play?track-id=" (ps:@ *current-track* id))
                          (ps:create :method "POST"))
                   (catch (lambda (error)
@@ -316,9 +316,9 @@
             (update-queue-display))
           ;; Play next track in library
           (let ((next-index (if *is-shuffled*
-                                (floor (* (random) (ps:@ *tracks* length))))
+                                (floor (* (random) (ps:@ *tracks* length)))
                                 (mod (+ *current-track-index* 1) (ps:@ *tracks* length)))))
-            (play-track next-index))))
+            (play-track next-index)))))
     
     ;; Handle track end
     (defun handle-track-end ()
