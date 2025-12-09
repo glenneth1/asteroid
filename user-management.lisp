@@ -69,12 +69,11 @@
             (format t "Error during user data access: ~a~%" e)))
         (when (and (= 1 user-active)
                    (verify-password password user-password))
-          ;; Update last login using raw SQL to set CURRENT_TIMESTAMP
+          ;; Update last login using data-model (database agnostic)
           (handler-case
-              (postmodern:with-connection (get-db-connection-params)
-                (postmodern:execute 
-                 (format nil "UPDATE \"USERS\" SET \"last-login\" = CURRENT_TIMESTAMP WHERE _id = ~a" 
-                         (dm:id user))))
+              (progn
+                (setf (dm:field user "last-login") (format nil "~a" (local-time:now)))
+                (dm:save user))
             (error (e)
               (format t "Warning: Could not update last-login: ~a~%" e)))
           user)))))
