@@ -26,7 +26,7 @@ services:
     volumes:
       - ${MUSIC_LIBRARY:-../music/library}:/app/music:ro
       - ./asteroid-radio-docker.liq:/app/asteroid-radio.liq:ro
-      - ${QUEUE_PLAYLIST:-../stream-queue.m3u}:/app/stream-queue.m3u:ro
+      - ${QUEUE_PLAYLIST:-../playlists/stream-queue.m3u}:/app/stream-queue.m3u:ro
     restart: unless-stopped
     networks:
       - asteroid-network
