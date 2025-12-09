@@ -1,5 +1,19 @@
 (in-package :asteroid)
 
+;; Database connection parameters for direct postmodern queries
+(defun get-db-connection-params ()
+  "Get database connection parameters for postmodern"
+  (list (or (uiop:getenv "ASTEROID_DB_NAME") "asteroid")
+        (or (uiop:getenv "ASTEROID_DB_USER") "asteroid")
+        (or (uiop:getenv "ASTEROID_DB_PASSWORD") "asteroid_db_2025")
+        (or (uiop:getenv "ASTEROID_DB_HOST") "localhost")
+        :port (parse-integer (or (uiop:getenv "ASTEROID_DB_PORT") "5432"))))
+
+(defmacro with-db (&body body)
+  "Execute body with database connection"
+  `(postmodern:with-connection (get-db-connection-params)
+     ,@body))
+
 ;; Database initialization - must be in db:connected trigger because
 ;; the system could load before the database is ready.
 

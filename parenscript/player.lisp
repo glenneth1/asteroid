@@ -209,8 +209,9 @@
                                                   "<div class=\"track-meta\">" (or (ps:@ track artist) "Unknown Artist") " • " (or (ps:@ track album) "Unknown Album") "</div>"
                                                   "</div>"
                                                   "<div class=\"track-actions\">"
-                                                  "<button onclick=\"playTrack(" actual-index ")\" class=\"btn btn-sm btn-success\">▶️</button>"
-                                                  "<button onclick=\"addToQueue(" actual-index ")\" class=\"btn btn-sm btn-info\">➕</button>"
+                                                  "<button onclick=\"playTrack(" actual-index ")\" class=\"btn btn-sm btn-success\" title=\"Play\">▶️</button>"
+                                                  "<button onclick=\"addToQueue(" actual-index ")\" class=\"btn btn-sm btn-info\" title=\"Add to queue\">➕</button>"
+                                                  "<button onclick=\"showAddToPlaylistMenu(" (ps:@ track id) ", event)\" class=\"btn btn-sm btn-secondary\" title=\"Add to playlist\">📋</button>"
                                                   "</div>"
                                                   "</div>"))))
                                       (join ""))))
@@ -409,6 +410,91 @@
       (setf *play-queue* (array))
       (update-queue-display))
     
+    ;; Store playlists for the add-to-playlist menu
+    (defvar *user-playlists* (array))
+    
+    ;; Show add to playlist dropdown menu
+    (defun show-add-to-playlist-menu (track-id event)
+      (ps:chain event (stop-propagation))
+      ;; Remove any existing menu
+      (let ((existing-menu (ps:chain document (get-element-by-id "playlist-dropdown-menu"))))
+        (when existing-menu
+          (ps:chain existing-menu (remove))))
+      
+      ;; Fetch playlists and show menu
+      (ps:chain (fetch "/api/asteroid/playlists")
+                (then (lambda (response) (ps:chain response (json))))
+                (then (lambda (result)
+                        (let* ((data (or (ps:@ result data) result))
+                               (playlists (or (ps:@ data playlists) (array)))
+                               (menu (ps:chain document (create-element "div"))))
+                          (setf *user-playlists* playlists)
+                          (setf (ps:@ menu id) "playlist-dropdown-menu")
+                          (setf (ps:@ menu class-name) "playlist-dropdown-menu")
+                          (setf (ps:@ menu style position) "fixed")
+                          (setf (ps:@ menu style left) (+ (ps:@ event client-x) "px"))
+                          (setf (ps:@ menu style top) (+ (ps:@ event client-y) "px"))
+                          (setf (ps:@ menu style z-index) "1000")
+                          (setf (ps:@ menu style background) "#1a1a2e")
+                          (setf (ps:@ menu style border) "1px solid #00ff00")
+                          (setf (ps:@ menu style border-radius) "4px")
+                          (setf (ps:@ menu style padding) "5px 0")
+                          (setf (ps:@ menu style min-width) "150px")
+                          
+                          (if (= (ps:@ playlists length) 0)
+                              (setf (ps:@ menu inner-h-t-m-l) 
+                                    "<div style=\"padding: 8px 12px; color: #888;\">No playlists yet</div>")
+                              (setf (ps:@ menu inner-h-t-m-l)
+                                    (ps:chain playlists
+                                              (map (lambda (playlist)
+                                                     (+ "<div class=\"playlist-menu-item\" onclick=\"addTrackToPlaylist(" 
+                                                        (ps:@ playlist id) ", " track-id 
+                                                        ")\" style=\"padding: 8px 12px; cursor: pointer; color: #00ff00;\" "
+                                                        "onmouseover=\"this.style.background='#2a2a4e'\" "
+                                                        "onmouseout=\"this.style.background='transparent'\">"
+                                                        (ps:@ playlist name) " (" (ps:@ playlist "track-count") ")"
+                                                        "</div>")))
+                                              (join ""))))
+                          
+                          (ps:chain document body (append-child menu))
+                          
+                          ;; Close menu when clicking elsewhere
+                          (let ((close-handler (lambda (e)
+                                                 (when (not (ps:chain menu (contains (ps:@ e target))))
+                                                   (ps:chain menu (remove))
+                                                   (ps:chain document (remove-event-listener "click" close-handler))))))
+                            (set-timeout (lambda ()
+                                           (ps:chain document (add-event-listener "click" close-handler)))
+                                         100)))))
+                (catch (lambda (error)
+                         (ps:chain console (error "Error loading playlists for menu:" error))))))
+    
+    ;; Add track to a specific playlist
+    (defun add-track-to-playlist (playlist-id track-id)
+      ;; Close the menu
+      (let ((menu (ps:chain document (get-element-by-id "playlist-dropdown-menu"))))
+        (when menu (ps:chain menu (remove))))
+      
+      (let ((form-data (new -Form-data)))
+        (ps:chain form-data (append "playlist-id" playlist-id))
+        (ps:chain form-data (append "track-id" track-id))
+        (ps:chain (fetch "/api/asteroid/playlists/add-track"
+                         (ps:create :method "POST" :body form-data))
+                  (then (lambda (response) (ps:chain response (json))))
+                  (then (lambda (result)
+                          (let ((data (or (ps:@ result data) result)))
+                            (if (= (ps:@ data status) "success")
+                                (progn
+                                  ;; Find playlist name for feedback
+                                  (let ((playlist (ps:chain *user-playlists* 
+                                                            (find (lambda (p) (= (ps:@ p id) playlist-id))))))
+                                    (alert (+ "Track added to \"" (if playlist (ps:@ playlist name) "playlist") "\"")))
+                                  (load-playlists))
+                                (alert (+ "Error: " (ps:@ data message)))))))
+                  (catch (lambda (error)
+                           (ps:chain console (error "Error adding track to playlist:" error))
+                           (alert "Error adding track to playlist"))))))
+    
     ;; Create playlist
     (defun create-playlist ()
       (let ((name (ps:chain (ps:chain document (get-element-by-id "new-playlist-name")) value (trim))))
@@ -510,16 +596,21 @@
     ;; Load playlists from API
     (defun load-playlists ()
       (ps:chain
-       (ps:chain (fetch "/api/asteroid/playlists"))
+       (fetch "/api/asteroid/playlists")
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
+               (ps:chain console (log "Playlists API result:" result))
                (let ((playlists (cond
                                   ((and (ps:@ result data) (= (ps:@ result data status) "success"))
+                                   (ps:chain console (log "Found playlists in result.data.playlists"))
                                    (or (ps:@ result data playlists) (array)))
                                   ((= (ps:@ result status) "success")
+                                   (ps:chain console (log "Found playlists in result.playlists"))
                                    (or (ps:@ result playlists) (array)))
                                   (t
+                                   (ps:chain console (log "No playlists found in response"))
                                    (array)))))
+                 (ps:chain console (log "Playlists to display:" playlists))
                  (display-playlists playlists))))
        (catch (lambda (error)
                 (ps:chain console (error "Error loading playlists:" error))
@@ -533,18 +624,65 @@
             (setf (ps:@ container inner-h-t-m-l) "<div class=\"no-playlists\">No playlists created yet.</div>")
             (let ((playlists-html (ps:chain playlists
                                         (map (lambda (playlist)
-                                               (+ "<div class=\"playlist-item\">"
+                                               (+ "<div class=\"playlist-item\" data-playlist-id=\"" (ps:@ playlist id) "\">"
                                                   "<div class=\"playlist-info\">"
                                                   "<div class=\"playlist-name\">" (ps:@ playlist name) "</div>"
                                                   "<div class=\"playlist-meta\">" (ps:@ playlist "track-count") " tracks</div>"
                                                   "</div>"
                                                   "<div class=\"playlist-actions\">"
-                                                  "<button onclick=\"loadPlaylist(" (ps:@ playlist id) ")\" class=\"btn btn-sm btn-info\">📂 Load</button>"
+                                                  "<button onclick=\"viewPlaylist(" (ps:@ playlist id) ")\" class=\"btn btn-sm btn-secondary\" title=\"View tracks\">👁️</button>"
+                                                  "<button onclick=\"loadPlaylist(" (ps:@ playlist id) ")\" class=\"btn btn-sm btn-info\" title=\"Load to queue\">📂</button>"
+                                                  "<button onclick=\"deletePlaylist(" (ps:@ playlist id) ", '" (ps:chain (ps:@ playlist name) (replace (ps:regex "/'/g") "\\\\'")) "')\" class=\"btn btn-sm btn-danger\" title=\"Delete playlist\">🗑️</button>"
                                                   "</div>"
                                                   "</div>")))
                                         (join ""))))
           
               (setf (ps:@ container inner-h-t-m-l) playlists-html)))))
+    
+    ;; Delete playlist
+    (defun delete-playlist (playlist-id playlist-name)
+      (when (confirm (+ "Are you sure you want to delete playlist \"" playlist-name "\"?"))
+        (let ((form-data (new -Form-data)))
+          (ps:chain form-data (append "playlist-id" playlist-id))
+          (ps:chain (fetch "/api/asteroid/playlists/delete"
+                           (ps:create :method "POST" :body form-data))
+                    (then (lambda (response) (ps:chain response (json))))
+                    (then (lambda (result)
+                            (let ((data (or (ps:@ result data) result)))
+                              (if (= (ps:@ data status) "success")
+                                  (progn
+                                    (alert (+ "Playlist \"" playlist-name "\" deleted"))
+                                    (load-playlists))
+                                  (alert (+ "Error deleting playlist: " (ps:@ data message)))))))
+                    (catch (lambda (error)
+                             (ps:chain console (error "Error deleting playlist:" error))
+                             (alert "Error deleting playlist")))))))
+    
+    ;; View playlist contents
+    (defun view-playlist (playlist-id)
+      (ps:chain
+       (fetch (+ "/api/asteroid/playlists/get?playlist-id=" playlist-id))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (and (= (ps:@ data status) "success") (ps:@ data playlist))
+                     (let* ((playlist (ps:@ data playlist))
+                            (tracks (or (ps:@ playlist tracks) (array)))
+                            (track-list (if (> (ps:@ tracks length) 0)
+                                            (ps:chain tracks
+                                                      (map (lambda (track index)
+                                                             (+ (+ index 1) ". " 
+                                                                (or (ps:@ track artist) "Unknown") " - " 
+                                                                (or (ps:@ track title) "Unknown"))))
+                                                      (join "\\n"))
+                                            "No tracks in playlist")))
+                       (alert (+ "Playlist: " (ps:@ playlist name) "\\n"
+                                 "Tracks: " (ps:@ playlist "track-count") "\\n\\n"
+                                 track-list)))
+                     (alert "Could not load playlist")))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error viewing playlist:" error))
+                (alert "Error viewing playlist")))))
     
     ;; Load playlist into queue
     (defun load-playlist (playlist-id)
@@ -561,28 +699,31 @@
                        (setf *play-queue* (array))
                        
                        ;; Add all playlist tracks to queue
-                       (when (and (ps:@ playlist tracks) (> (ps:@ playlist tracks length) 0))
-                         (ps:chain (ps:@ playlist tracks)
-                                   (for-each (lambda (track)
-                                               ;; Find the full track object from our tracks array
-                                               (let ((full-track (ps:chain *tracks* 
-                                                                         (find (lambda (trk) (= (ps:@ trk id) (ps:@ track id)))))))
-                                                 (when full-track
-                                                   (setf (aref *play-queue* (ps:@ *play-queue* length)) full-track)))))
-                         
-                         (update-queue-display)
-                         (alert (+ "Loaded " (ps:@ *play-queue* length) " tracks from \"" (ps:@ playlist name) "\" into queue!"))
-                         
-                         ;; Optionally start playing the first track
-                         (when (> (ps:@ *play-queue* length) 0)
-                           (let ((first-track (ps:chain *play-queue* (shift)))
-                                 (track-index (ps:chain *tracks* 
-                                                         (find-index (lambda (trk) (= (ps:@ trk id) (ps:@ first-track id))))))
-                                 )
-                             (when (>= track-index 0)
-                               (play-track track-index))))))
-                       (when (or (not (ps:@ playlist tracks)) (= (ps:@ playlist tracks length) 0))
-                         (alert (+ "Playlist \"" (ps:@ playlist name) "\" is empty"))))
+                       (if (and (ps:@ playlist tracks) (> (ps:@ playlist tracks length) 0))
+                           (progn
+                             (ps:chain (ps:@ playlist tracks)
+                                       (for-each (lambda (track)
+                                                   ;; Find the full track object from our tracks array
+                                                   (let ((full-track (ps:chain *tracks* 
+                                                                             (find (lambda (trk) (= (ps:@ trk id) (ps:@ track id)))))))
+                                                     (when full-track
+                                                       (setf (aref *play-queue* (ps:@ *play-queue* length)) full-track))))))
+                             
+                             (update-queue-display)
+                             (let ((loaded-count (ps:@ *play-queue* length)))
+                               (alert (+ "Loaded " loaded-count " tracks from \"" (ps:@ playlist name) "\" into queue!"))
+                               
+                               ;; Optionally start playing the first track
+                               (when (> loaded-count 0)
+                                 (let* ((first-track (aref *play-queue* 0))
+                                        (track-index (ps:chain *tracks* 
+                                                               (find-index (lambda (trk) (= (ps:@ trk id) (ps:@ first-track id)))))))
+                                   ;; Remove first track from queue since we're playing it
+                                   (ps:chain *play-queue* (shift))
+                                   (update-queue-display)
+                                   (when (>= track-index 0)
+                                     (play-track track-index))))))
+                           (alert (+ "Playlist \"" (ps:@ playlist name) "\" is empty"))))
                      (alert (+ "Error loading playlist: " (or (ps:@ data message) "Unknown error")))))))
        (catch (lambda (error)
                 (ps:chain console (error "Error loading playlist:" error))
@@ -660,7 +801,11 @@
     (setf (ps:@ window library-next-page) library-next-page)
     (setf (ps:@ window library-go-to-last-page) library-go-to-last-page)
     (setf (ps:@ window change-library-tracks-per-page) change-library-tracks-per-page)
-    (setf (ps:@ window load-playlist) load-playlist)))
+    (setf (ps:@ window load-playlist) load-playlist)
+    (setf (ps:@ window delete-playlist) delete-playlist)
+    (setf (ps:@ window view-playlist) view-playlist)
+    (setf (ps:@ window show-add-to-playlist-menu) show-add-to-playlist-menu)
+    (setf (ps:@ window add-track-to-playlist) add-track-to-playlist)))
   "Compiled JavaScript for web player - generated at load time")
 
 (defun generate-player-js ()
