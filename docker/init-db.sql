@@ -12,9 +12,8 @@ CREATE TABLE IF NOT EXISTS "USERS" (
     "password-hash" TEXT NOT NULL,
     role VARCHAR(50) DEFAULT 'listener',
     active integer DEFAULT 1,
-    -- "created-date" integer DEFAULT CURRENT_TIMESTAMP,
-    "created-date" integer,
-    "last-login" integer,
+    "created-date" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "last-login" TIMESTAMP,
     CONSTRAINT valid_role CHECK (role IN ('listener', 'dj', 'admin'))
 );
 
