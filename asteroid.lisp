@@ -133,17 +133,10 @@
            (playlists (get-user-playlists user-id)))
       (api-output `(("status" . "success")
                     ("playlists" . ,(mapcar (lambda (playlist)
-                                              (let* ((track-ids (dm:field playlist "track-ids"))
-                                                     ;; Calculate track count from comma-separated string
-                                                     ;; Handle nil, empty string, or list containing empty string
-                                                     (track-count (if (and track-ids
-                                                                           (stringp track-ids)
-                                                                           (not (string= track-ids "")))
-                                                                      (length (cl-ppcre:split "," track-ids))
-                                                                      0)))
+                                              (let ((track-count (get-playlist-track-count (dm:id playlist))))
                                                 `(("id" . ,(dm:id playlist))
                                                   ("name" . ,(dm:field playlist "name"))
-                                                  ("description" . ,(dm:field playlist "description"))
+                                                  ("description" . ,(or (dm:field playlist "description") ""))
                                                   ("track-count" . ,track-count)
                                                   ("created-date" . ,(dm:field playlist "created-date")))))
                                             playlists)))))))
@@ -177,7 +170,7 @@
     (let* ((id (parse-integer playlist-id :junk-allowed t))
            (playlist (get-playlist-by-id id)))
       (if playlist
-          (let* ((track-ids (dm:field playlist "tracks"))
+          (let* ((track-ids (get-playlist-tracks id))
                  (tracks (mapcar (lambda (track-id)
                                    (dm:get-one "tracks" (db:query (:= '_id track-id))))
                                  track-ids))
@@ -185,6 +178,8 @@
             (api-output `(("status" . "success")
                           ("playlist" . (("id" . ,id)
                                         ("name" . ,(dm:field playlist "name"))
+                                        ("description" . ,(or (dm:field playlist "description") ""))
+                                        ("track-count" . ,(length valid-tracks))
                                         ("tracks" . ,(mapcar (lambda (track)
                                                               `(("id" . ,(dm:id track))
                                                                 ("title" . ,(dm:field track "title"))
@@ -194,6 +189,31 @@
           (api-output `(("status" . "error")
                         ("message" . "Playlist not found"))
                       :status 404)))))
+
+(define-api asteroid/playlists/delete (playlist-id) ()
+  "Delete a playlist"
+  (require-authentication)
+  (with-error-handling
+    (let* ((id (parse-integer playlist-id :junk-allowed t))
+           (user-id (get-current-user-id)))
+      (if (delete-playlist id user-id)
+          (api-output `(("status" . "success")
+                        ("message" . "Playlist deleted")))
+          (api-output `(("status" . "error")
+                        ("message" . "Could not delete playlist (not found or not owned by you)"))
+                      :status 403)))))
+
+(define-api asteroid/playlists/remove-track (playlist-id track-id) ()
+  "Remove a track from a playlist"
+  (require-authentication)
+  (with-error-handling
+    (let ((pl-id (parse-integer playlist-id :junk-allowed t))
+          (tr-id (parse-integer track-id :junk-allowed t)))
+      (if (remove-track-from-playlist pl-id tr-id)
+          (api-output `(("status" . "success")
+                        ("message" . "Track removed from playlist")))
+          (api-output `(("status" . "error")
+                        ("message" . "Could not remove track")))))))
 
 ;; Recently played tracks API endpoint
 (define-api asteroid/recently-played () ()
@@ -558,28 +578,26 @@
 
 (define-page stream-track #@"/tracks/(.*)/stream" (:uri-groups (track-id))
   "Stream audio file by track ID"
-  (with-error-handling
-    (let* ((id (parse-integer track-id))
-           (track (get-track-by-id id)))
-      (unless track
-        (signal-not-found "track" id))
-      (let* ((file-path (dm:field track "file-path"))
-             (format (dm:field track "format"))
-             (file (probe-file file-path)))
-        (unless file
-          (error 'not-found-error
-                 :message "Audio file not found on disk"
-                 :resource-type "file"
-                 :resource-id file-path))
-        ;; Set appropriate headers for audio streaming
-        (setf (radiance:header "Content-Type") (get-mime-type-for-format format))
-        (setf (radiance:header "Accept-Ranges") "bytes")
-        (setf (radiance:header "Cache-Control") "public, max-age=3600")
-        ;; Increment play count
-        (setf (dm:field track "play-count") (1+ (dm:field track "play-count")))
-        (data-model-save track)
-        ;; Return file contents
-        (alexandria:read-file-into-byte-vector file)))))
+  (let* ((id (parse-integer track-id :junk-allowed t))
+         (track (when id (get-track-by-id id))))
+    (if (not track)
+        (progn
+          (setf (radiance:header "Content-Type") "text/plain")
+          "Track not found")
+        (let* ((file-path (dm:field track "file-path"))
+               (format (dm:field track "format"))
+               (file (probe-file file-path)))
+          (if (not file)
+              (progn
+                (setf (radiance:header "Content-Type") "text/plain")
+                "Audio file not found")
+              (progn
+                ;; Set appropriate headers for audio streaming
+                (setf (radiance:header "Content-Type") (get-mime-type-for-format format))
+                (setf (radiance:header "Accept-Ranges") "bytes")
+                (setf (radiance:header "Cache-Control") "public, max-age=3600")
+                ;; Return file contents
+                (alexandria:read-file-into-byte-vector file)))))))
 
 ;; Player state management
 (defvar *current-track* nil "Currently playing track")

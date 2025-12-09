@@ -3,20 +3,7 @@
 
 (in-package #:asteroid)
 
-;;; Use postmodern for direct SQL queries
-;;; Connection params from environment or defaults matching config/radiance-postgres.lisp
-(defun get-db-connection-params ()
-  "Get database connection parameters"
-  (list (or (uiop:getenv "ASTEROID_DB_NAME") "asteroid")
-        (or (uiop:getenv "ASTEROID_DB_USER") "asteroid")
-        (or (uiop:getenv "ASTEROID_DB_PASSWORD") "asteroid_db_2025")
-        "localhost"
-        :port 5432))
-
-(defmacro with-db (&body body)
-  "Execute body with database connection"
-  `(postmodern:with-connection (get-db-connection-params)
-     ,@body))
+;;; Note: get-db-connection-params and with-db are defined in database.lisp
 
 ;;; Configuration
 (defvar *stats-polling-interval* 60
