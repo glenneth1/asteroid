@@ -14,10 +14,9 @@
     (setf (dm:field playlist "user-id") user-id)
     (setf (dm:field playlist "name") name)
     (setf (dm:field playlist "description") (or description ""))
-    (setf (dm:field playlist "track-ids") "")  ; Empty string for text field
+    ;; Note: track-ids column removed - using playlist_tracks junction table instead
     ;; Let database default handle created-date (CURRENT_TIMESTAMP)
     (format t "Creating playlist with user-id: ~a (type: ~a)~%" user-id (type-of user-id))
-    (format t "Playlist data: ~a~%" (data-model-as-alist playlist))
     (dm:insert playlist)
     t))
 
