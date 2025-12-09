@@ -90,17 +90,21 @@
   t)
 
 (defun regenerate-stream-playlist ()
-  "Regenerate the main stream playlist from the current queue"
+  "Regenerate the main stream playlist from the current queue.
+   NOTE: This writes to project root stream-queue.m3u, NOT playlists/stream-queue.m3u
+   which is what Liquidsoap actually reads. This function may be deprecated."
   (let ((playlist-path (merge-pathnames "stream-queue.m3u" 
                                        (asdf:system-source-directory :asteroid))))
     (if (null *stream-queue*)
-        ;; If queue is empty, generate from all tracks (fallback)
-        (let ((all-tracks (dm:get "tracks" (db:query :all))))
-          (generate-m3u-playlist 
-           (mapcar (lambda (track)
-                     (dm:id track))
-                   all-tracks)
-           playlist-path))
+        ;; DISABLED: Don't dump all tracks when queue is empty
+        ;; This was overwriting files with all library tracks unexpectedly
+        ;; (let ((all-tracks (dm:get "tracks" (db:query :all))))
+        ;;   (generate-m3u-playlist 
+        ;;    (mapcar (lambda (track)
+        ;;              (dm:id track))
+        ;;            all-tracks)
+        ;;    playlist-path))
+        (format t "Stream queue is empty, not generating playlist file~%")
         ;; Generate from queue
         (generate-m3u-playlist *stream-queue* playlist-path))))
 
