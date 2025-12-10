@@ -96,7 +96,7 @@
                        (stream-quality (or (ps:chain local-storage (get-item "stream-quality")) "aac")))
                    (when (and selector (not (= (ps:@ selector value) stream-quality)))
                      (setf (ps:@ selector value) stream-quality)
-                     (ps:chain selector (dispatch-event (new "Event" "change"))))))))
+                     (ps:chain selector (dispatch-event (ps:new (-Event "change")))))))))
     
     ;; Frame redirection logic
     (defun redirect-when-frame ()
@@ -475,7 +475,7 @@
       (let ((menu (ps:chain document (get-element-by-id "playlist-dropdown-menu"))))
         (when menu (ps:chain menu (remove))))
       
-      (let ((form-data (new -Form-data)))
+      (let ((form-data (ps:new (-Form-data))))
         (ps:chain form-data (append "playlist-id" playlist-id))
         (ps:chain form-data (append "track-id" track-id))
         (ps:chain (fetch "/api/asteroid/playlists/add-track"
@@ -499,7 +499,7 @@
     (defun create-playlist ()
       (let ((name (ps:chain (ps:chain document (get-element-by-id "new-playlist-name")) value (trim))))
         (when (not (= name ""))
-          (let ((form-data (new -Form-data)))
+          (let ((form-data (ps:new (-Form-data))))
             (ps:chain form-data (append "name" name))
             (ps:chain form-data (append "description" ""))
             
@@ -528,7 +528,7 @@
           (let ((name (prompt "Enter playlist name:")))
             (when name
               ;; Create the playlist
-              (let ((form-data (new "FormData")))
+              (let ((form-data (ps:new (-Form-data))))
                 (ps:chain form-data (append "name" name))
                 (ps:chain form-data (append "description" (+ "Created from queue with " (ps:@ *play-queue* length) " tracks")))
                 
@@ -564,7 +564,7 @@
                                                                                      (for-each (lambda (track)
                                                                                                  (let ((track-id (ps:@ track id)))
                                                                                                    (when track-id
-                                                                                                     (let ((add-form-data (new -Form-data)))
+                                                                                                     (let ((add-form-data (ps:new (-Form-data))))
                                                                                                        (ps:chain add-form-data (append "playlist-id" (ps:@ new-playlist id)))
                                                                                                        (ps:chain add-form-data (append "track-id" track-id))
                                                                                                        
@@ -642,7 +642,7 @@
     ;; Delete playlist
     (defun delete-playlist (playlist-id playlist-name)
       (when (confirm (+ "Are you sure you want to delete playlist \"" playlist-name "\"?"))
-        (let ((form-data (new -Form-data)))
+        (let ((form-data (ps:new (-Form-data))))
           (ps:chain form-data (append "playlist-id" playlist-id))
           (ps:chain (fetch "/api/asteroid/playlists/delete"
                            (ps:create :method "POST" :body form-data))
