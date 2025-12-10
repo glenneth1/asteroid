@@ -408,7 +408,7 @@
                   ;; Periodically update stream info if in frameset
                   (let ((is-frameset-page (not (= (ps:@ window parent) (ps:@ window self)))))
                     (when is-frameset-page
-                      (set-interval update-stream-information 1000)))
+                      (set-interval update-stream-information 10000)))
                   
                   ;; Update now playing
                   (update-now-playing)
