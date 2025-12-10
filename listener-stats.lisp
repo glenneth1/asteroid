@@ -66,7 +66,10 @@
   (handler-case
       (let* ((url (format nil *geoip-api-url* ip-address))
              (response (drakma:http-request url :want-stream nil))
-             (data (cl-json:decode-json-from-string response)))
+             (response-string (if (stringp response)
+                                  response
+                                  (babel:octets-to-string response :encoding :utf-8)))
+             (data (cl-json:decode-json-from-string response-string)))
         (when (string= (cdr (assoc :status data)) "success")
           (list :country-code (cdr (assoc :country-code data))
                 :city (cdr (assoc :city data))
