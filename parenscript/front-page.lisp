@@ -112,7 +112,7 @@
               (left (/ (- (ps:@ screen width) width) 2))
               (top (/ (- (ps:@ screen height) height) 2))
               (features (+ "width=" width ",height=" height ",left=" left ",top=" top
-                          ",resizable=yes,scrollbars=no,status=no,menubar=no,toolbar=no,location=no")))
+                           ",resizable=yes,scrollbars=no,status=no,menubar=no,toolbar=no,location=no")))
          
          ;; Open popout window
          (setf *popout-window*
@@ -314,77 +314,77 @@
        ;; Error handler
        (ps:chain audio-element
                  (add-event-listener "error"
-                   (lambda (err)
-                     (incf *stream-error-count*)
-                     (ps:chain console (log "Stream error:" err))
-                     
-                     (if (< *stream-error-count* 3)
-                         ;; Auto-retry for first few errors
-                         (progn
-                           (show-stream-status (+ "⚠️ Stream error. Reconnecting... (attempt " *stream-error-count* ")") "warning")
-                           (setf *reconnect-timeout*
-                                 (set-timeout reconnect-stream 3000)))
-                         ;; Too many errors, show manual reconnect
-                         (progn
-                           (show-stream-status "❌ Stream connection lost. Click Reconnect to try again." "error")
-                           (show-reconnect-button))))))
+                                     (lambda (err)
+                                       (incf *stream-error-count*)
+                                       (ps:chain console (log "Stream error:" err))
+
+                                       (if (< *stream-error-count* 3)
+                                           ;; Auto-retry for first few errors
+                                           (progn
+                                             (show-stream-status (+ "⚠️ Stream error. Reconnecting... (attempt " *stream-error-count* ")") "warning")
+                                             (setf *reconnect-timeout*
+                                                   (set-timeout reconnect-stream 3000)))
+                                           ;; Too many errors, show manual reconnect
+                                           (progn
+                                             (show-stream-status "❌ Stream connection lost. Click Reconnect to try again." "error")
+                                             (show-reconnect-button))))))
        
        ;; Stalled handler
        (ps:chain audio-element
                  (add-event-listener "stalled"
-                   (lambda ()
-                     (ps:chain console (log "Stream stalled"))
-                     (show-stream-status "⚠️ Stream stalled. Attempting to recover..." "warning")
-                     (setf *reconnect-timeout*
-                           (set-timeout
-                            (lambda ()
-                              ;; Only reconnect if still stalled
-                              (when (ps:@ audio-element paused)
-                                (reconnect-stream)))
-                            5000)))))
+                                     (lambda ()
+                                       (ps:chain console (log "Stream stalled"))
+                                       (show-stream-status "⚠️ Stream stalled. Attempting to recover..." "warning")
+                                       (setf *reconnect-timeout*
+                                             (set-timeout
+                                              (lambda ()
+                                                ;; Only reconnect if still stalled
+                                                (when (ps:@ audio-element paused)
+                                                  (reconnect-stream)))
+                                              5000)))))
        
        ;; Waiting handler (buffering)
        (ps:chain audio-element
                  (add-event-listener "waiting"
-                   (lambda ()
-                     (ps:chain console (log "Stream buffering..."))
-                     (show-stream-status "⏳ Buffering..." "info"))))
+                                     (lambda ()
+                                       (ps:chain console (log "Stream buffering..."))
+                                       (show-stream-status "⏳ Buffering..." "info"))))
        
        ;; Playing handler - clear any error states
        (ps:chain audio-element
                  (add-event-listener "playing"
-                   (lambda ()
-                     (setf *stream-error-count* 0)
-                     (hide-stream-status)
-                     (hide-reconnect-button)
-                     (when *reconnect-timeout*
-                       (clear-timeout *reconnect-timeout*)
-                       (setf *reconnect-timeout* nil)))))
+                                     (lambda ()
+                                       (setf *stream-error-count* 0)
+                                       (hide-stream-status)
+                                       (hide-reconnect-button)
+                                       (when *reconnect-timeout*
+                                         (clear-timeout *reconnect-timeout*)
+                                         (setf *reconnect-timeout* nil)))))
        
        ;; Pause handler - track when paused for long pause detection
        (ps:chain audio-element
                  (add-event-listener "pause"
-                   (lambda ()
-                     (setf *last-play-attempt* (ps:chain |Date| (now))))))
+                                     (lambda ()
+                                       (setf *last-play-attempt* (ps:chain |Date| (now))))))
        
        ;; Play handler - detect long pauses that need reconnection
        (ps:chain audio-element
                  (add-event-listener "play"
-                   (lambda ()
-                     (let ((pause-duration (- (ps:chain |Date| (now)) *last-play-attempt*)))
-                       ;; If paused for more than 30 seconds, reconnect to get fresh stream
-                       (when (> pause-duration 30000)
-                         (ps:chain console (log "Long pause detected, reconnecting for fresh stream..."))
-                         (reconnect-stream))))))
+                                     (lambda ()
+                                       (let ((pause-duration (- (ps:chain |Date| (now)) *last-play-attempt*)))
+                                         ;; If paused for more than 30 seconds, reconnect to get fresh stream
+                                         (when (> pause-duration 30000)
+                                           (ps:chain console (log "Long pause detected, reconnecting for fresh stream..."))
+                                           (reconnect-stream))))))
        
        ;; Spectrum analyzer hooks
        (when (ps:@ window |initSpectrumAnalyzer|)
          (ps:chain audio-element (add-event-listener "play"
-           (lambda () (ps:chain window (init-spectrum-analyzer))))))
+                                                     (lambda () (ps:chain window (init-spectrum-analyzer))))))
        
        (when (ps:@ window |stopSpectrumAnalyzer|)
          (ps:chain audio-element (add-event-listener "pause"
-           (lambda () (ps:chain window (stop-spectrum-analyzer)))))))
+                                                     (lambda () (ps:chain window (stop-spectrum-analyzer)))))))
      
      (defun redirect-when-frame ()
        (let* ((path (ps:@ window location pathname))
@@ -399,49 +399,49 @@
      
      ;; Initialize on page load
      (ps:chain document
-               (add-event-listener
-                "DOMContentLoaded"
-                (lambda ()
-                  ;; Update stream information
-                  (update-stream-information)
-                  
-                  ;; Periodically update stream info if in frameset
-                  (let ((is-frameset-page (not (= (ps:@ window parent) (ps:@ window self)))))
-                    (when is-frameset-page
-                      (set-interval update-stream-information 1000)))
-                  
-                  ;; Update now playing
-                  (update-now-playing)
-                  
-                  ;; Attach event listeners to audio element
-                  (let ((audio-element (ps:chain document (get-element-by-id "live-audio"))))
-                    (when audio-element
-                      (attach-audio-event-listeners audio-element)))
-                  
-                  ;; Check frameset preference
-                  (let ((path (ps:@ window location pathname))
-                        (is-frameset-page (not (= (ps:@ window parent) (ps:@ window self)))))
-                    (when (and (= (ps:chain local-storage (get-item "useFrameset")) "true")
-                               (not is-frameset-page)
-                               (ps:chain path (includes "/asteroid")))
-                      (setf (ps:@ window location href) "/asteroid/frameset"))
-                    
-                    (redirect-when-frame)))))
+      (add-event-listener
+       "DOMContentLoaded"
+       (lambda ()
+         ;; Update stream information
+         (update-stream-information)
+
+         ;; Periodically update stream info if in frameset
+         (let ((is-frameset-page (not (= (ps:@ window parent) (ps:@ window self)))))
+           (when is-frameset-page
+             (set-interval update-stream-information 10000)))
+
+         ;; Update now playing
+         (update-now-playing)
+
+         ;; Attach event listeners to audio element
+         (let ((audio-element (ps:chain document (get-element-by-id "live-audio"))))
+           (when audio-element
+             (attach-audio-event-listeners audio-element)))
+
+         ;; Check frameset preference
+         (let ((path (ps:@ window location pathname))
+               (is-frameset-page (not (= (ps:@ window parent) (ps:@ window self)))))
+           (when (and (= (ps:chain local-storage (get-item "useFrameset")) "true")
+                      (not is-frameset-page)
+                      (ps:chain path (includes "/asteroid")))
+             (setf (ps:@ window location href) "/asteroid/frameset"))
+           
+           (redirect-when-frame)))))
      
      ;; Update now playing every 5 seconds
      (set-interval update-now-playing 5000)
      
      ;; Listen for messages from popout window
      (ps:chain window
-               (add-event-listener
-                "message"
-                (lambda (event)
-                  (cond
-                    ((= (ps:@ event data type) "popout-opened")
-                     (update-popout-button t))
-                    ((= (ps:@ event data type) "popout-closed")
-                     (update-popout-button nil)
-                     (setf *popout-window* nil))))))
+      (add-event-listener
+       "message"
+       (lambda (event)
+         (cond
+           ((= (ps:@ event data type) "popout-opened")
+            (update-popout-button t))
+           ((= (ps:@ event data type) "popout-closed")
+            (update-popout-button nil)
+            (setf *popout-window* nil))))))
      
      ;; Check if popout is still open periodically
      (set-interval
