@@ -86,26 +86,6 @@
                     ("message" . "Library scan completed")
                     ("tracks-added" . ,tracks-added))))))
 
-(define-api asteroid/recently-played () ()
-  "Get the last 3 played tracks with MusicBrainz links"
-  (with-error-handling
-    (let ((tracks (get-recently-played)))
-      (api-output `(("status" . "success")
-                    ("tracks" . ,(mapcar (lambda (track)
-                                           (let* ((title (getf track :title))
-                                                  (timestamp (getf track :timestamp))
-                                                  (unix-timestamp (universal-time-to-unix timestamp))
-                                                  (parsed (parse-track-title title))
-                                                  (artist (getf parsed :artist))
-                                                  (song (getf parsed :song))
-                                                  (search-url (generate-music-search-url artist song)))
-                                             `(("title" . ,title)
-                                               ("artist" . ,artist)
-                                               ("song" . ,song)
-                                               ("timestamp" . ,unix-timestamp)
-                                               ("search_url" . ,search-url))))
-                                         tracks)))))))
-
 (define-api asteroid/admin/tracks () ()
   "API endpoint to view all tracks in database"
   (require-authentication)
