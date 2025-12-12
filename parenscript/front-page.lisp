@@ -311,37 +311,49 @@
      (defun attach-audio-event-listeners (audio-element)
        "Attach all necessary event listeners to an audio element"
        
-       ;; Error handler
+       ;; Error handler - retry indefinitely with exponential backoff
        (ps:chain audio-element
                  (add-event-listener "error"
                                      (lambda (err)
-                                       (incf *stream-error-count*)
                                        (ps:chain console (log "Stream error:" err))
-
-                                       (if (< *stream-error-count* 3)
-                                           ;; Auto-retry for first few errors
-                                           (progn
-                                             (show-stream-status (+ "⚠️ Stream error. Reconnecting... (attempt " *stream-error-count* ")") "warning")
-                                             (setf *reconnect-timeout*
-                                                   (set-timeout reconnect-stream 3000)))
-                                           ;; Too many errors, show manual reconnect
-                                           (progn
-                                             (show-stream-status "❌ Stream connection lost. Click Reconnect to try again." "error")
-                                             (show-reconnect-button))))))
+                                       (when *is-reconnecting*
+                                         (return))
+                                       (incf *stream-error-count*)
+                                       ;; Calculate delay with exponential backoff (3s, 6s, 12s, max 30s)
+                                       (let ((delay (ps:chain |Math| (min (* 3000 (ps:chain |Math| (pow 2 (- *stream-error-count* 1)))) 30000))))
+                                         (show-stream-status (+ "⚠️ Stream error. Reconnecting in " (/ delay 1000) "s... (attempt " *stream-error-count* ")") "warning")
+                                         (setf *is-reconnecting* t)
+                                         (setf *reconnect-timeout*
+                                               (set-timeout reconnect-stream delay))))))
        
        ;; Stalled handler
        (ps:chain audio-element
                  (add-event-listener "stalled"
                                      (lambda ()
-                                       (ps:chain console (log "Stream stalled"))
-                                       (show-stream-status "⚠️ Stream stalled. Attempting to recover..." "warning")
+                                       (when *is-reconnecting*
+                                         (return))
+                                       (ps:chain console (log "Stream stalled, will auto-reconnect in 5 seconds..."))
+                                       (show-stream-status "⚠️ Stream stalled - reconnecting..." "warning")
+                                       (setf *is-reconnecting* t)
                                        (setf *reconnect-timeout*
                                              (set-timeout
                                               (lambda ()
                                                 ;; Only reconnect if still stalled
-                                                (when (ps:@ audio-element paused)
-                                                  (reconnect-stream)))
+                                                (if (< (ps:@ audio-element ready-state) 3)
+                                                    (reconnect-stream)
+                                                    (setf *is-reconnecting* false)))
                                               5000)))))
+       
+       ;; Ended handler - stream shouldn't end, so reconnect
+       (ps:chain audio-element
+                 (add-event-listener "ended"
+                                     (lambda ()
+                                       (when *is-reconnecting*
+                                         (return))
+                                       (ps:chain console (log "Stream ended unexpectedly, reconnecting..."))
+                                       (show-stream-status "⚠️ Stream ended - reconnecting..." "warning")
+                                       (setf *is-reconnecting* t)
+                                       (set-timeout reconnect-stream 2000))))
        
        ;; Waiting handler (buffering)
        (ps:chain audio-element
@@ -355,6 +367,7 @@
                  (add-event-listener "playing"
                                      (lambda ()
                                        (setf *stream-error-count* 0)
+                                       (setf *is-reconnecting* false)
                                        (hide-stream-status)
                                        (hide-reconnect-button)
                                        (when *reconnect-timeout*
