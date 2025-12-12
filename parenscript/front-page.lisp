@@ -355,6 +355,17 @@
                                        (setf *is-reconnecting* t)
                                        (set-timeout reconnect-stream 2000))))
        
+       ;; Pause handler - detect browser throttling muted streams
+       (ps:chain audio-element
+                 (add-event-listener "pause"
+                                     (lambda ()
+                                       (when (and (ps:@ audio-element muted)
+                                                  (not *is-reconnecting*))
+                                         (ps:chain console (log "Stream paused while muted (possible browser throttling), reconnecting..."))
+                                         (show-stream-status "⚠️ Stream paused - reconnecting..." "warning")
+                                         (setf *is-reconnecting* t)
+                                         (set-timeout reconnect-stream 3000)))))
+       
        ;; Waiting handler (buffering)
        (ps:chain audio-element
                  (add-event-listener "waiting"
