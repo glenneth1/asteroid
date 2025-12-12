@@ -127,18 +127,55 @@
 
         // Auto-reconnect on stream errors
         const audioElement = document.getElementById('live-audio');
+        var streamErrorCount = 0;
+        var reconnectTimeout = null;
+        var isReconnecting = false;
+
+        audioElement.addEventListener('playing', function() {
+            console.log('Audio playing');
+            streamErrorCount = 0;
+            isReconnecting = false;
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+                reconnectTimeout = null;
+            }
+        });
+
         audioElement.addEventListener('error', function(e) {
-            console.log('Stream error, attempting reconnect in 3 seconds...');
-            setTimeout(function() {
+            console.error('Audio error:', e);
+            if (isReconnecting) return;
+            streamErrorCount++;
+            var delay = Math.min(3000 * Math.pow(2, streamErrorCount - 1), 30000);
+            console.log('Stream error. Reconnecting in ' + (delay/1000) + 's... (attempt ' + streamErrorCount + ')');
+            isReconnecting = true;
+            reconnectTimeout = setTimeout(function() {
                 audioElement.load();
                 audioElement.play().catch(err => console.log('Reconnect failed:', err));
-            }, 3000);
+            }, delay);
         });
 
         audioElement.addEventListener('stalled', function() {
-            console.log('Stream stalled, reloading...');
-            audioElement.load();
-            audioElement.play().catch(err => console.log('Reload failed:', err));
+            if (isReconnecting) return;
+            console.log('Stream stalled, will auto-reconnect in 5 seconds...');
+            isReconnecting = true;
+            setTimeout(function() {
+                if (audioElement.readyState < 3) {
+                    audioElement.load();
+                    audioElement.play().catch(err => console.log('Reload failed:', err));
+                } else {
+                    isReconnecting = false;
+                }
+            }, 5000);
+        });
+
+        audioElement.addEventListener('ended', function() {
+            if (isReconnecting) return;
+            console.log('Stream ended unexpectedly, reconnecting...');
+            isReconnecting = true;
+            setTimeout(function() {
+                audioElement.load();
+                audioElement.play().catch(err => console.log('Reconnect failed:', err));
+            }, 2000);
         });
 
         // Notify parent window that popout is open

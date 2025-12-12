@@ -54,18 +54,8 @@
         });
       }
       
-      // Add event listeners for debugging
-      audioElement.addEventListener('waiting', function() {
-        console.log('Audio buffering...');
-      });
-      
-      audioElement.addEventListener('playing', function() {
-        console.log('Audio playing');
-      });
-      
-      audioElement.addEventListener('error', function(e) {
-        console.error('Audio error:', e);
-      });
+      // Note: Main event listeners are attached via attachAudioListeners()
+      // which is called at the bottom of this script
 
       const selector = document.getElementById('stream-quality');
       const streamQuality = localStorage.getItem('stream-quality') || 'aac';
@@ -251,6 +241,11 @@
       }, 300);
     }
 
+    // Error retry counter and reconnect state
+    var streamErrorCount = 0;
+    var reconnectTimeout = null;
+    var isReconnecting = false;
+
     // Attach event listeners to audio element
     function attachAudioListeners(audioElement) {
       audioElement.addEventListener('waiting', function() {
@@ -260,16 +255,50 @@
       audioElement.addEventListener('playing', function() {
         console.log('Audio playing');
         hideStatus();
+        streamErrorCount = 0;  // Reset error count on successful play
+        isReconnecting = false;  // Reset reconnecting flag
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
       });
       
       audioElement.addEventListener('error', function(e) {
         console.error('Audio error:', e);
-        showStatus('⚠️ Stream error - click 🔄 to reconnect', true);
+        if (isReconnecting) return;  // Already reconnecting, skip
+        streamErrorCount++;
+        // Calculate delay with exponential backoff (3s, 6s, 12s, max 30s)
+        var delay = Math.min(3000 * Math.pow(2, streamErrorCount - 1), 30000);
+        showStatus('⚠️ Stream error. Reconnecting in ' + (delay/1000) + 's... (attempt ' + streamErrorCount + ')', true);
+        isReconnecting = true;
+        reconnectTimeout = setTimeout(function() {
+          reconnectStream();
+        }, delay);
       });
       
       audioElement.addEventListener('stalled', function() {
-        console.log('Audio stalled');
-        showStatus('⚠️ Stream stalled - click 🔄 if no audio', true);
+        if (isReconnecting) return;  // Already reconnecting, skip
+        console.log('Audio stalled, will auto-reconnect in 5 seconds...');
+        showStatus('⚠️ Stream stalled - reconnecting...', true);
+        isReconnecting = true;
+        setTimeout(function() {
+          if (audioElement.readyState < 3) {
+            reconnectStream();
+          } else {
+            isReconnecting = false;
+          }
+        }, 5000);
+      });
+
+      // Handle ended event - stream shouldn't end, so reconnect
+      audioElement.addEventListener('ended', function() {
+        if (isReconnecting) return;  // Already reconnecting, skip
+        console.log('Stream ended unexpectedly, reconnecting...');
+        showStatus('⚠️ Stream ended - reconnecting...', true);
+        isReconnecting = true;
+        setTimeout(function() {
+          reconnectStream();
+        }, 2000);
       });
     }
 
