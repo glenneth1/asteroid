@@ -300,6 +300,19 @@
           reconnectStream();
         }, 2000);
       });
+
+      // Handle pause event - detect browser throttling muted streams
+      audioElement.addEventListener('pause', function() {
+        // If paused while muted and we didn't initiate it, browser may have throttled
+        if (audioElement.muted && !isReconnecting) {
+          console.log('Stream paused while muted (possible browser throttling), will reconnect in 3 seconds...');
+          showStatus('⚠️ Stream paused - reconnecting...', true);
+          isReconnecting = true;
+          setTimeout(function() {
+            reconnectStream();
+          }, 3000);
+        }
+      });
     }
 
     // Attach listeners to initial audio element
