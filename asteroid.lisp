@@ -1281,6 +1281,18 @@
                                         ("total_minutes" . ,(third row))))
                                     stats))))))
 
+(define-api asteroid/stats/geo/cities (country &optional (days "7")) ()
+  "Get city breakdown for a specific country (admin only)"
+  (require-role :admin)
+  (let ((stats (get-geo-stats-by-city country (parse-integer days :junk-allowed t))))
+    (api-output `(("status" . "success")
+                  ("country" . ,country)
+                  ("cities" . ,(mapcar (lambda (row)
+                                         `(("city" . ,(or (first row) "Unknown"))
+                                           ("listeners" . ,(second row))
+                                           ("minutes" . ,(third row))))
+                                       stats))))))
+
 ;; RADIANCE server management functions
 
 (defun start-server (&key (port *server-port*))

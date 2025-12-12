@@ -336,6 +336,9 @@
       return String.fromCodePoint(...codePoints);
     }
     
+    // Track expanded countries
+    const expandedCountries = new Set();
+    
     // Fetch and display geo stats
     function refreshGeoStats() {
       fetch('/api/asteroid/stats/geo?days=7')
@@ -349,12 +352,19 @@
               const country = item.country_code || item[0];
               const listeners = item.total_listeners || item[1] || 0;
               const minutes = item.total_minutes || item[2] || 0;
-              return `<tr>
-                <td>${countryToFlag(country)} ${country}</td>
+              const isExpanded = expandedCountries.has(country);
+              const arrow = isExpanded ? '▼' : '▶';
+              return `<tr class="country-row" data-country="${country}" style="cursor: pointer;" onclick="toggleCountryCities('${country}')">
+                <td><span class="expand-arrow">${arrow}</span> ${countryToFlag(country)} ${country}</td>
                 <td>${listeners}</td>
                 <td>${minutes}</td>
+              </tr>
+              <tr class="city-rows" id="cities-${country}" style="display: ${isExpanded ? 'table-row' : 'none'};">
+                <td colspan="3" style="padding: 0;"><div class="city-container" id="city-container-${country}"></div></td>
               </tr>`;
             }).join('');
+            // Re-fetch cities for expanded countries
+            expandedCountries.forEach(country => fetchCities(country));
           } else {
             tbody.innerHTML = '<tr><td colspan="3" style="color: #888;">No geo data yet</td></tr>';
           }
@@ -363,6 +373,52 @@
           console.error('Error fetching geo stats:', error);
           document.getElementById('geo-stats-body').innerHTML = 
             '<tr><td colspan="3" style="color: #ff6666;">Error loading geo data</td></tr>';
+        });
+    }
+    
+    // Toggle city display for a country
+    function toggleCountryCities(country) {
+      const cityRow = document.getElementById(`cities-${country}`);
+      const countryRow = document.querySelector(`tr[data-country="${country}"]`);
+      const arrow = countryRow.querySelector('.expand-arrow');
+      
+      if (expandedCountries.has(country)) {
+        expandedCountries.delete(country);
+        cityRow.style.display = 'none';
+        arrow.textContent = '▶';
+      } else {
+        expandedCountries.add(country);
+        cityRow.style.display = 'table-row';
+        arrow.textContent = '▼';
+        fetchCities(country);
+      }
+    }
+    
+    // Fetch cities for a country
+    function fetchCities(country) {
+      const container = document.getElementById(`city-container-${country}`);
+      container.innerHTML = '<div style="padding: 5px 20px; color: #888;">Loading cities...</div>';
+      
+      fetch(`/api/asteroid/stats/geo/cities?country=${country}&days=7`)
+        .then(response => response.json())
+        .then(result => {
+          const data = result.data || result;
+          if (data.status === 'success' && data.cities && data.cities.length > 0) {
+            container.innerHTML = '<table style="width: 100%; margin-left: 20px;">' +
+              data.cities.map(city => `
+                <tr style="background: rgba(0,255,0,0.05);">
+                  <td style="padding: 3px 10px;">└ ${city.city}</td>
+                  <td style="padding: 3px 10px;">${city.listeners}</td>
+                  <td style="padding: 3px 10px;">${city.minutes}</td>
+                </tr>
+              `).join('') + '</table>';
+          } else {
+            container.innerHTML = '<div style="padding: 5px 20px; color: #888;">No city data</div>';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching cities:', error);
+          container.innerHTML = '<div style="padding: 5px 20px; color: #ff6666;">Error loading cities</div>';
         });
     }
     

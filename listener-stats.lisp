@@ -382,6 +382,22 @@
       (log:error "Failed to get geo stats: ~a" e)
       nil)))
 
+(defun get-geo-stats-by-city (country-code &optional (days 7))
+  "Get city breakdown for a specific country for the last N days"
+  (handler-case
+      (with-db
+        (postmodern:query
+         (format nil "SELECT city, SUM(listener_count) as total_listeners, SUM(listen_minutes) as total_minutes
+          FROM listener_geo_stats
+          WHERE date > NOW() - INTERVAL '~a days'
+            AND country_code = '~a'
+          GROUP BY city
+          ORDER BY total_listeners DESC
+          LIMIT 10" days country-code)))
+    (error (e)
+      (log:error "Failed to get city stats for ~a: ~a" country-code e)
+      nil)))
+
 (defun get-user-listening-stats (user-id)
   "Get listening statistics for a specific user"
   (handler-case
