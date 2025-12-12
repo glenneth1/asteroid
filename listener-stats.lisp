@@ -265,18 +265,19 @@
     (error (e)
       (log:error "Session cleanup failed: ~a" e))))
 
-(defun update-geo-stats (country-code listener-count)
-  "Update geo stats for today"
+(defun update-geo-stats (country-code listener-count &optional city)
+  "Update geo stats for today, optionally including city"
   (when country-code
     (handler-case
         (with-db
-          (postmodern:execute
-           (format nil "INSERT INTO listener_geo_stats (date, country_code, listener_count, listen_minutes)
-                        VALUES (CURRENT_DATE, '~a', ~a, 1)
-                        ON CONFLICT (date, country_code) 
+          (let ((city-sql (if city (format nil "'~a'" city) "NULL")))
+            (postmodern:execute
+             (format nil "INSERT INTO listener_geo_stats (date, country_code, city, listener_count, listen_minutes)
+                        VALUES (CURRENT_DATE, '~a', ~a, ~a, 1)
+                        ON CONFLICT (date, country_code, city) 
                         DO UPDATE SET listener_count = listener_geo_stats.listener_count + ~a,
                                       listen_minutes = listener_geo_stats.listen_minutes + 1"
-                   country-code listener-count listener-count)))
+                     country-code city-sql listener-count listener-count))))
       (error (e)
         (log:error "Failed to update geo stats: ~a" e)))))
 
@@ -402,52 +403,55 @@
 ;;; Polling Service
 
 (defun get-cached-geo (ip)
-  "Get cached geo data for IP, or lookup and cache"
+  "Get cached geo data for IP, or lookup and cache. Returns (country . city) or nil."
   (let* ((ip-hash (hash-ip-address ip))
          (cached (gethash ip-hash *geo-cache*)))
     (if (and cached (< (- (get-universal-time) (getf cached :time)) *geo-cache-ttl*))
-        (getf cached :country)
+        (cons (getf cached :country) (getf cached :city))
         ;; Lookup and cache
         (let ((geo (lookup-geoip ip)))
           (when geo
-            (let ((country (getf geo :country-code)))
+            (let ((country (getf geo :country-code))
+                  (city (getf geo :city)))
               (setf (gethash ip-hash *geo-cache*)
-                    (list :country country :time (get-universal-time)))
-              country))))))
+                    (list :country country :city city :time (get-universal-time)))
+              (cons country city)))))))
 
 (defun collect-geo-stats-for-mount (mount)
   "Collect geo stats for all listeners on a mount (from Icecast - may show proxy IPs)"
   (let ((listclients-xml (fetch-icecast-listclients mount)))
     (when listclients-xml
       (let ((ips (extract-listener-ips listclients-xml))
-            (country-counts (make-hash-table :test 'equal)))
-        ;; Group by country
+            (location-counts (make-hash-table :test 'equal)))
+        ;; Group by country+city
         (dolist (ip ips)
-          (let ((country (get-cached-geo ip)))
-            (when country
-              (incf (gethash country country-counts 0)))))
-        ;; Store each country's count
-        (maphash (lambda (country count)
-                   (update-geo-stats country count))
-                 country-counts)))))
+          (let ((geo (get-cached-geo ip)))  ; Returns (country . city) or nil
+            (when geo
+              (incf (gethash geo location-counts 0)))))
+        ;; Store each country+city count
+        (maphash (lambda (key count)
+                   (update-geo-stats (car key) count (cdr key)))
+                 location-counts)))))
 
 (defun collect-geo-stats-from-web-listeners ()
   "Collect geo stats from web listeners (uses real IPs from X-Forwarded-For)"
   (cleanup-stale-web-listeners)
-  (let ((country-counts (make-hash-table :test 'equal)))
-    ;; Count listeners by country from cached geo data
+  (let ((location-counts (make-hash-table :test 'equal)))
+    ;; Count listeners by country+city from cached geo data
     (maphash (lambda (session-id data)
                (declare (ignore session-id))
                (let* ((ip-hash (getf data :ip-hash))
                       (cached-geo (gethash ip-hash *geo-cache*))
-                      (country (when cached-geo (getf cached-geo :country))))
-                 (when country
-                   (incf (gethash country country-counts 0)))))
+                      (country (when cached-geo (getf cached-geo :country)))
+                      (city (when cached-geo (getf cached-geo :city)))
+                      (key (when country (cons country city))))
+                 (when key
+                   (incf (gethash key location-counts 0)))))
              *web-listeners*)
-    ;; Store each country's count
-    (maphash (lambda (country count)
-               (update-geo-stats country count))
-             country-counts)))
+    ;; Store each country+city count
+    (maphash (lambda (key count)
+               (update-geo-stats (car key) count (cdr key)))
+             location-counts)))
 
 (defun poll-and-store-stats ()
   "Single poll iteration: fetch stats and store"
