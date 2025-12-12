@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS listener_geo_stats (
     city VARCHAR(100),
     listener_count INTEGER DEFAULT 0,
     listen_minutes INTEGER DEFAULT 0,
-    UNIQUE(date, country_code, city)
+    UNIQUE(date, country_code)
 );
 
 CREATE INDEX IF NOT EXISTS idx_geo_stats_date ON listener_geo_stats(date);
