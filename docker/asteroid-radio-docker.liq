@@ -15,6 +15,11 @@ settings.frame.audio.channels.set(2)
 # Use "fast" resampler instead of "best" to reduce CPU load on 96kHz files
 settings.audio.converter.samplerate.libsamplerate.quality.set("fast")
 
+# Prefer native decoders over FFmpeg for better performance
+settings.decoder.priorities.flac := 10
+settings.decoder.priorities.mad := 10
+settings.decoder.priorities.ffmpeg := 1
+
 # Enable telnet server for remote control
 settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
@@ -40,9 +45,6 @@ radio_fallback = playlist.safe(
 # Use main playlist, fall back to directory scan
 radio = fallback(track_sensitive=false, [radio, radio_fallback])
 
-# Add buffer to handle high sample rate files (96kHz -> 44.1kHz resampling)
-radio = buffer(buffer=5.0, max=10.0, radio)
-
 # Simple crossfade for smooth transitions
 radio = crossfade(
   duration=3.0,        # 3 second crossfade
@@ -50,6 +52,9 @@ radio = crossfade(
   fade_out=2.0,        # 2 second fade out
   radio
 )
+
+# Add buffer after crossfade to handle high sample rate files (96kHz -> 44.1kHz resampling)
+radio = buffer(buffer=5.0, max=10.0, radio)
 
 # Create a fallback with emergency content
 emergency = sine(440.0)
