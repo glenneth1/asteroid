@@ -12,7 +12,8 @@ log.level.set(4)
 # Audio buffering settings to prevent choppiness
 settings.frame.audio.samplerate.set(44100)
 settings.frame.audio.channels.set(2)
-settings.audio.converter.samplerate.libsamplerate.quality.set("best")
+# Use "fast" resampler instead of "best" to reduce CPU load on 96kHz files
+settings.audio.converter.samplerate.libsamplerate.quality.set("fast")
 
 # Enable telnet server for remote control
 settings.server.telnet.set(true)
@@ -38,6 +39,9 @@ radio_fallback = playlist.safe(
 
 # Use main playlist, fall back to directory scan
 radio = fallback(track_sensitive=false, [radio, radio_fallback])
+
+# Add buffer to handle high sample rate files (96kHz -> 44.1kHz resampling)
+radio = buffer(buffer=5.0, max=10.0, radio)
 
 # Simple crossfade for smooth transitions
 radio = crossfade(
