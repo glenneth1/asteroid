@@ -186,7 +186,10 @@
   (let* ((current-user (get-current-user))
          (uri (radiance:path (radiance:uri *request*)))
          ;; Use explicit flag if provided, otherwise auto-detect from URI
-         (is-api-request (if api t (search "/api/" uri))))
+         ;; Check both "/api/" and "api/" since path may or may not have leading slash
+         (is-api-request (if api t (or (search "/api/" uri)
+                                       (and (>= (length uri) 4)
+                                            (string= "api/" (subseq uri 0 4)))))))
     (format t "Current user for role check: ~a~%" (if current-user "FOUND" "NOT FOUND"))
     (format t "Request URI: ~a, Is API: ~a~%" uri (if is-api-request "YES" "NO"))
     (when current-user

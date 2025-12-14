@@ -183,11 +183,6 @@
       </div>
   </div>
 
-  <script>
-    // Initialize profile page
-    document.addEventListener('DOMContentLoaded', function() {
-      loadProfileData();
-    });
-  </script>
+  <!-- Initialization handled by profile.js -->
 </body>
 </html>

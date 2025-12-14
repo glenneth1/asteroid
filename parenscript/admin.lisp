@@ -27,6 +27,7 @@
                  (load-playlist-list)
                  (load-current-queue)
                  (refresh-liquidsoap-status)
+                 (setup-stats-refresh)
                  ;; Update Liquidsoap status every 10 seconds
                  (set-interval refresh-liquidsoap-status 10000))))
     
@@ -854,6 +855,244 @@
                 (ps:chain console (error "Error restarting Icecast:" error))
                 (alert "Error restarting Icecast")))))
     
+    ;; ========================================
+    ;; Listener Statistics
+    ;; ========================================
+    
+    ;; Refresh listener stats from API
+    (defun refresh-listener-stats ()
+      (let ((status-el (ps:chain document (get-element-by-id "stats-status"))))
+        (when status-el
+          (setf (ps:@ status-el text-content) "Loading...")))
+      
+      (ps:chain
+       (fetch "/api/asteroid/stats/current")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (and (= (ps:@ data status) "success") (ps:@ data listeners))
+                     (progn
+                       ;; Process listener data - get most recent for each mount
+                       (let ((mounts (ps:create)))
+                         (ps:chain (ps:@ data listeners)
+                                   (for-each (lambda (item)
+                                               ;; item is [mount, "/asteroid.mp3", listeners, 1, timestamp, 123456]
+                                               (let ((mount (ps:getprop item 1))
+                                                     (listeners (ps:getprop item 3))
+                                                     (timestamp (ps:getprop item 5)))
+                                                 (when (or (not (ps:getprop mounts mount))
+                                                           (> timestamp (ps:@ (ps:getprop mounts mount) timestamp)))
+                                                   (setf (ps:getprop mounts mount)
+                                                         (ps:create :listeners listeners :timestamp timestamp)))))))
+                         
+                         ;; Update UI
+                         (let ((mp3 (or (and (ps:getprop mounts "/asteroid.mp3")
+                                             (ps:@ (ps:getprop mounts "/asteroid.mp3") listeners)) 0))
+                               (aac (or (and (ps:getprop mounts "/asteroid.aac")
+                                             (ps:@ (ps:getprop mounts "/asteroid.aac") listeners)) 0))
+                               (low (or (and (ps:getprop mounts "/asteroid-low.mp3")
+                                             (ps:@ (ps:getprop mounts "/asteroid-low.mp3") listeners)) 0)))
+                           
+                           (let ((mp3-el (ps:chain document (get-element-by-id "listeners-mp3")))
+                                 (aac-el (ps:chain document (get-element-by-id "listeners-aac")))
+                                 (low-el (ps:chain document (get-element-by-id "listeners-low")))
+                                 (total-el (ps:chain document (get-element-by-id "listeners-total")))
+                                 (updated-el (ps:chain document (get-element-by-id "stats-updated")))
+                                 (status-el (ps:chain document (get-element-by-id "stats-status"))))
+                             
+                             (when mp3-el (setf (ps:@ mp3-el text-content) mp3))
+                             (when aac-el (setf (ps:@ aac-el text-content) aac))
+                             (when low-el (setf (ps:@ low-el text-content) low))
+                             (when total-el (setf (ps:@ total-el text-content) (+ mp3 aac low)))
+                             (when updated-el
+                               (setf (ps:@ updated-el text-content)
+                                     (ps:chain (ps:new (-date)) (to-locale-time-string))))
+                             (when status-el (setf (ps:@ status-el text-content) ""))))))
+                     (let ((status-el (ps:chain document (get-element-by-id "stats-status"))))
+                       (when status-el
+                         (setf (ps:@ status-el text-content) "No data available")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error fetching stats:" error))
+                (let ((status-el (ps:chain document (get-element-by-id "stats-status"))))
+                  (when status-el
+                    (setf (ps:@ status-el text-content) "Error loading stats")))))))
+    
+    ;; ========================================
+    ;; Geo Statistics
+    ;; ========================================
+    
+    ;; Track expanded countries
+    (defvar *expanded-countries* (ps:new (-set)))
+    
+    ;; Convert country code to flag emoji
+    (defun country-to-flag (country-code)
+      (if (or (not country-code) (not (= (ps:@ country-code length) 2)))
+          "🌍"
+          (let ((code-points (ps:chain (ps:chain country-code (to-upper-case))
+                                       (split "")
+                                       (map (lambda (char)
+                                              (+ 127397 (ps:chain char (char-code-at 0))))))))
+            (ps:chain -string (from-code-point (ps:@ code-points 0) (ps:@ code-points 1))))))
+    
+    ;; Refresh geo stats from API
+    (defun refresh-geo-stats ()
+      (ps:chain
+       (fetch "/api/asteroid/stats/geo?days=7")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result))
+                     (tbody (ps:chain document (get-element-by-id "geo-stats-body"))))
+                 (when tbody
+                   (if (and (= (ps:@ data status) "success")
+                            (ps:@ data geo)
+                            (> (ps:@ (ps:@ data geo) length) 0))
+                       (progn
+                         (setf (ps:@ tbody inner-h-t-m-l)
+                               (ps:chain (ps:@ data geo)
+                                         (map (lambda (item)
+                                                (let* ((country (or (ps:@ item country_code) (ps:getprop item 0)))
+                                                       (listeners (or (ps:@ item total_listeners) (ps:getprop item 1) 0))
+                                                       (minutes (or (ps:@ item total_minutes) (ps:getprop item 2) 0))
+                                                       (is-expanded (ps:chain *expanded-countries* (has country)))
+                                                       (arrow (if is-expanded "▼" "▶")))
+                                                  (+ "<tr class=\"country-row\" data-country=\"" country "\" style=\"cursor: pointer;\" onclick=\"toggleCountryCities('" country "')\">"
+                                                     "<td><span class=\"expand-arrow\">" arrow "</span> " (country-to-flag country) " " country "</td>"
+                                                     "<td>" listeners "</td>"
+                                                     "<td>" minutes "</td>"
+                                                     "</tr>"
+                                                     "<tr class=\"city-rows\" id=\"cities-" country "\" style=\"display: " (if is-expanded "table-row" "none") ";\">"
+                                                     "<td colspan=\"3\" style=\"padding: 0;\"><div class=\"city-container\" id=\"city-container-" country "\"></div></td>"
+                                                     "</tr>"))))
+                                         (join "")))
+                         ;; Re-fetch cities for expanded countries
+                         (ps:chain *expanded-countries*
+                                   (for-each (lambda (country)
+                                               (fetch-cities country)))))
+                       (setf (ps:@ tbody inner-h-t-m-l)
+                             "<tr><td colspan=\"3\" style=\"color: #888;\">No geo data yet</td></tr>"))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error fetching geo stats:" error))
+                (let ((tbody (ps:chain document (get-element-by-id "geo-stats-body"))))
+                  (when tbody
+                    (setf (ps:@ tbody inner-h-t-m-l)
+                          "<tr><td colspan=\"3\" style=\"color: #ff6666;\">Error loading geo data</td></tr>")))))))
+    
+    ;; Toggle city display for a country
+    (defun toggle-country-cities (country)
+      (let ((city-row (ps:chain document (get-element-by-id (+ "cities-" country))))
+            (country-row (ps:chain document (query-selector (+ "tr[data-country=\"" country "\"]"))))
+            (arrow (when country-row (ps:chain country-row (query-selector ".expand-arrow")))))
+        
+        (if (ps:chain *expanded-countries* (has country))
+            (progn
+              (ps:chain *expanded-countries* (delete country))
+              (when city-row (setf (ps:@ city-row style display) "none"))
+              (when arrow (setf (ps:@ arrow text-content) "▶")))
+            (progn
+              (ps:chain *expanded-countries* (add country))
+              (when city-row (setf (ps:@ city-row style display) "table-row"))
+              (when arrow (setf (ps:@ arrow text-content) "▼"))
+              (fetch-cities country)))))
+    
+    ;; Fetch cities for a country
+    (defun fetch-cities (country)
+      (let ((container (ps:chain document (get-element-by-id (+ "city-container-" country)))))
+        (when container
+          (setf (ps:@ container inner-h-t-m-l)
+                "<div style=\"padding: 5px 20px; color: #888;\">Loading cities...</div>")
+          
+          (ps:chain
+           (fetch (+ "/api/asteroid/stats/geo/cities?country=" country "&days=7"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (and (= (ps:@ data status) "success")
+                              (ps:@ data cities)
+                              (> (ps:@ (ps:@ data cities) length) 0))
+                         (setf (ps:@ container inner-h-t-m-l)
+                               (+ "<table style=\"width: 100%; margin-left: 20px;\">"
+                                  (ps:chain (ps:@ data cities)
+                                            (map (lambda (city)
+                                                   (+ "<tr style=\"background: rgba(0,255,0,0.05);\">"
+                                                      "<td style=\"padding: 3px 10px;\">└ " (ps:@ city city) "</td>"
+                                                      "<td style=\"padding: 3px 10px;\">" (ps:@ city listeners) "</td>"
+                                                      "<td style=\"padding: 3px 10px;\">" (ps:@ city minutes) "</td>"
+                                                      "</tr>")))
+                                            (join ""))
+                                  "</table>"))
+                         (setf (ps:@ container inner-h-t-m-l)
+                               "<div style=\"padding: 5px 20px; color: #888;\">No city data</div>")))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error fetching cities:" error))
+                    (setf (ps:@ container inner-h-t-m-l)
+                          "<div style=\"padding: 5px 20px; color: #ff6666;\">Error loading cities</div>")))))))
+    
+    ;; ========================================
+    ;; Admin Password Reset
+    ;; ========================================
+    
+    (defun reset-user-password (event)
+      (ps:chain event (prevent-default))
+      
+      (let ((username (ps:@ (ps:chain document (get-element-by-id "reset-username")) value))
+            (new-password (ps:@ (ps:chain document (get-element-by-id "reset-new-password")) value))
+            (confirm-password (ps:@ (ps:chain document (get-element-by-id "reset-confirm-password")) value))
+            (message-div (ps:chain document (get-element-by-id "reset-password-message"))))
+        
+        ;; Client-side validation
+        (when (< (ps:@ new-password length) 8)
+          (setf (ps:@ message-div text-content) "New password must be at least 8 characters")
+          (setf (ps:@ message-div class-name) "message error")
+          (return nil))
+        
+        (when (not (= new-password confirm-password))
+          (setf (ps:@ message-div text-content) "Passwords do not match")
+          (setf (ps:@ message-div class-name) "message error")
+          (return nil))
+        
+        ;; Send request to API
+        (let ((form-data (ps:new (-form-data))))
+          (ps:chain form-data (append "username" username))
+          (ps:chain form-data (append "new-password" new-password))
+          
+          (ps:chain
+           (fetch "/api/asteroid/admin/reset-password"
+                  (ps:create :method "POST" :body form-data))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (data)
+                   (if (or (= (ps:@ data status) "success")
+                           (and (ps:@ data data) (= (ps:@ (ps:@ data data) status) "success")))
+                       (progn
+                         (setf (ps:@ message-div text-content)
+                               (+ "Password reset successfully for user: " username))
+                         (setf (ps:@ message-div class-name) "message success")
+                         (ps:chain (ps:chain document (get-element-by-id "admin-reset-password-form")) (reset)))
+                       (progn
+                         (setf (ps:@ message-div text-content)
+                               (or (ps:@ data message)
+                                   (and (ps:@ data data) (ps:@ (ps:@ data data) message))
+                                   "Failed to reset password"))
+                         (setf (ps:@ message-div class-name) "message error")))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error resetting password:" error))
+                    (setf (ps:@ message-div text-content) "Error resetting password")
+                    (setf (ps:@ message-div class-name) "message error"))))))
+      
+      nil)
+    
+    ;; ========================================
+    ;; Auto-refresh and Initialization for Stats
+    ;; ========================================
+    
+    ;; Setup stats auto-refresh (called from DOMContentLoaded)
+    (defun setup-stats-refresh ()
+      ;; Initial load
+      (refresh-listener-stats)
+      (refresh-geo-stats)
+      ;; Auto-refresh intervals
+      (set-interval refresh-listener-stats 30000)
+      (set-interval refresh-geo-stats 60000))
+    
     ;; Make functions globally accessible for onclick handlers
     (setf (ps:@ window go-to-page) go-to-page)
     (setf (ps:@ window previous-page) previous-page)
@@ -866,6 +1105,11 @@
     (setf (ps:@ window move-track-down) move-track-down)
     (setf (ps:@ window remove-from-queue) remove-from-queue)
     (setf (ps:@ window add-to-queue) add-to-queue)
+    (setf (ps:@ window toggle-country-cities) toggle-country-cities)
+    (setf (ps:@ window reset-user-password) reset-user-password)
+    (setf (ps:@ window refresh-listener-stats) refresh-listener-stats)
+    (setf (ps:@ window refresh-geo-stats) refresh-geo-stats)
+    (setf (ps:@ window setup-stats-refresh) setup-stats-refresh)
     ))
   "Compiled JavaScript for admin dashboard - generated at load time")
 

@@ -6,7 +6,7 @@
 # Allow running as root in Docker
 set("init.allow_root", true)
 
-# Set log level for debugging
+# Set log level (4 = warning, suppresses info messages including telnet noise)
 log.level.set(4)
 
 # Audio buffering settings to prevent choppiness
