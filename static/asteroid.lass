@@ -1055,7 +1055,8 @@
      :color "#00ff00"
      :letter-spacing "0.08rem"
      :border "1px solid #00ff00"
-     :padding "3px 8px")
+     :padding "3px 8px"
+     :min-width "140px")
     ((:and select :hover)
      :background "#2a3441"))
 

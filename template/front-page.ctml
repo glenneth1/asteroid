@@ -76,6 +76,7 @@
             <option value="aac">AAC 96kbps (Recommended)</option>
             <option value="mp3">MP3 128kbps (Compatible)</option>
             <option value="low">MP3 64kbps (Low Bandwidth)</option>
+            <option value="shuffle">🎲 Shuffle 96kbps</option>
           </select>
         </div>
         
