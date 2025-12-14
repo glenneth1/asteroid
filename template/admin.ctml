@@ -58,6 +58,7 @@
             <th>🎵 MP3</th>
             <th>🎧 AAC</th>
             <th>📱 Low</th>
+            <th>🎲 Shuffle</th>
             <th>📈 Total</th>
           </tr>
         </thead>
@@ -66,12 +67,14 @@
             <td style="text-align: center;"><span class="stat-number" id="listeners-mp3">0</span></td>
             <td style="text-align: center;"><span class="stat-number" id="listeners-aac">0</span></td>
             <td style="text-align: center;"><span class="stat-number" id="listeners-low">0</span></td>
+            <td style="text-align: center;"><span class="stat-number" id="listeners-shuffle">0</span></td>
             <td style="text-align: center;"><span class="stat-number" id="listeners-total">0</span></td>
           </tr>
           <tr class="stat-peak-row">
             <td style="text-align: center;">Peak: <span id="peak-mp3">0</span></td>
             <td style="text-align: center;">Peak: <span id="peak-aac">0</span></td>
             <td style="text-align: center;">Peak: <span id="peak-low">0</span></td>
+            <td style="text-align: center;">Peak: <span id="peak-shuffle">0</span></td>
             <td style="text-align: center;">Updated: <span id="stats-updated">--</span></td>
           </tr>
         </tbody>
