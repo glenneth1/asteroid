@@ -1,6 +1,9 @@
 #EXTM3U
-#PLAYLIST:Asteroid Low Orbit - Ambient Electronic Journey
+#PLAYLIST:Low Orbit
+#PHASE:Low Orbit
+#DURATION:12 hours (approx)
 #CURATOR:Asteroid Radio
+#DESCRIPTION:A 12-hour voyage through ambient, IDM, and space music
 
 #EXTINF:-1,Brian Eno - Emerald And Lime
 /app/music/Brian Eno/2011 - Small Craft On a Milk Sea/A1 Emerald And Lime.flac

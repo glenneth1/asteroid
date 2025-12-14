@@ -653,7 +653,12 @@
                    (if (= (ps:@ data status) "success")
                        (progn
                          (show-toast (+ "✓ Loaded " (ps:@ data count) " tracks from " name))
-                         (load-current-queue))
+                         (load-current-queue)
+                         ;; Update channel name in all channel selectors
+                         ;; Use bracket notation because API returns "channel-name" with hyphen
+                         (let ((channel-name (aref data "channel-name")))
+                           (when channel-name
+                             (update-channel-selector-name channel-name))))
                        (alert (+ "Error loading playlist: " (or (ps:@ data message) "Unknown error")))))))
          (catch (lambda (error)
                   (ps:chain console (error "Error loading playlist:" error))
@@ -704,6 +709,29 @@
                                                "</div>")))))
                 (setf html (+ html "</div>"))
                 (setf (ps:@ container inner-h-t-m-l) html))))))
+    
+    ;; Update channel selector name in UI after loading a new playlist
+    (defun update-channel-selector-name (channel-name)
+      "Update the curated channel option text in all channel selectors"
+      (ps:chain console (log "Updating channel name to:" channel-name))
+      
+      ;; Store in localStorage so popout player can pick it up
+      (ps:chain local-storage (set-item "curated-channel-name" channel-name))
+      
+      ;; Update in current document
+      (let ((channel-selector (ps:chain document (get-element-by-id "stream-channel"))))
+        (when channel-selector
+          (let ((curated-option (ps:chain channel-selector (query-selector "option[value='curated']"))))
+            (when curated-option
+              (setf (ps:@ curated-option text-content) (+ "🎧 " channel-name))))))
+      
+      ;; Use postMessage to notify all frames about the channel name change
+      (when (and (ps:@ window top)
+                 (not (= (ps:@ window top) window)))
+        ;; Post to top window which will relay to all frames
+        (ps:chain window top (post-message 
+          (ps:create :type "channel-name-update" :channel-name channel-name)
+          "*"))))
     
     ;; Save current queue to stream-queue.m3u
     (defun save-stream-queue ()
