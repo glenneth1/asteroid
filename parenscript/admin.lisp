@@ -713,8 +713,6 @@
     ;; Update channel selector name in UI after loading a new playlist
     (defun update-channel-selector-name (channel-name)
       "Update the curated channel option text in all channel selectors"
-      (ps:chain console (log "Updating channel name to:" channel-name))
-      
       ;; Store in localStorage so popout player can pick it up
       (ps:chain local-storage (set-item "curated-channel-name" channel-name))
       

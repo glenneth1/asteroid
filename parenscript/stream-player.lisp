@@ -558,19 +558,16 @@
            
            ;; Check for channel name changes from localStorage periodically
            (let ((last-channel-name (ps:chain local-storage (get-item "curated-channel-name"))))
-             (ps:chain console (log "Frame player: initial channel name from localStorage:" last-channel-name))
              (set-interval
                (lambda ()
                  (let ((current-channel-name (ps:chain local-storage (get-item "curated-channel-name"))))
                    (when (and current-channel-name
                               (not (= current-channel-name last-channel-name)))
-                     (ps:chain console (log "Frame player: channel name changed from" last-channel-name "to" current-channel-name))
                      (setf last-channel-name current-channel-name)
                      (let ((channel-selector (ps:chain document (get-element-by-id "stream-channel"))))
                        (when channel-selector
                          (let ((curated-option (ps:chain channel-selector (query-selector "option[value='curated']"))))
                            (when curated-option
-                             (ps:chain console (log "Frame player: updating curated option text"))
                              (setf (ps:@ curated-option text-content) (+ "🎧 " current-channel-name)))))))))
                2000))
            
