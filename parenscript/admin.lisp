@@ -983,9 +983,9 @@
     
     ;; Toggle city display for a country
     (defun toggle-country-cities (country)
-      (let ((city-row (ps:chain document (get-element-by-id (+ "cities-" country))))
-            (country-row (ps:chain document (query-selector (+ "tr[data-country=\"" country "\"]"))))
-            (arrow (when country-row (ps:chain country-row (query-selector ".expand-arrow")))))
+      (let* ((city-row (ps:chain document (get-element-by-id (+ "cities-" country))))
+             (country-row (ps:chain document (query-selector (+ "tr[data-country=\"" country "\"]"))))
+             (arrow (when country-row (ps:chain country-row (query-selector ".expand-arrow")))))
         
         (if (ps:chain *expanded-countries* (has country))
             (progn
