@@ -429,10 +429,17 @@
             ;; Copy playlist to stream-queue.m3u
             (copy-playlist-to-stream-queue playlist-path)
             ;; Load into in-memory queue
-            (let ((count (load-queue-from-m3u-file)))
+            (let ((count (load-queue-from-m3u-file))
+                  (channel-name (get-curated-channel-name)))
+              ;; Skip current track to trigger crossfade to new playlist
+              (handler-case
+                  (liquidsoap-command "stream-queue_m3u.skip")
+                (error (e) 
+                  (format *error-output* "Warning: Could not skip track: ~a~%" e)))
               (api-output `(("status" . "success")
                             ("message" . ,(format nil "Loaded playlist: ~a" name))
                             ("count" . ,count)
+                            ("channel-name" . ,channel-name)
                             ("paths" . ,(read-m3u-file-paths stream-queue-path))))))
           (api-output `(("status" . "error")
                         ("message" . "Playlist file not found"))
