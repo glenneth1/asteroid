@@ -78,6 +78,54 @@
               :song (string-trim " " (subseq title (+ pos 3))))
         (list :artist "Unknown" :song title))))
 
+(defun get-playlist-metadata ()
+  "Parse metadata from the stream-queue.m3u playlist file.
+   Returns a plist with :playlist-name, :phase, :description, :curator, :duration"
+  (let ((playlist-path (merge-pathnames "playlists/stream-queue.m3u" 
+                                        (asdf:system-source-directory :asteroid))))
+    (if (probe-file playlist-path)
+        (handler-case
+            (with-open-file (stream playlist-path :direction :input)
+              (let ((metadata (list :playlist-name nil
+                                   :phase nil
+                                   :description nil
+                                   :curator nil
+                                   :duration nil)))
+                (loop for line = (read-line stream nil nil)
+                      while line
+                      do (cond
+                           ((cl-ppcre:scan "^#PLAYLIST:" line)
+                            (setf (getf metadata :playlist-name)
+                                  (string-trim " " (subseq line 10))))
+                           ((cl-ppcre:scan "^#PHASE:" line)
+                            (setf (getf metadata :phase)
+                                  (string-trim " " (subseq line 7))))
+                           ((cl-ppcre:scan "^#DESCRIPTION:" line)
+                            (setf (getf metadata :description)
+                                  (string-trim " " (subseq line 13))))
+                           ((cl-ppcre:scan "^#CURATOR:" line)
+                            (setf (getf metadata :curator)
+                                  (string-trim " " (subseq line 9))))
+                           ((cl-ppcre:scan "^#DURATION:" line)
+                            (setf (getf metadata :duration)
+                                  (string-trim " " (subseq line 10))))
+                           ;; Stop parsing after we hit actual track entries
+                           ((and (> (length line) 0)
+                                 (not (char= (char line 0) #\#)))
+                            (return))))
+                metadata))
+          (error (e)
+            (format t "Error reading playlist metadata: ~a~%" e)
+            (list :playlist-name nil :phase nil :description nil :curator nil :duration nil)))
+        (list :playlist-name nil :phase nil :description nil :curator nil :duration nil))))
+
+(defun get-curated-channel-name ()
+  "Get the display name for the curated channel from playlist metadata.
+   Falls back to 'Curated' if no phase is defined."
+  (let* ((metadata (get-playlist-metadata))
+         (phase (getf metadata :phase)))
+    (or phase "Curated")))
+
 (defun generate-music-search-url (artist song)
   "Generate MusicBrainz search URL for artist and song"
   ;; Simple search without field prefixes works better with URL encoding
@@ -767,6 +815,7 @@
    :listeners "0"
    :stream-quality "128kbps MP3"
    :stream-base-url *stream-base-url*
+   :curated-channel-name (get-curated-channel-name)
    :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
    :default-stream-encoding "audio/aac"
    :default-stream-encoding-desc "AAC 96kbps Stereo"
@@ -793,6 +842,7 @@
    :listeners "0"
    :stream-quality "128kbps MP3"
    :stream-base-url *stream-base-url*
+   :curated-channel-name (get-curated-channel-name)
    :now-playing-artist "The Void"
    :now-playing-track "Silence"
    :now-playing-album "Startup Sounds"
@@ -806,6 +856,7 @@
   (clip:process-to-string 
    (load-template "audio-player-frame")
    :stream-base-url *stream-base-url*
+   :curated-channel-name (get-curated-channel-name)
    :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
    :default-stream-encoding "audio/aac"))
 
@@ -1209,6 +1260,7 @@
   (clip:process-to-string 
    (load-template "popout-player")
    :stream-base-url *stream-base-url*
+   :curated-channel-name (get-curated-channel-name)
    :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
    :default-stream-encoding "audio/aac"))
 
