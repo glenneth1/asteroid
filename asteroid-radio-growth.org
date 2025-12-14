@@ -1,0 +1,181 @@
+#+TITLE: Asteroid Radio - Growth & Listener Retention Ideas
+#+DATE: December 2025
+#+OPTIONS: toc:2
+
+* Current Situation
+
+- 3 listeners (project contributors only)
+- Curated ambient/electronic playlist (Biosphere, Autechre, Four Tet, Brian Eno, etc.)
+- Solid technical foundation now in place
+
+* Why Listeners Might Not Be Sticking
+
+** Discovery Problem
+
+- How do people find Asteroid Radio?
+- No presence on streaming directories, social media, or music communities
+- "If you build it, they will come" doesn't work for internet radio
+
+** Content Predictability
+
+- Curated playlists can feel repetitive to regular listeners
+- Same tracks in same order = listeners know what's coming
+- Ambient/electronic is niche - smaller potential audience
+
+** No "Appointment Listening"
+
+- Nothing that makes someone think "I need to tune in at X time"
+- No live shows, no special events, no schedule
+
+** Passive Experience
+
+- No chat, no requests, no interaction
+- Listeners have no reason to engage or return
+
+* Ideas to Explore
+
+** Quick Wins (Low Effort)
+
+*** Shuffle/Random Mode
+
+- Let Liquidsoap shuffle the entire music library
+- Fresh experience every time someone tunes in
+- Reduces repetition fatigue
+- Could offer both: "Low Orbit" (curated) and "Deep Space" (random shuffle)
+
+*** Multiple Themed Streams
+
+- ~/asteroid.mp3~ - Main curated ambient
+- ~/asteroid-shuffle.mp3~ - Random from full library
+- ~/asteroid-dark.mp3~ - Darker ambient (Lustmord, Atrium Carceri)
+- Let listeners choose their vibe
+
+*** Now Playing Integration
+
+- Post to a Twitter/X account automatically
+- Discord webhook for a music community
+- Last.fm scrobbling for discoverability
+
+** Medium Effort
+
+*** Submit to Internet Radio Directories
+
+- [[https://www.radio.net/][Radio.net]]
+- [[https://tunein.com/][TuneIn]] (requires application)
+- [[https://streema.com/][Streema]]
+- [[https://www.internet-radio.com/][Internet-Radio.com]]
+- These are where people actually discover internet radio
+
+*** Discord Community
+
+- Create a Discord server for listeners
+- Bot posts now playing
+- Request channel (even if manual fulfillment)
+- Builds community around the station
+
+*** Listener Requests
+
+- Simple web form to request tracks
+- Queue gets reviewed and added by admins
+- Makes listeners feel heard
+
+*** Schedule/Programming
+
+- Even fake "shows" create structure
+- "Midnight Ambient" 00:00-06:00
+- "Morning Drift" 06:00-12:00
+- "Afternoon Orbit" 12:00-18:00
+- "Evening Descent" 18:00-00:00
+- Different playlist vibes for different times
+
+** Higher Effort (But High Impact)
+
+*** Live DJ Sets
+
+- Even occasional (monthly?) live sets create events
+- "Tune in Saturday at 20:00 for a live set"
+- Creates appointment listening
+- Can be promoted in advance
+
+*** Guest Mixes
+
+- Invite ambient/electronic producers to submit mixes
+- Cross-promotion to their audiences
+- Fresh content without ongoing effort
+
+*** Mobile App / PWA
+
+- Make it easy to listen on mobile
+- Push notifications for special events
+- "Install to home screen" prompt
+
+*** Podcast Feed
+
+- Archive special shows/mixes as podcast episodes
+- Another discovery channel
+- People can catch up on what they missed
+
+* Interface Improvements
+
+Current UI is functional but could be more engaging:
+
+- *Visual identity* - Logo, consistent branding, memorable aesthetic
+- *Album art* - Show cover art for current track (if available in metadata)
+- *Listener count display* - "X people listening now" creates social proof
+- *History* - "Recently played" visible on front page
+- *Schedule display* - Even if automated, show what's coming up
+- *Dark mode* - Essential for ambient music listeners (probably already dark?)
+
+* The Music Question
+
+** Is the music the problem?
+
+Honestly, probably not. Ambient/electronic has a dedicated audience. The issue is more likely:
+
+1. They don't know we exist
+2. There's no reason to come back vs. Spotify/YouTube
+
+** Random shuffle pros
+
+- Surprise factor keeps it fresh
+- Showcases full library depth
+- Less maintenance than curated playlists
+
+** Random shuffle cons
+
+- Less coherent "vibe"
+- Jarring transitions possible (need good crossfade)
+- Might play obscure tracks that don't fit
+
+** Hybrid approach
+
+- Keep curated "Low Orbit" as flagship
+- Add shuffle stream as alternative
+- Let listeners choose
+
+* Recommended Priority
+
+1. *Submit to radio directories* - Free, one-time effort, ongoing discovery
+2. *Add shuffle stream option* - Technical, we can do this easily
+3. *Discord server* - Free, builds community
+4. *Now playing social posts* - Automated discovery
+5. *Visual polish* - Album art, listener count, branding
+
+* Metrics to Track
+
+Once we have more listeners:
+
+- Peak concurrent listeners (we have this now)
+- Average listen duration
+- Return listener rate (would need cookies/accounts)
+- Geographic distribution (we have this)
+- Which stream/quality is most popular
+
+* Final Thought
+
+The technical foundation is solid. The music is good. The problem is almost certainly *discovery* and *engagement*. People need to:
+
+1. Find out we exist
+2. Have a reason to come back
+
+Radio directories + social presence + community = growth path.
