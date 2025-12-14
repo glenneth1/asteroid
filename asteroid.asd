@@ -53,6 +53,8 @@
                              (:file "users")
                              (:file "admin")
                              (:file "player")
+                             (:file "stream-player")
+                             (:file "frameset-utils")
                              (:file "spectrum-analyzer")))
                (:file "stream-media")
                (:file "user-management")

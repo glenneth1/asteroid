@@ -868,6 +868,26 @@
          (format t "ERROR generating recently-played.js: ~a~%" e)
          (format nil "// Error generating JavaScript: ~a~%" e))))
     
+    ;; Serve ParenScript-compiled stream-player.js
+    ((string= path "js/stream-player.js")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-stream-player-js)))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating stream-player.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
+    ;; Serve ParenScript-compiled frameset-utils.js
+    ((string= path "js/frameset-utils.js")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-frameset-utils-js)))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating frameset-utils.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
     ;; Serve regular static file
     (t
      (serve-file (merge-pathnames (format nil "static/~a" path) 

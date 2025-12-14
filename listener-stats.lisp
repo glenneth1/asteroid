@@ -266,7 +266,9 @@
       (log:error "Session cleanup failed: ~a" e))))
 
 (defun update-geo-stats (country-code listener-count &optional city)
-  "Update geo stats for today, optionally including city"
+  "Update geo stats for today, optionally including city.
+   listener_count tracks peak concurrent listeners (max seen today).
+   listen_minutes increments by 1 per poll (approximates total listen time)."
   (when country-code
     (handler-case
         (with-db
@@ -275,7 +277,7 @@
              (format nil "INSERT INTO listener_geo_stats (date, country_code, city, listener_count, listen_minutes)
                         VALUES (CURRENT_DATE, '~a', ~a, ~a, 1)
                         ON CONFLICT (date, country_code, city) 
-                        DO UPDATE SET listener_count = listener_geo_stats.listener_count + ~a,
+                        DO UPDATE SET listener_count = GREATEST(listener_geo_stats.listener_count, ~a),
                                       listen_minutes = listener_geo_stats.listen_minutes + 1"
                      country-code city-sql listener-count listener-count))))
       (error (e)

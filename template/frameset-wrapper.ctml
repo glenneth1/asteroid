@@ -4,12 +4,7 @@
   <title lquery="(text title)">ASTEROID RADIO</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script>
-    // Prevent nested framesets - break out if we're already in a frame
-    if (window.self !== window.top) {
-      window.top.location.href = window.self.location.href;
-    }
-  </script>
+  <script src="/asteroid/static/js/frameset-utils.js"></script>
 </head>
 <frameset rows="*,80" frameborder="0" border="0" framespacing="0">
   <frame src="/asteroid/content" name="content-frame" noresize>
