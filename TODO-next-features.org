@@ -1,0 +1,62 @@
+* Where we go next
+
+** SEO/Discovery tasks
+1) [0/4] Submit to Internet Radio Directories
+   1) [ ] [[https://www.radio.net/][Radio.net]]
+   2) [ ] [[https://tunein.com/][TuneIn]] (requires application)
+   3) [ ] [[https://streema.com/][Streema]]
+   4) [ ] [[https://www.internet-radio.com/][Internet-Radio.com]]
+
+2) [0/5] Integrate with various social platforms
+   1) [ ] Mastodon
+   2) [ ] Bluesky
+   3) [ ] IRC
+   4) [ ] Meta?
+   5) [ ] Discord (yeargh!@)
+
+
+** Features to implement
+
+1) [0/3] Stream Management Features
+   1) [ ] playlists create, edit, name, save, restore
+   2) [ ] playlist editor interface for 'cursoring' through media possibly 'crossbar' style
+   3) [ ] plant the hooks/functions for 'live' DJ
+
+2) [0/3] Listener Requests
+   This obviously ties into User profiles, but should also be available to anonymous users.
+   1) [ ] Request library tracks
+   2) [ ] Request tracks to add to library
+   3) [ ] Tie into user playlists
+
+3) [0/3] Calendar for Schedule/Programming
+   1) [ ] Define Scheduled Program
+   2) [ ] Make calendar editable, reschedule, ammend &c
+   3) [ ] Add bumpers to landing page for scheduled programs
+
+4) [0/8] User Profile pages
+   1) [ ] avatars
+   2) [ ] default playlist
+   3) [ ] tarted up 'now playing' with highlights of previously upvoted tracks
+   4) [ ] polls
+   5) [ ] Listener requests interface
+   6) [ ] Calendar of upcoming scheduled 'shows'
+   7) [ ] requests
+   8) [ ] Custom user playlists, with submission for station airing
+
+5) [0/2] Shuffle/Random queue
+   1) [ ] randomly run the whole library
+   2) [ ] potentially weight 'random' by user prefs/voting records
+
+6) [0/5] Themed streams
+   1) [ ] Main curated amgbient 'low orbit'
+   2) [ ] Random from full library 'deep space'
+   3) [ ] Darker ambient
+   4) [ ] Underworld and friends
+   5) [ ] &c
+
+7) [0/5] Integrate with various social platforms
+   1) [ ] Mastodon
+   2) [ ] Bluesky
+   3) [ ] IRC
+   4) [ ] Meta?
+   5) [ ] Discord (yeargh!@)
