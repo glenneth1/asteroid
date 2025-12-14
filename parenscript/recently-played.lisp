@@ -7,28 +7,32 @@
   (ps:ps
    (progn
     
-    ;; Get current mount from stream quality selection
-    ;; Checks local selector first, then sibling player-frame (for frameset mode)
+    ;; Get current channel from selector or localStorage
+    (defun get-current-channel ()
+      (let ((selector (or (ps:chain document (get-element-by-id "stream-channel"))
+                          (ps:chain document (get-element-by-id "popout-stream-channel")))))
+        (if selector
+            (ps:@ selector value)
+            (or (ps:chain local-storage (get-item "stream-channel")) "curated"))))
+    
+    ;; Get current quality from selector or localStorage
+    (defun get-current-quality ()
+      (let ((selector (or (ps:chain document (get-element-by-id "stream-quality"))
+                          (ps:chain document (get-element-by-id "popout-stream-quality")))))
+        (if selector
+            (ps:@ selector value)
+            (or (ps:chain local-storage (get-item "stream-quality")) "aac"))))
+    
+    ;; Get current mount from channel and quality selection
     (defun get-current-mount-for-recently-played ()
-      (let* ((selector (ps:chain document (get-element-by-id "stream-quality")))
-             ;; If no local selector, try to get from sibling player-frame (frameset mode)
-             (player-frame-selector 
-              (when (and (not selector)
-                         (not (= (ps:@ window parent) window)))
-                (ps:try
-                 (let ((player-frame (ps:@ (ps:@ window parent) frames "player-frame")))
-                   (when player-frame
-                     (ps:chain player-frame document (get-element-by-id "stream-quality"))))
-                 (:catch (e) nil))))
-             (effective-selector (or selector player-frame-selector))
-             (quality (or (when effective-selector (ps:@ effective-selector value))
-                          (ps:chain local-storage (get-item "stream-quality"))
-                          "aac")))
-        (cond
-          ((= quality "shuffle") "asteroid-shuffle.mp3")
-          ((= quality "low") "asteroid-low.mp3")
-          ((= quality "mp3") "asteroid.mp3")
-          (t "asteroid.aac"))))
+      (let ((channel (get-current-channel))
+            (quality (get-current-quality)))
+        (if (= channel "shuffle")
+            "asteroid-shuffle.mp3"
+            (cond
+              ((= quality "low") "asteroid-low.mp3")
+              ((= quality "mp3") "asteroid.mp3")
+              (t "asteroid.aac")))))
     
     ;; Update recently played tracks display
     (defun update-recently-played ()
@@ -105,17 +109,11 @@
                      (if panel
                          (progn
                            (update-recently-played)
-                           ;; Refresh immediately when user switches streams
-                           (let ((selector (ps:chain document (get-element-by-id "stream-quality"))))
-                             (when (not selector)
-                               (setf selector
-                                     (ps:try
-                                      (let ((player-frame (ps:@ (ps:@ window parent) frames "player-frame")))
-                                        (when player-frame
-                                          (ps:chain player-frame document (get-element-by-id "stream-quality"))))
-                                      (:catch (e) nil))))
-                             (when selector
-                               (ps:chain selector
+                           ;; Refresh immediately when user switches channel
+                           (let ((channel-selector (or (ps:chain document (get-element-by-id "stream-channel"))
+                                                       (ps:chain document (get-element-by-id "popout-stream-channel")))))
+                             (when channel-selector
+                               (ps:chain channel-selector
                                          (add-event-listener
                                           "change"
                                           (lambda (_ev)

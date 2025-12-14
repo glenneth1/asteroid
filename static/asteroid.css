@@ -1295,6 +1295,37 @@ body.persistent-player-container .quality-selector{
     gap: 5px;
 }
 
+body.persistent-player-container .channel-selector{
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+
+
+body.persistent-player-container .channel-selector label{
+    color: #00ff00;
+    font-size: 0.9em;
+}
+
+
+
+body.persistent-player-container .channel-selector select{
+    background: transparent;
+    color: #00ff00;
+    letter-spacing: 0.08rem;
+    border: 1px solid #00ff00;
+    padding: 3px 8px;
+    min-width: 140px;
+    font-size: 0.9em;
+    height: 26px;
+    line-height: 18px;
+}
+
+body.persistent-player-container .channel-selector select:hover{
+    background: #2a3441;
+}
+
 
 
 body.persistent-player-container .quality-selector label{
@@ -1311,10 +1342,18 @@ body.persistent-player-container .quality-selector select{
     border: 1px solid #00ff00;
     padding: 3px 8px;
     min-width: 140px;
+    font-size: 0.9em;
+    height: 26px;
+    line-height: 18px;
 }
 
 body.persistent-player-container .quality-selector select:hover{
     background: #2a3441;
+}
+
+body.persistent-player-container .quality-selector select:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 body.persistent-player-container audio{

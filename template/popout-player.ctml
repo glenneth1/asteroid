@@ -26,14 +26,21 @@
             </div>
         </div>
 
-        <div class="quality-selector">
+        <div class="channel-selector">
             <input type="hidden" id="stream-base-url" lquery="(val stream-base-url)">
+            <label for="popout-stream-channel"><strong>Channel:</strong></label>
+            <select id="popout-stream-channel" onchange="changeChannel()">
+                <option value="curated">🎧 <c:splice lquery="(text curated-channel-name)">Curated</c:splice></option>
+                <option value="shuffle">🎲 Shuffle</option>
+            </select>
+        </div>
+
+        <div class="quality-selector">
             <label for="popout-stream-quality"><strong>Quality:</strong></label>
             <select id="popout-stream-quality" onchange="changeStreamQuality()">
                 <option value="aac">AAC 96kbps</option>
                 <option value="mp3">MP3 128kbps</option>
                 <option value="low">MP3 64kbps</option>
-                <option value="shuffle">🎲 Shuffle 96kbps</option>
             </select>
         </div>
 

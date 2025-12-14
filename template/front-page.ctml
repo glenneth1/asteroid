@@ -69,14 +69,22 @@
             <h2 style="color: #00ff00; margin: 0;"><span class="live-stream-indicator" style="font-size: 1rem;">🟢</span> LIVE STREAM</h2>
         </div>
         
+        <!-- Channel Selector -->
+        <div class="live-stream-quality" style="margin-bottom: 15px;">
+          <label for="stream-channel" class="live-stream-label"><strong>Channel:</strong></label>
+          <select id="stream-channel" onchange="changeChannel()">
+            <option value="curated">🎧 <c:splice lquery="(text curated-channel-name)">Curated</c:splice></option>
+            <option value="shuffle">🎲 Shuffle</option>
+          </select>
+        </div>
+        
         <!-- Stream Quality Selector -->
-        <div class="live-stream-quality">
+        <div class="live-stream-quality" style="margin-bottom: 15px;">
           <label for="stream-quality" class="live-stream-label" ><strong>Quality:</strong></label>
           <select id="stream-quality" onchange="changeStreamQuality()">
             <option value="aac">AAC 96kbps (Recommended)</option>
             <option value="mp3">MP3 128kbps (Compatible)</option>
             <option value="low">MP3 64kbps (Low Bandwidth)</option>
-            <option value="shuffle">🎲 Shuffle 96kbps</option>
           </select>
         </div>
         

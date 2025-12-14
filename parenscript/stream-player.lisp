@@ -11,38 +11,155 @@
      ;; Stream Configuration
      ;; ========================================
      
-     ;; Get stream configuration for a given quality
-     (defun get-stream-config (stream-base-url encoding)
-       (let ((config (ps:create
-                      :aac (ps:create :url (+ stream-base-url "/asteroid.aac")
-                                      :type "audio/aac"
-                                      :format "AAC 96kbps Stereo"
-                                      :mount "asteroid.aac")
-                      :mp3 (ps:create :url (+ stream-base-url "/asteroid.mp3")
-                                      :type "audio/mpeg"
-                                      :format "MP3 128kbps Stereo"
-                                      :mount "asteroid.mp3")
-                      :low (ps:create :url (+ stream-base-url "/asteroid-low.mp3")
-                                      :type "audio/mpeg"
-                                      :format "MP3 64kbps Stereo"
-                                      :mount "asteroid-low.mp3")
-                      :shuffle (ps:create :url (+ stream-base-url "/asteroid-shuffle.mp3")
-                                          :type "audio/mpeg"
-                                          :format "Shuffle MP3 96kbps"
-                                          :mount "asteroid-shuffle.mp3"))))
-         (ps:getprop config encoding)))
+     ;; Get stream configuration for a given channel and quality
+     ;; Curated channel has multiple quality options, shuffle has only one
+     (defun get-stream-config (stream-base-url channel quality)
+       (let ((curated-config (ps:create
+                              :aac (ps:create :url (+ stream-base-url "/asteroid.aac")
+                                              :type "audio/aac"
+                                              :format "AAC 96kbps Stereo"
+                                              :mount "asteroid.aac")
+                              :mp3 (ps:create :url (+ stream-base-url "/asteroid.mp3")
+                                              :type "audio/mpeg"
+                                              :format "MP3 128kbps Stereo"
+                                              :mount "asteroid.mp3")
+                              :low (ps:create :url (+ stream-base-url "/asteroid-low.mp3")
+                                              :type "audio/mpeg"
+                                              :format "MP3 64kbps Stereo"
+                                              :mount "asteroid-low.mp3")))
+             (shuffle-config (ps:create :url (+ stream-base-url "/asteroid-shuffle.mp3")
+                                        :type "audio/mpeg"
+                                        :format "Shuffle MP3 96kbps"
+                                        :mount "asteroid-shuffle.mp3")))
+         (if (= channel "shuffle")
+             shuffle-config
+             (ps:getprop curated-config quality))))
+     
+     ;; Get current channel from selector or localStorage
+     (defun get-current-channel ()
+       (let ((selector (or (ps:chain document (get-element-by-id "stream-channel"))
+                           (ps:chain document (get-element-by-id "popout-stream-channel")))))
+         (if selector
+             (ps:@ selector value)
+             (or (ps:chain local-storage (get-item "stream-channel")) "curated"))))
+     
+     ;; Get current quality from selector or localStorage
+     (defun get-current-quality ()
+       (let ((selector (or (ps:chain document (get-element-by-id "stream-quality"))
+                           (ps:chain document (get-element-by-id "popout-stream-quality")))))
+         (if selector
+             (ps:@ selector value)
+             (or (ps:chain local-storage (get-item "stream-quality")) "aac"))))
+     
+     ;; Update quality selector state based on channel
+     (defun update-quality-selector-state ()
+       (let* ((channel (get-current-channel))
+              (quality-selector (or (ps:chain document (get-element-by-id "stream-quality"))
+                                    (ps:chain document (get-element-by-id "popout-stream-quality")))))
+         (when quality-selector
+           (if (= channel "shuffle")
+               (progn
+                 (setf (ps:@ quality-selector disabled) t)
+                 (setf (ps:@ quality-selector title) "Shuffle channel has fixed quality"))
+               (progn
+                 (setf (ps:@ quality-selector disabled) nil)
+                 (setf (ps:@ quality-selector title) ""))))))
+     
+     ;; Change channel (curated vs shuffle)
+     ;; Called from content frame or popout - updates localStorage and notifies frame player
+     (defun change-channel ()
+       (let* ((channel-selector (or (ps:chain document (get-element-by-id "stream-channel"))
+                                    (ps:chain document (get-element-by-id "popout-stream-channel"))))
+              (channel (ps:@ channel-selector value))
+              (stream-base-url-el (ps:chain document (get-element-by-id "stream-base-url")))
+              (stream-base-url (when stream-base-url-el (ps:@ stream-base-url-el value)))
+              (quality (get-current-quality))
+              (audio-element (or (ps:chain document (get-element-by-id "persistent-audio"))
+                                 (ps:chain document (get-element-by-id "live-audio"))))
+              (source-element (ps:chain document (get-element-by-id "audio-source")))
+              (was-playing (and audio-element (not (ps:@ audio-element paused)))))
+         
+         ;; Save preference
+         (ps:chain local-storage (set-item "stream-channel" channel))
+         
+         ;; Update quality selector state
+         (update-quality-selector-state)
+         
+         ;; If we have audio element (popout player), update it
+         (when (and stream-base-url audio-element source-element)
+           (let ((config (get-stream-config stream-base-url channel quality)))
+             ;; Swap source and reload
+             (setf (ps:@ source-element src) (ps:@ config url))
+             (setf (ps:@ source-element type) (ps:@ config type))
+             (ps:chain audio-element (load))
+             
+             ;; Resume playback if it was playing
+             (when was-playing
+               (ps:chain audio-element (play)
+                         (catch (lambda (e)
+                                  (ps:chain console (log "Autoplay prevented:" e))))))))
+         
+         ;; If in frameset mode, notify the player frame to update
+         (when (not (= (ps:@ window parent) window))
+           (ps:try
+            (let ((player-frame (ps:@ (ps:@ window parent) frames "player-frame")))
+              (when (and player-frame (ps:@ player-frame sync-channel-from-storage))
+                (ps:chain player-frame (sync-channel-from-storage))))
+            (:catch (e) nil)))
+         
+         ;; Refresh now-playing immediately
+         (when (ps:chain document (get-element-by-id "mini-now-playing"))
+           (ps:chain window (set-timeout update-mini-now-playing 50)))
+         (when (or (ps:chain document (get-element-by-id "popout-track-title"))
+                   (ps:chain document (get-element-by-id "popout-track-artist")))
+           (ps:chain window (set-timeout update-popout-now-playing 50)))))
+     
+     ;; Sync channel from localStorage (called by content frame when channel changes)
+     (defun sync-channel-from-storage ()
+       (let* ((channel (or (ps:chain local-storage (get-item "stream-channel")) "curated"))
+              (quality (get-current-quality))
+              (stream-base-url-el (ps:chain document (get-element-by-id "stream-base-url")))
+              (stream-base-url (when stream-base-url-el (ps:@ stream-base-url-el value)))
+              (channel-selector (ps:chain document (get-element-by-id "stream-channel")))
+              (audio-element (ps:chain document (get-element-by-id "persistent-audio")))
+              (source-element (ps:chain document (get-element-by-id "audio-source")))
+              (was-playing (and audio-element (not (ps:@ audio-element paused)))))
+         
+         ;; Update channel selector dropdown to match localStorage
+         (when (and channel-selector (not (= (ps:@ channel-selector value) channel)))
+           (setf (ps:@ channel-selector value) channel))
+         
+         (when (and stream-base-url audio-element source-element)
+           (let ((config (get-stream-config stream-base-url channel quality)))
+             ;; Update quality selector state
+             (update-quality-selector-state)
+             
+             ;; Swap source and reload
+             (setf (ps:@ source-element src) (ps:@ config url))
+             (setf (ps:@ source-element type) (ps:@ config type))
+             (ps:chain audio-element (load))
+             
+             ;; Resume playback if it was playing
+             (when was-playing
+               (ps:chain audio-element (play)
+                         (catch (lambda (e)
+                                  (ps:chain console (log "Autoplay prevented:" e))))))
+             
+             ;; Refresh now-playing
+             (ps:chain window (set-timeout update-mini-now-playing 50))))))
      
      ;; ========================================
      ;; Stream Quality Selection
      ;; ========================================
      
-     ;; Change stream quality
+     ;; Change stream quality (bitrate)
      (defun change-stream-quality ()
        (let* ((selector (or (ps:chain document (get-element-by-id "stream-quality"))
                             (ps:chain document (get-element-by-id "popout-stream-quality"))))
               (stream-base-url (ps:@ (ps:chain document (get-element-by-id "stream-base-url")) value))
+              (channel (get-current-channel))
               (selected-quality (ps:@ selector value))
-              (config (get-stream-config stream-base-url selected-quality))
+              (config (get-stream-config stream-base-url channel selected-quality))
               (audio-element (or (ps:chain document (get-element-by-id "persistent-audio"))
                                  (ps:chain document (get-element-by-id "live-audio"))))
               (source-element (ps:chain document (get-element-by-id "audio-source")))
@@ -73,13 +190,12 @@
      ;; Now Playing Updates
      ;; ========================================
      
-     ;; Get current mount from stream quality selection
+     ;; Get current mount from channel and quality selection
      (defun get-current-mount ()
-       (let* ((selector (or (ps:chain document (get-element-by-id "stream-quality"))
-                            (ps:chain document (get-element-by-id "popout-stream-quality"))))
-              (quality (if selector (ps:@ selector value) "aac"))
+       (let* ((channel (get-current-channel))
+              (quality (get-current-quality))
               (stream-base-url (ps:@ (ps:chain document (get-element-by-id "stream-base-url")) value))
-              (config (get-stream-config stream-base-url quality)))
+              (config (get-stream-config stream-base-url channel quality)))
          (if config (ps:@ config mount) "asteroid.mp3")))
      
      ;; Update mini now playing display (for persistent player frame)
@@ -173,8 +289,9 @@
        (let* ((container (ps:chain document (query-selector ".persistent-player")))
               (old-audio (ps:chain document (get-element-by-id "persistent-audio")))
               (stream-base-url (ps:@ (ps:chain document (get-element-by-id "stream-base-url")) value))
-              (stream-quality (or (ps:chain local-storage (get-item "stream-quality")) "aac"))
-              (config (get-stream-config stream-base-url stream-quality)))
+              (stream-channel (get-current-channel))
+              (stream-quality (get-current-quality))
+              (config (get-stream-config stream-base-url stream-channel stream-quality)))
          
          (unless (and container old-audio)
            (show-status "❌ Could not reconnect - reload page" true)
@@ -422,12 +539,22 @@
            ;; Attach event listeners
            (attach-audio-listeners audio-element)
            
+           ;; Restore user channel preference
+           (let ((channel-selector (ps:chain document (get-element-by-id "stream-channel")))
+                 (stream-channel (or (ps:chain local-storage (get-item "stream-channel")) "curated")))
+             (when (and channel-selector (not (= (ps:@ channel-selector value) stream-channel)))
+               (setf (ps:@ channel-selector value) stream-channel)
+               ;; Sync the stream to the saved channel
+               (change-channel)))
+           
            ;; Restore user quality preference
-           (let ((selector (ps:chain document (get-element-by-id "stream-quality")))
+           (let ((quality-selector (ps:chain document (get-element-by-id "stream-quality")))
                  (stream-quality (or (ps:chain local-storage (get-item "stream-quality")) "aac")))
-             (when (and selector (not (= (ps:@ selector value) stream-quality)))
-               (setf (ps:@ selector value) stream-quality)
-               (ps:chain selector (dispatch-event (ps:new (-event "change"))))))
+             (when (and quality-selector (not (= (ps:@ quality-selector value) stream-quality)))
+               (setf (ps:@ quality-selector value) stream-quality)))
+           
+           ;; Update quality selector state based on channel
+           (update-quality-selector-state)
            
            ;; Start now playing updates
            (set-timeout update-mini-now-playing 1000)
@@ -439,6 +566,21 @@
          (when audio-element
            ;; Attach event listeners
            (attach-popout-listeners audio-element)
+           
+           ;; Restore user channel preference
+           (let ((channel-selector (ps:chain document (get-element-by-id "popout-stream-channel")))
+                 (stream-channel (or (ps:chain local-storage (get-item "stream-channel")) "curated")))
+             (when (and channel-selector (not (= (ps:@ channel-selector value) stream-channel)))
+               (setf (ps:@ channel-selector value) stream-channel)))
+           
+           ;; Restore user quality preference
+           (let ((quality-selector (ps:chain document (get-element-by-id "popout-stream-quality")))
+                 (stream-quality (or (ps:chain local-storage (get-item "stream-quality")) "aac")))
+             (when (and quality-selector (not (= (ps:@ quality-selector value) stream-quality)))
+               (setf (ps:@ quality-selector value) stream-quality)))
+           
+           ;; Update quality selector state based on channel
+           (update-quality-selector-state)
            
            ;; Start now playing updates
            (update-popout-now-playing)
@@ -452,6 +594,8 @@
      
      ;; Make functions globally accessible
      (setf (ps:@ window get-stream-config) get-stream-config)
+     (setf (ps:@ window change-channel) change-channel)
+     (setf (ps:@ window sync-channel-from-storage) sync-channel-from-storage)
      (setf (ps:@ window change-stream-quality) change-stream-quality)
      (setf (ps:@ window reconnect-stream) reconnect-stream)
      (setf (ps:@ window disable-frameset-mode) disable-frameset-mode)
