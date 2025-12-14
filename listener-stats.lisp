@@ -509,7 +509,7 @@
   "Stop the background statistics polling thread"
   (setf *stats-polling-active* nil)
   (when (and *stats-polling-thread* (bt:thread-alive-p *stats-polling-thread*))
-    (bt:join-thread *stats-polling-thread* :timeout 5))
+    (bt:join-thread *stats-polling-thread* 5))
   (setf *stats-polling-thread* nil)
   (log:info "Stats polling thread stopped"))
 

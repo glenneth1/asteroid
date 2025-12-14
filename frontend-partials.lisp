@@ -1,9 +1,10 @@
 (in-package :asteroid)
 
-(defun icecast-now-playing (icecast-base-url)
+(defun icecast-now-playing (icecast-base-url &optional (mount "asteroid.mp3"))
   "Fetch now-playing information from Icecast server.
   
   ICECAST-BASE-URL - Base URL of the Icecast server (e.g. http://localhost:8000)
+  MOUNT - Mount point to fetch metadata from (default: asteroid.mp3)
   
   Returns a plist with :listenurl, :title, and :listeners, or NIL on error."
     (let* ((icecast-url (format nil "~a/admin/stats.xml" icecast-base-url))
@@ -15,14 +16,16 @@
                               response
                               (babel:octets-to-string response :encoding :utf-8))))
           ;; Extract total listener count from root <listeners> tag (sums all mount points)
-          ;; Extract title from asteroid.mp3 mount point
+          ;; Extract title from specified mount point
           (let* ((total-listeners (multiple-value-bind (match groups)
                                       (cl-ppcre:scan-to-strings "<listeners>(\\d+)</listeners>" xml-string)
                                     (if (and match groups)
                                         (parse-integer (aref groups 0) :junk-allowed t)
                                         0)))
-                 ;; Get title from asteroid.mp3 mount point
-                 (mount-start (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string))
+                 ;; Escape dots in mount name for regex
+                 (mount-pattern (format nil "<source mount=\"/~a\">" 
+                                       (cl-ppcre:regex-replace-all "\\." mount "\\\\.")))
+                 (mount-start (cl-ppcre:scan mount-pattern xml-string))
                  (title (if mount-start
                            (let* ((source-section (subseq xml-string mount-start
                                                          (or (cl-ppcre:scan "</source>" xml-string :start mount-start)
@@ -35,21 +38,36 @@
                            "Unknown")))
             
             ;; Track recently played if title changed
-            (when (and title 
-                      (not (string= title "Unknown"))
-                      (not (equal title *last-known-track*)))
-              (setf *last-known-track* title)
-              (add-recently-played (list :title title
-                                        :timestamp (get-universal-time))))
+            ;; Use appropriate last-known-track and list based on stream type
+            (let* ((is-shuffle (string= mount "asteroid-shuffle.mp3"))
+                   (last-known (if is-shuffle *last-known-track-shuffle* *last-known-track-curated*))
+                   (stream-type (if is-shuffle :shuffle :curated)))
+              (when (and title 
+                        (not (string= title "Unknown"))
+                        (not (equal title last-known)))
+                (if is-shuffle
+                    (setf *last-known-track-shuffle* title)
+                    (setf *last-known-track-curated* title))
+                (add-recently-played (list :title title
+                                          :timestamp (get-universal-time))
+                                    stream-type)))
             
-            `((:listenurl . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+            `((:listenurl . ,(format nil "~a/~a" *stream-base-url* mount))
               (:title . ,title)
               (:listeners . ,total-listeners)))))))
 
-(define-api asteroid/partial/now-playing () ()
-  "Get Partial HTML with live status from Icecast server"
+(define-api asteroid/partial/now-playing (&optional mount) ()
+  "Get Partial HTML with live status from Icecast server.
+   Optional MOUNT parameter specifies which stream to get metadata from.
+   Always polls both streams to keep recently played lists updated."
   (with-error-handling
-    (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+    (let* ((mount-name (or mount "asteroid.mp3"))
+           ;; Always poll both streams to keep recently played lists updated
+           (dummy-curated (when (not (string= mount-name "asteroid.mp3"))
+                            (icecast-now-playing *stream-base-url* "asteroid.mp3")))
+           (dummy-shuffle (when (not (string= mount-name "asteroid-shuffle.mp3"))
+                            (icecast-now-playing *stream-base-url* "asteroid-shuffle.mp3")))
+           (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
       (if now-playing-stats
           (progn
             ;; TODO: it should be able to define a custom api-output for this
@@ -65,10 +83,12 @@
              :connection-error t
              :stats nil))))))
 
-(define-api asteroid/partial/now-playing-inline () ()
-  "Get inline text with now playing info (for admin dashboard and widgets)"
+(define-api asteroid/partial/now-playing-inline (&optional mount) ()
+  "Get inline text with now playing info (for admin dashboard and widgets).
+   Optional MOUNT parameter specifies which stream to get metadata from."
   (with-error-handling
-    (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+    (let* ((mount-name (or mount "asteroid.mp3"))
+           (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
       (if now-playing-stats
           (progn
             (setf (header "Content-Type") "text/plain")

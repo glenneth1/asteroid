@@ -1310,6 +1310,7 @@ body.persistent-player-container .quality-selector select{
     letter-spacing: 0.08rem;
     border: 1px solid #00ff00;
     padding: 3px 8px;
+    min-width: 140px;
 }
 
 body.persistent-player-container .quality-selector select:hover{

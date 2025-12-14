@@ -33,6 +33,7 @@
                 <option value="aac">AAC 96kbps</option>
                 <option value="mp3">MP3 128kbps</option>
                 <option value="low">MP3 64kbps</option>
+                <option value="shuffle">🎲 Shuffle 96kbps</option>
             </select>
         </div>
 

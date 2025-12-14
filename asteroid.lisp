@@ -24,12 +24,16 @@
 (defparameter *supported-formats* '("mp3" "flac" "ogg" "wav"))
 (defparameter *stream-base-url* "http://localhost:8000")
 
-;; Recently played tracks storage (in-memory)
-(defparameter *recently-played* nil
-  "List of recently played tracks (max 3), newest first")
+;; Recently played tracks storage (in-memory) - separate lists per stream type
+(defparameter *recently-played-curated* nil
+  "List of recently played tracks on curated stream (max 3), newest first")
+(defparameter *recently-played-shuffle* nil
+  "List of recently played tracks on shuffle stream (max 3), newest first")
 (defparameter *recently-played-lock* (bt:make-lock "recently-played-lock"))
-(defparameter *last-known-track* nil
-  "Last known track title to detect changes")
+(defparameter *last-known-track-curated* nil
+  "Last known track title on curated stream to detect changes")
+(defparameter *last-known-track-shuffle* nil
+  "Last known track title on shuffle stream to detect changes")
 
 ;; Configure JSON as the default API format
 (define-api-format json (data)
@@ -41,12 +45,16 @@
 (setf *default-api-format* "json")
 
 ;; Recently played tracks management
-(defun add-recently-played (track-info)
-  "Add a track to the recently played list (max 3 tracks)"
+(defun add-recently-played (track-info &optional (stream-type :curated))
+  "Add a track to the recently played list (max 3 tracks).
+   STREAM-TYPE is :curated or :shuffle"
   (bt:with-lock-held (*recently-played-lock*)
-    (push track-info *recently-played*)
-    (when (> (length *recently-played*) 3)
-      (setf *recently-played* (subseq *recently-played* 0 3)))))
+    (let ((target-list (if (eq stream-type :shuffle)
+                           '*recently-played-shuffle*
+                           '*recently-played-curated*)))
+      (push track-info (symbol-value target-list))
+      (when (> (length (symbol-value target-list)) 3)
+        (setf (symbol-value target-list) (subseq (symbol-value target-list) 0 3))))))
 
 (defun universal-time-to-unix (universal-time)
   "Convert Common Lisp universal time to Unix timestamp"
@@ -54,10 +62,13 @@
   ;; Difference is 2208988800 seconds (70 years)
   (- universal-time 2208988800))
 
-(defun get-recently-played ()
-  "Get the list of recently played tracks"
+(defun get-recently-played (&optional (stream-type :curated))
+  "Get the list of recently played tracks.
+   STREAM-TYPE is :curated or :shuffle"
   (bt:with-lock-held (*recently-played-lock*)
-    (copy-list *recently-played*)))
+    (copy-list (if (eq stream-type :shuffle)
+                   *recently-played-shuffle*
+                   *recently-played-curated*))))
 
 (defun parse-track-title (title)
   "Parse track title into artist and song name. Expected format: 'Artist - Song'"
@@ -196,10 +207,14 @@
                         ("message" . "Could not remove track")))))))
 
 ;; Recently played tracks API endpoint
-(define-api asteroid/recently-played () ()
-  "Get the last 3 played tracks with AllMusic links"
+(define-api asteroid/recently-played (&optional mount) ()
+  "Get the last 3 played tracks with AllMusic links.
+   Optional MOUNT parameter specifies which stream's history to return."
   (with-error-handling
-    (let ((tracks (get-recently-played)))
+    (let* ((stream-type (if (and mount (search "shuffle" mount))
+                            :shuffle
+                            :curated))
+           (tracks (get-recently-played stream-type)))
       (api-output `(("status" . "success")
                     ("tracks" . ,(mapcar (lambda (track)
                                            (let* ((title (getf track :title))

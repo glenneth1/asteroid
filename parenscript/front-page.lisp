@@ -30,7 +30,12 @@
                             :url (+ stream-base-url "/asteroid-low.mp3")
                             :format "MP3 64kbps Stereo"
                             :type "audio/mpeg"
-                            :mount "asteroid-low.mp3"))))
+                            :mount "asteroid-low.mp3")
+                      :shuffle (ps:create
+                                :url (+ stream-base-url "/asteroid-shuffle.mp3")
+                                :format "Shuffle MP3 96kbps"
+                                :type "audio/mpeg"
+                                :mount "asteroid-shuffle.mp3"))))
          (ps:getprop config encoding)))
      
      ;; Change stream quality
@@ -60,20 +65,47 @@
                      (catch (lambda (e)
                               (ps:chain console (log "Autoplay prevented:" e))))))))
      
+     ;; Get current mount from stream quality selection
+     ;; Checks local selector first, then sibling player-frame (for frameset mode)
+     (defun get-current-mount ()
+       (let* ((selector (ps:chain document (get-element-by-id "stream-quality")))
+              ;; If no local selector, try to get from sibling player-frame (frameset mode)
+              (player-frame-selector 
+               (when (and (not selector)
+                          (not (= (ps:@ window parent) window)))
+                 (ps:try
+                  (let ((player-frame (ps:@ (ps:@ window parent) frames "player-frame")))
+                    (when player-frame
+                      (ps:chain player-frame document (get-element-by-id "stream-quality"))))
+                  (:catch (e) nil))))
+              (effective-selector (or selector player-frame-selector))
+              (quality (if effective-selector (ps:@ effective-selector value) "aac"))
+              (stream-base-url (or (ps:chain document (get-element-by-id "stream-base-url"))
+                                   (when (not (= (ps:@ window parent) window))
+                                     (ps:try
+                                      (let ((player-frame (ps:@ (ps:@ window parent) frames "player-frame")))
+                                        (when player-frame
+                                          (ps:chain player-frame document (get-element-by-id "stream-base-url"))))
+                                      (:catch (e) nil)))))
+              (config (when stream-base-url
+                        (get-stream-config (ps:@ stream-base-url value) quality))))
+         (if config (ps:@ config mount) "asteroid.mp3")))
+     
      ;; Update now playing info from API
      (defun update-now-playing ()
-       (ps:chain
-        (fetch "/api/asteroid/partial/now-playing")
-        (then (lambda (response)
-                (let ((content-type (ps:chain response headers (get "content-type"))))
-                  (if (ps:chain content-type (includes "text/html"))
-                      (ps:chain response (text))
-                      (throw (ps:new (-error "Error connecting to stream")))))))
-        (then (lambda (data)
-                (setf (ps:@ (ps:chain document (get-element-by-id "now-playing")) inner-h-t-m-l)
-                      data)))
-        (catch (lambda (error)
-                 (ps:chain console (log "Could not fetch stream status:" error))))))
+       (let ((mount (get-current-mount)))
+         (ps:chain
+          (fetch (+ "/api/asteroid/partial/now-playing?mount=" mount))
+          (then (lambda (response)
+                  (let ((content-type (ps:chain response headers (get "content-type"))))
+                    (if (ps:chain content-type (includes "text/html"))
+                        (ps:chain response (text))
+                        (throw (ps:new (-error "Error connecting to stream")))))))
+          (then (lambda (data)
+                  (setf (ps:@ (ps:chain document (get-element-by-id "now-playing")) inner-h-t-m-l)
+                        data)))
+          (catch (lambda (error)
+                   (ps:chain console (log "Could not fetch stream status:" error)))))))
      
      ;; Update stream information
      (defun update-stream-information ()
@@ -436,6 +468,23 @@
 
          ;; Update now playing
          (update-now-playing)
+
+         ;; Refresh now playing immediately when user switches streams
+         (let ((selector (ps:chain document (get-element-by-id "stream-quality"))))
+           (when (not selector)
+             (setf selector
+                   (ps:try
+                    (let ((player-frame (ps:@ (ps:@ window parent) frames "player-frame")))
+                      (when player-frame
+                        (ps:chain player-frame document (get-element-by-id "stream-quality"))))
+                    (:catch (e) nil))))
+           (when selector
+             (ps:chain selector
+                       (add-event-listener
+                        "change"
+                        (lambda (_ev)
+                          ;; Small delay so localStorage / UI state settles
+                          (ps:chain window (set-timeout update-now-playing 50)))))))
 
          ;; Attach event listeners to audio element
          (let ((audio-element (ps:chain document (get-element-by-id "live-audio"))))

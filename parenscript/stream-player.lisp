@@ -25,7 +25,11 @@
                       :low (ps:create :url (+ stream-base-url "/asteroid-low.mp3")
                                       :type "audio/mpeg"
                                       :format "MP3 64kbps Stereo"
-                                      :mount "asteroid-low.mp3"))))
+                                      :mount "asteroid-low.mp3")
+                      :shuffle (ps:create :url (+ stream-base-url "/asteroid-shuffle.mp3")
+                                          :type "audio/mpeg"
+                                          :format "Shuffle MP3 96kbps"
+                                          :mount "asteroid-shuffle.mp3"))))
          (ps:getprop config encoding)))
      
      ;; ========================================
@@ -37,52 +41,73 @@
        (let* ((selector (or (ps:chain document (get-element-by-id "stream-quality"))
                             (ps:chain document (get-element-by-id "popout-stream-quality"))))
               (stream-base-url (ps:@ (ps:chain document (get-element-by-id "stream-base-url")) value))
-              (config (get-stream-config stream-base-url (ps:@ selector value)))
+              (selected-quality (ps:@ selector value))
+              (config (get-stream-config stream-base-url selected-quality))
               (audio-element (or (ps:chain document (get-element-by-id "persistent-audio"))
                                  (ps:chain document (get-element-by-id "live-audio"))))
-              (source-element (ps:chain document (get-element-by-id "audio-source"))))
+              (source-element (ps:chain document (get-element-by-id "audio-source")))
+              (was-playing (and audio-element (not (ps:@ audio-element paused)))))
          
          ;; Save preference
-         (ps:chain local-storage (set-item "stream-quality" (ps:@ selector value)))
+         (ps:chain local-storage (set-item "stream-quality" selected-quality))
          
-         (let ((was-playing (not (ps:@ audio-element paused))))
-           (setf (ps:@ source-element src) (ps:@ config url))
-           (setf (ps:@ source-element type) (ps:@ config type))
-           (ps:chain audio-element (load))
-           
-           (when was-playing
-             (ps:chain audio-element (play)
-                       (catch (lambda (e)
-                                (ps:chain console (log "Autoplay prevented:" e)))))))))
+         ;; Swap source and reload
+         (setf (ps:@ source-element src) (ps:@ config url))
+         (setf (ps:@ source-element type) (ps:@ config type))
+         (ps:chain audio-element (load))
+         
+         ;; Resume playback if it was playing
+         (when was-playing
+           (ps:chain audio-element (play)
+                     (catch (lambda (e)
+                              (ps:chain console (log "Autoplay prevented:" e))))))
+         
+         ;; Refresh now-playing immediately when user switches streams
+         (when (ps:chain document (get-element-by-id "mini-now-playing"))
+           (ps:chain window (set-timeout update-mini-now-playing 50)))
+         (when (or (ps:chain document (get-element-by-id "popout-track-title"))
+                   (ps:chain document (get-element-by-id "popout-track-artist")))
+           (ps:chain window (set-timeout update-popout-now-playing 50)))))
      
      ;; ========================================
      ;; Now Playing Updates
      ;; ========================================
      
+     ;; Get current mount from stream quality selection
+     (defun get-current-mount ()
+       (let* ((selector (or (ps:chain document (get-element-by-id "stream-quality"))
+                            (ps:chain document (get-element-by-id "popout-stream-quality"))))
+              (quality (if selector (ps:@ selector value) "aac"))
+              (stream-base-url (ps:@ (ps:chain document (get-element-by-id "stream-base-url")) value))
+              (config (get-stream-config stream-base-url quality)))
+         (if config (ps:@ config mount) "asteroid.mp3")))
+     
      ;; Update mini now playing display (for persistent player frame)
      (defun update-mini-now-playing ()
-       (ps:chain
-        (fetch "/api/asteroid/partial/now-playing-inline")
-        (then (lambda (response)
-                (if (ps:@ response ok)
-                    (ps:chain response (text))
-                    "")))
-        (then (lambda (text)
-                (let ((el (ps:chain document (get-element-by-id "mini-now-playing"))))
-                  (when el
-                    (setf (ps:@ el text-content) text)))))
-        (catch (lambda (error)
-                 (ps:chain console (log "Could not fetch now playing:" error))))))
+       (let ((mount (get-current-mount)))
+         (ps:chain
+          (fetch (+ "/api/asteroid/partial/now-playing-inline?mount=" mount))
+          (then (lambda (response)
+                  (if (ps:@ response ok)
+                      (ps:chain response (text))
+                      "")))
+          (then (lambda (text)
+                  (let ((el (ps:chain document (get-element-by-id "mini-now-playing"))))
+                    (when el
+                      (setf (ps:@ el text-content) text)))))
+          (catch (lambda (error)
+                   (ps:chain console (log "Could not fetch now playing:" error)))))))
      
      ;; Update popout now playing display (parses artist - title)
      (defun update-popout-now-playing ()
-       (ps:chain
-        (fetch "/api/asteroid/partial/now-playing-inline")
-        (then (lambda (response)
-                (if (ps:@ response ok)
-                    (ps:chain response (text))
-                    "")))
-        (then (lambda (html)
+       (let ((mount (get-current-mount)))
+         (ps:chain
+          (fetch (+ "/api/asteroid/partial/now-playing-inline?mount=" mount))
+          (then (lambda (response)
+                  (if (ps:@ response ok)
+                      (ps:chain response (text))
+                      "")))
+          (then (lambda (html)
                 (let* ((parser (ps:new (-d-o-m-parser)))
                        (doc (ps:chain parser (parse-from-string html "text/html")))
                        (track-text (or (ps:@ doc body text-content)
@@ -105,8 +130,8 @@
                             (setf (ps:@ title-el text-content) (ps:chain track-text (trim))))
                           (when artist-el
                             (setf (ps:@ artist-el text-content) "Asteroid Radio"))))))))
-        (catch (lambda (error)
-                 (ps:chain console (error "Error updating now playing:" error))))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error updating now playing:" error)))))))
      
      ;; ========================================
      ;; Status Display
@@ -153,7 +178,7 @@
          
          (unless (and container old-audio)
            (show-status "❌ Could not reconnect - reload page" true)
-           (return))
+           (return-from reconnect-stream nil))
          
          ;; Save current volume and muted state
          (let ((saved-volume (ps:@ old-audio volume))
@@ -406,7 +431,7 @@
            
            ;; Start now playing updates
            (set-timeout update-mini-now-playing 1000)
-           (set-interval update-mini-now-playing 10000))))
+           (set-interval update-mini-now-playing 5000))))
      
      ;; Initialize popout player
      (defun init-popout-player ()
@@ -417,7 +442,7 @@
            
            ;; Start now playing updates
            (update-popout-now-playing)
-           (set-interval update-popout-now-playing 10000)
+           (set-interval update-popout-now-playing 5000)
            
            ;; Notify parent window
            (notify-popout-opened)
@@ -445,7 +470,8 @@
                     (init-persistent-player))
                   ;; Check for popout player
                   (when (ps:chain document (get-element-by-id "live-audio"))
-                    (init-popout-player)))))))
+                    (init-popout-player))))))
+   )
   "Compiled JavaScript for stream player - generated at load time")
 
 (defun generate-stream-player-js ()
