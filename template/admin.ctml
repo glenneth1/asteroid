@@ -214,6 +214,58 @@
       </div>
     </div>
 
+    <!-- Playlist Scheduler -->
+    <div class="admin-section">
+      <h2>⏰ Playlist Scheduler</h2>
+      <p>Automatically load playlists at scheduled times (UTC).</p>
+      
+      <!-- Server Time Display -->
+      <div id="scheduler-time" style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+          <div>
+            <strong>🕐 Server Time (UTC):</strong><br>
+            <span id="server-utc-time" style="font-size: 1.2em; font-family: monospace;">--:--:--</span>
+          </div>
+          <div>
+            <strong>📋 Current Playlist:</strong><br>
+            <span id="scheduler-current-playlist" style="font-size: 1.1em;">--</span>
+          </div>
+          <div>
+            <strong>⚡ Scheduler Status:</strong><br>
+            <span id="scheduler-status-indicator">--</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Scheduler Controls -->
+      <div class="queue-controls" style="margin-bottom: 15px;">
+        <button id="scheduler-refresh" class="btn btn-secondary" onclick="refreshSchedulerStatus()">🔄 Refresh</button>
+        <button id="scheduler-enable" class="btn btn-success" onclick="enableScheduler()">▶️ Enable</button>
+        <button id="scheduler-disable" class="btn btn-warning" onclick="disableScheduler()">⏸️ Disable</button>
+        <button id="scheduler-load-current" class="btn btn-info" onclick="loadCurrentScheduledPlaylist()">📂 Load Current</button>
+      </div>
+      
+      <!-- Schedule Table -->
+      <h3>📅 Schedule</h3>
+      <table class="listener-stats-table" style="margin-top: 10px;">
+        <thead>
+          <tr>
+            <th>Time (UTC)</th>
+            <th>Playlist</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="scheduler-table-body">
+          <tr><td colspan="3" style="color: #888;">Loading...</td></tr>
+        </tbody>
+      </table>
+      
+      <p style="margin-top: 15px; font-size: 0.9em; color: #888;">
+        The scheduler automatically loads the appropriate playlist at each scheduled time.
+        Use "Load Current" to manually sync to the correct playlist for the current time.
+      </p>
+    </div>
+
     <!-- Liquidsoap Stream Control -->
     <div class="admin-section">
       <h2>📡 Stream Control (Liquidsoap)</h2>

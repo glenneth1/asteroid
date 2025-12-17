@@ -28,8 +28,11 @@
                  (load-current-queue)
                  (refresh-liquidsoap-status)
                  (setup-stats-refresh)
+                 (refresh-scheduler-status)
                  ;; Update Liquidsoap status every 10 seconds
-                 (set-interval refresh-liquidsoap-status 10000))))
+                 (set-interval refresh-liquidsoap-status 10000)
+                 ;; Update scheduler status every 30 seconds
+                 (set-interval refresh-scheduler-status 30000))))
     
     ;; Setup all event listeners
     (defun setup-event-listeners ()
@@ -1123,6 +1126,112 @@
       (set-interval refresh-listener-stats 30000)
       (set-interval refresh-geo-stats 60000))
     
+    ;; ========================================
+    ;; Playlist Scheduler Controls
+    ;; ========================================
+    
+    ;; Refresh scheduler status
+    (defun refresh-scheduler-status ()
+      (ps:chain
+       (fetch "/api/asteroid/scheduler/status")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (when (= (ps:@ data status) "success")
+                   ;; Update server time
+                   (let ((time-el (ps:chain document (get-element-by-id "server-utc-time")))
+                         (server-time (ps:@ data server_time)))
+                     (when (and time-el server-time)
+                       (setf (ps:@ time-el text-content) (ps:@ server-time utc))))
+                   
+                   ;; Update current playlist
+                   (let ((playlist-el (ps:chain document (get-element-by-id "scheduler-current-playlist"))))
+                     (when playlist-el
+                       (setf (ps:@ playlist-el text-content) (or (ps:@ data current_playlist) "--"))))
+                   
+                   ;; Update status indicator
+                   (let ((status-el (ps:chain document (get-element-by-id "scheduler-status-indicator"))))
+                     (when status-el
+                       (if (ps:@ data enabled)
+                           (setf (ps:@ status-el inner-h-t-m-l) 
+                                 "<span style=\"color: #00ff00;\">🟢 Enabled</span>")
+                           (setf (ps:@ status-el inner-h-t-m-l) 
+                                 "<span style=\"color: #ffaa00;\">🟡 Disabled</span>"))))
+                   
+                   ;; Update schedule table
+                   (let ((table-body (ps:chain document (get-element-by-id "scheduler-table-body")))
+                         (schedule (ps:@ data schedule))
+                         (current-hour (when (ps:@ data server_time) (ps:@ data server_time utc_hour))))
+                     (when (and table-body schedule)
+                       (let ((html ""))
+                         (ps:chain schedule
+                                   (for-each (lambda (entry)
+                                               (let* ((hour (ps:@ entry hour))
+                                                      (playlist (ps:@ entry playlist))
+                                                      (is-active (and current-hour 
+                                                                      (>= current-hour hour)
+                                                                      (or (not (ps:chain schedule (find (lambda (e) (and (> (ps:@ e hour) hour) (<= (ps:@ e hour) current-hour))))))
+                                                                          t))))
+                                                 (setf html 
+                                                       (+ html
+                                                          "<tr" (if (= playlist (ps:@ data current_playlist)) " style=\"background: #1a3a1a;\"" "") ">"
+                                                          "<td>" (if (< hour 10) "0" "") hour ":00 UTC</td>"
+                                                          "<td>" playlist "</td>"
+                                                          "<td>" (if (= playlist (ps:@ data current_playlist)) "▶️ Active" "") "</td>"
+                                                          "</tr>"))))))
+                         (setf (ps:@ table-body inner-h-t-m-l) html))))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error loading scheduler status:" error))))))
+    
+    ;; Enable scheduler
+    (defun enable-scheduler ()
+      (ps:chain
+       (fetch "/api/asteroid/scheduler/enable" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast "✓ Scheduler enabled")
+                       (refresh-scheduler-status))
+                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error enabling scheduler:" error))
+                (alert "Error enabling scheduler")))))
+    
+    ;; Disable scheduler
+    (defun disable-scheduler ()
+      (ps:chain
+       (fetch "/api/asteroid/scheduler/disable" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast "⏸️ Scheduler disabled")
+                       (refresh-scheduler-status))
+                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error disabling scheduler:" error))
+                (alert "Error disabling scheduler")))))
+    
+    ;; Load current scheduled playlist
+    (defun load-current-scheduled-playlist ()
+      (ps:chain
+       (fetch "/api/asteroid/scheduler/load-current" (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast (+ "✓ Loaded " (ps:@ data playlist)))
+                       (refresh-scheduler-status)
+                       (load-current-queue))
+                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error loading scheduled playlist:" error))
+                (alert "Error loading scheduled playlist")))))
+    
     ;; Make functions globally accessible for onclick handlers
     (setf (ps:@ window go-to-page) go-to-page)
     (setf (ps:@ window previous-page) previous-page)
@@ -1140,6 +1249,10 @@
     (setf (ps:@ window refresh-listener-stats) refresh-listener-stats)
     (setf (ps:@ window refresh-geo-stats) refresh-geo-stats)
     (setf (ps:@ window setup-stats-refresh) setup-stats-refresh)
+    (setf (ps:@ window refresh-scheduler-status) refresh-scheduler-status)
+    (setf (ps:@ window enable-scheduler) enable-scheduler)
+    (setf (ps:@ window disable-scheduler) disable-scheduler)
+    (setf (ps:@ window load-current-scheduled-playlist) load-current-scheduled-playlist)
     ))
   "Compiled JavaScript for admin dashboard - generated at load time")
 
