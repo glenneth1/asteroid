@@ -246,12 +246,17 @@
 ;;; Auto-start scheduler when database is connected
 ;;; This ensures the scheduler starts after the server is fully initialized
 
-(define-trigger db:connected :after ()
+(define-trigger db:connected ()
   "Start the playlist scheduler after database connection is established"
   (format t "~&[SCHEDULER] Database connected, starting playlist scheduler...~%")
   (handler-case
       (progn
         (start-playlist-scheduler)
+        ;; Load the current scheduled playlist on startup
+        (let ((current-playlist (get-current-scheduled-playlist)))
+          (when current-playlist
+            (format t "~&[SCHEDULER] Loading current scheduled playlist: ~a~%" current-playlist)
+            (load-scheduled-playlist current-playlist)))
         (format t "~&[SCHEDULER] Scheduler auto-started successfully~%"))
     (error (e)
       (format t "~&[SCHEDULER] Warning: Could not auto-start scheduler: ~a~%" e))))
