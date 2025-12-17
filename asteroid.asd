@@ -28,6 +28,7 @@
                :cl-fad
                :bordeaux-threads
                :drakma
+               :cl-cron
                ;; radiance interfaces
                :i-log4cl
                :i-postmodern
@@ -60,6 +61,7 @@
                (:file "user-management")
                (:file "playlist-management")
                (:file "stream-control")
+               (:file "playlist-scheduler")
                (:file "listener-stats")
                (:file "auth-routes")
                (:file "frontend-partials")
