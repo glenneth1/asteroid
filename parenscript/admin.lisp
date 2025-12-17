@@ -1158,7 +1158,17 @@
                            (setf (ps:@ status-el inner-h-t-m-l) 
                                  "<span style=\"color: #ffaa00;\">🟡 Disabled</span>"))))
                    
-                   ;; Update schedule table
+                   ;; Update available playlists dropdown
+                   (let ((playlist-select (ps:chain document (get-element-by-id "schedule-playlist")))
+                         (available (ps:@ data available_playlists)))
+                     (when (and playlist-select available)
+                       (let ((html "<option value=\"\">-- Select Playlist --</option>"))
+                         (ps:chain available
+                                   (for-each (lambda (p)
+                                               (setf html (+ html "<option value=\"" p "\">" p "</option>")))))
+                         (setf (ps:@ playlist-select inner-h-t-m-l) html))))
+                   
+                   ;; Update schedule table with edit/delete buttons
                    (let ((table-body (ps:chain document (get-element-by-id "scheduler-table-body")))
                          (schedule (ps:@ data schedule))
                          (current-hour (when (ps:@ data server_time) (ps:@ data server_time utc_hour))))
@@ -1168,20 +1178,64 @@
                                    (for-each (lambda (entry)
                                                (let* ((hour (ps:@ entry hour))
                                                       (playlist (ps:@ entry playlist))
-                                                      (is-active (and current-hour 
-                                                                      (>= current-hour hour)
-                                                                      (or (not (ps:chain schedule (find (lambda (e) (and (> (ps:@ e hour) hour) (<= (ps:@ e hour) current-hour))))))
-                                                                          t))))
+                                                      (is-active (= playlist (ps:@ data current_playlist))))
                                                  (setf html 
                                                        (+ html
-                                                          "<tr" (if (= playlist (ps:@ data current_playlist)) " style=\"background: #1a3a1a;\"" "") ">"
+                                                          "<tr" (if is-active " style=\"background: #1a3a1a;\"" "") ">"
                                                           "<td>" (if (< hour 10) "0" "") hour ":00 UTC</td>"
                                                           "<td>" playlist "</td>"
-                                                          "<td>" (if (= playlist (ps:@ data current_playlist)) "▶️ Active" "") "</td>"
+                                                          "<td>" (if is-active "▶️ Active" "") "</td>"
+                                                          "<td><button class=\"btn btn-danger btn-sm\" onclick=\"removeScheduleEntry(" hour ")\">🗑️</button></td>"
                                                           "</tr>"))))))
                          (setf (ps:@ table-body inner-h-t-m-l) html))))))))
        (catch (lambda (error)
                 (ps:chain console (error "Error loading scheduler status:" error))))))
+    
+    ;; Add or update schedule entry
+    (defun add-schedule-entry ()
+      (let ((hour-select (ps:chain document (get-element-by-id "schedule-hour")))
+            (playlist-select (ps:chain document (get-element-by-id "schedule-playlist"))))
+        (when (and hour-select playlist-select)
+          (let ((hour (parse-int (ps:@ hour-select value)))
+                (playlist (ps:@ playlist-select value)))
+            (if (= playlist "")
+                (alert "Please select a playlist")
+                (ps:chain
+                 (fetch "/api/asteroid/scheduler/update"
+                        (ps:create :method "POST"
+                                   :headers (ps:create "Content-Type" "application/x-www-form-urlencoded")
+                                   :body (+ "hour=" hour "&playlist=" (encode-u-r-i-component playlist))))
+                 (then (lambda (response) (ps:chain response (json))))
+                 (then (lambda (result)
+                         (let ((data (or (ps:@ result data) result)))
+                           (if (= (ps:@ data status) "success")
+                               (progn
+                                 (show-toast (+ "✓ Schedule updated: " hour ":00 → " playlist))
+                                 (refresh-scheduler-status))
+                               (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+                 (catch (lambda (error)
+                          (ps:chain console (error "Error updating schedule:" error))
+                          (alert "Error updating schedule")))))))))
+    
+    ;; Remove schedule entry
+    (defun remove-schedule-entry (hour)
+      (when (confirm (+ "Remove schedule entry for " (if (< hour 10) "0" "") hour ":00 UTC?"))
+        (ps:chain
+         (fetch "/api/asteroid/scheduler/remove"
+                (ps:create :method "POST"
+                           :headers (ps:create "Content-Type" "application/x-www-form-urlencoded")
+                           :body (+ "hour=" hour)))
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (if (= (ps:@ data status) "success")
+                       (progn
+                         (show-toast (+ "✓ Removed schedule entry for " hour ":00"))
+                         (refresh-scheduler-status))
+                       (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error removing schedule entry:" error))
+                  (alert "Error removing schedule entry"))))))
     
     ;; Enable scheduler
     (defun enable-scheduler ()
@@ -1253,6 +1307,8 @@
     (setf (ps:@ window enable-scheduler) enable-scheduler)
     (setf (ps:@ window disable-scheduler) disable-scheduler)
     (setf (ps:@ window load-current-scheduled-playlist) load-current-scheduled-playlist)
+    (setf (ps:@ window add-schedule-entry) add-schedule-entry)
+    (setf (ps:@ window remove-schedule-entry) remove-schedule-entry)
     ))
   "Compiled JavaScript for admin dashboard - generated at load time")
 

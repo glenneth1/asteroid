@@ -95,10 +95,53 @@
   (stop-playlist-scheduler)
   (start-playlist-scheduler))
 
-;;; Schedule Management
+;;; Schedule Management (Database-backed)
+
+(defun load-schedule-from-db ()
+  "Load the playlist schedule from the database into *playlist-schedule*."
+  (handler-case
+      (with-db
+        (let ((rows (postmodern:query "SELECT hour, playlist FROM playlist_schedule ORDER BY hour")))
+          (when rows
+            (setf *playlist-schedule*
+                  (mapcar (lambda (row)
+                            (cons (first row) (second row)))
+                          rows))
+            (format t "~&[SCHEDULER] Loaded ~a schedule entries from database~%" (length rows)))))
+    (error (e)
+      (format t "~&[SCHEDULER] Warning: Could not load schedule from DB: ~a~%" e)
+      (format t "~&[SCHEDULER] Using default schedule~%"))))
+
+(defun save-schedule-entry-to-db (hour playlist-name)
+  "Save or update a schedule entry in the database."
+  (handler-case
+      (with-db
+        (postmodern:query 
+         (:insert-into 'playlist_schedule
+          :set 'hour hour 'playlist playlist-name 'updated_at (:now))
+         :on-conflict-update 'hour
+         :update-set 'playlist playlist-name 'updated_at (:now)))
+    (error (e)
+      ;; Try simpler upsert approach
+      (handler-case
+          (with-db
+            (postmodern:query
+             (format nil "INSERT INTO playlist_schedule (hour, playlist, updated_at) VALUES (~a, '~a', NOW()) ON CONFLICT (hour) DO UPDATE SET playlist = '~a', updated_at = NOW()"
+                     hour playlist-name playlist-name)))
+        (error (e2)
+          (format t "~&[SCHEDULER] Warning: Could not save schedule entry: ~a~%" e2))))))
+
+(defun delete-schedule-entry-from-db (hour)
+  "Delete a schedule entry from the database."
+  (handler-case
+      (with-db
+        (postmodern:query (:delete-from 'playlist_schedule :where (:= 'hour hour))))
+    (error (e)
+      (format t "~&[SCHEDULER] Warning: Could not delete schedule entry: ~a~%" e))))
 
 (defun add-scheduled-playlist (hour playlist-name)
-  "Add or update a playlist in the schedule."
+  "Add or update a playlist in the schedule (persists to database)."
+  (save-schedule-entry-to-db hour playlist-name)
   (setf *playlist-schedule* 
         (cons (cons hour playlist-name)
               (remove hour *playlist-schedule* :key #'car)))
@@ -107,7 +150,8 @@
   *playlist-schedule*)
 
 (defun remove-scheduled-playlist (hour)
-  "Remove a playlist from the schedule."
+  "Remove a playlist from the schedule (persists to database)."
+  (delete-schedule-entry-from-db hour)
   (setf *playlist-schedule* 
         (remove hour *playlist-schedule* :key #'car))
   (when *scheduler-running*
@@ -117,6 +161,13 @@
 (defun get-schedule ()
   "Get the current playlist schedule as a sorted list."
   (sort (copy-list *playlist-schedule*) #'< :key #'car))
+
+(defun get-available-playlists ()
+  "Get list of available playlist files from the playlists directory."
+  (let ((playlists-dir (get-playlists-directory)))
+    (when (probe-file playlists-dir)
+      (mapcar #'file-namestring
+              (directory (merge-pathnames "*.m3u" playlists-dir))))))
 
 (defun get-server-time-info ()
   "Get current server time information in both UTC and local timezone."
@@ -147,7 +198,8 @@
   (require-role :admin)
   (with-error-handling
     (let* ((status (get-scheduler-status))
-           (time-info (getf status :server-time)))
+           (time-info (getf status :server-time))
+           (available-playlists (get-available-playlists)))
       (api-output `(("status" . "success")
                     ("enabled" . ,(if (getf status :enabled) t :json-false))
                     ("running" . ,(if (getf status :running) t :json-false))
@@ -158,7 +210,8 @@
                     ("schedule" . ,(mapcar (lambda (entry)
                                              `(("hour" . ,(car entry))
                                                ("playlist" . ,(cdr entry))))
-                                           (getf status :schedule))))))))
+                                           (getf status :schedule)))
+                    ("available_playlists" . ,(coerce available-playlists 'vector)))))))
 
 (define-api asteroid/scheduler/enable () ()
   "Enable the playlist scheduler"
@@ -251,6 +304,8 @@
   (format t "~&[SCHEDULER] Database connected, starting playlist scheduler...~%")
   (handler-case
       (progn
+        ;; Load schedule from database first
+        (load-schedule-from-db)
         (start-playlist-scheduler)
         ;; Load the current scheduled playlist on startup
         (let ((current-playlist (get-current-scheduled-playlist)))
