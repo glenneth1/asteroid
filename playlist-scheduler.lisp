@@ -118,12 +118,27 @@
   "Get the current playlist schedule as a sorted list."
   (sort (copy-list *playlist-schedule*) #'< :key #'car))
 
+(defun get-server-time-info ()
+  "Get current server time information in both UTC and local timezone."
+  (let* ((now (local-time:now))
+         (utc-hour (local-time:timestamp-hour now :timezone local-time:+utc-zone+))
+         (utc-minute (local-time:timestamp-minute now :timezone local-time:+utc-zone+)))
+    (list :utc-time (local-time:format-timestring nil now 
+                      :format '(:year "-" (:month 2) "-" (:day 2) " " (:hour 2) ":" (:min 2) ":" (:sec 2) " UTC")
+                      :timezone local-time:+utc-zone+)
+          :utc-hour utc-hour
+          :utc-minute utc-minute
+          :local-time (local-time:format-timestring nil now
+                        :format '(:year "-" (:month 2) "-" (:day 2) " " (:hour 2) ":" (:min 2) ":" (:sec 2))))))
+
 (defun get-scheduler-status ()
   "Get the current status of the scheduler."
-  (list :enabled *scheduler-enabled*
-        :running *scheduler-running*
-        :current-playlist (get-current-scheduled-playlist)
-        :schedule (get-schedule)))
+  (let ((time-info (get-server-time-info)))
+    (list :enabled *scheduler-enabled*
+          :running *scheduler-running*
+          :current-playlist (get-current-scheduled-playlist)
+          :schedule (get-schedule)
+          :server-time time-info)))
 
 ;;; API Endpoints for Admin Interface
 
@@ -131,11 +146,15 @@
   "Get the current scheduler status"
   (require-role :admin)
   (with-error-handling
-    (let ((status (get-scheduler-status)))
+    (let* ((status (get-scheduler-status))
+           (time-info (getf status :server-time)))
       (api-output `(("status" . "success")
                     ("enabled" . ,(if (getf status :enabled) t :json-false))
                     ("running" . ,(if (getf status :running) t :json-false))
                     ("current_playlist" . ,(getf status :current-playlist))
+                    ("server_time" . (("utc" . ,(getf time-info :utc-time))
+                                      ("utc_hour" . ,(getf time-info :utc-hour))
+                                      ("local" . ,(getf time-info :local-time))))
                     ("schedule" . ,(mapcar (lambda (entry)
                                              `(("hour" . ,(car entry))
                                                ("playlist" . ,(cdr entry))))
