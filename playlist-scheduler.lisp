@@ -1,0 +1,238 @@
+;;;; playlist-scheduler.lisp - Automatic Playlist Scheduling for Asteroid Radio
+;;;; Uses cl-cron to load time-based playlists at scheduled times
+
+(in-package :asteroid)
+
+;;; Scheduler Configuration
+
+(defvar *playlist-schedule* 
+  '((0  . "midnight-ambient.m3u")   ; 00:00 UTC
+    (6  . "morning-drift.m3u")      ; 06:00 UTC
+    (12 . "afternoon-orbit.m3u")    ; 12:00 UTC
+    (18 . "evening-descent.m3u"))   ; 18:00 UTC
+  "Association list mapping hours (UTC) to playlist filenames.
+   Each entry is (hour . playlist-filename).")
+
+(defvar *scheduler-enabled* t
+  "When true, the playlist scheduler is active.")
+
+(defvar *scheduler-running* nil
+  "Internal flag tracking if scheduler cron jobs are registered.")
+
+;;; Scheduler Functions
+
+(defun get-scheduled-playlist-for-hour (hour)
+  "Get the playlist filename scheduled for a given hour.
+   Returns the playlist for the most recent scheduled time slot."
+  (let ((sorted-schedule (sort (copy-list *playlist-schedule*) #'> :key #'car)))
+    (or (cdr (find-if (lambda (entry) (<= (car entry) hour)) sorted-schedule))
+        (cdar (last sorted-schedule)))))
+
+(defun get-current-scheduled-playlist ()
+  "Get the playlist that should be playing right now based on UTC time."
+  (let ((current-hour (local-time:timestamp-hour (local-time:now) :timezone local-time:+utc-zone+)))
+    (get-scheduled-playlist-for-hour current-hour)))
+
+(defun load-scheduled-playlist (playlist-name)
+  "Load a playlist by name, copying it to stream-queue.m3u and triggering playback."
+  (let ((playlist-path (merge-pathnames playlist-name (get-playlists-directory))))
+    (if (probe-file playlist-path)
+        (progn
+          (format t "~&[SCHEDULER] Loading playlist: ~a~%" playlist-name)
+          (copy-playlist-to-stream-queue playlist-path)
+          (load-queue-from-m3u-file)
+          (handler-case
+              (progn
+                (liquidsoap-command "stream-queue_m3u.skip")
+                (format t "~&[SCHEDULER] Playlist ~a loaded and crossfade triggered~%" playlist-name))
+            (error (e)
+              (format t "~&[SCHEDULER] Warning: Could not skip track: ~a~%" e)))
+          t)
+        (progn
+          (format t "~&[SCHEDULER] Error: Playlist not found: ~a~%" playlist-name)
+          nil))))
+
+(defun scheduled-playlist-loader (hour playlist-name)
+  "Create a function that loads a specific playlist. Used by cl-cron jobs."
+  (lambda ()
+    (when *scheduler-enabled*
+      (format t "~&[SCHEDULER] Triggered at hour ~a UTC - loading ~a~%" hour playlist-name)
+      (load-scheduled-playlist playlist-name))))
+
+;;; Cron Job Management
+
+(defun setup-playlist-cron-jobs ()
+  "Set up cl-cron jobs for all scheduled playlists."
+  (unless *scheduler-running*
+    (format t "~&[SCHEDULER] Setting up playlist schedule:~%")
+    (dolist (entry *playlist-schedule*)
+      (let ((hour (car entry))
+            (playlist (cdr entry)))
+        (format t "~&[SCHEDULER]   ~2,'0d:00 UTC -> ~a~%" hour playlist)
+        (cl-cron:make-cron-job 
+         (scheduled-playlist-loader hour playlist)
+         :minute 0 
+         :hour hour)))
+    (setf *scheduler-running* t)
+    (format t "~&[SCHEDULER] Playlist schedule configured~%")))
+
+(defun start-playlist-scheduler ()
+  "Start the playlist scheduler. Sets up cron jobs and starts cl-cron."
+  (setup-playlist-cron-jobs)
+  (cl-cron:start-cron)
+  (format t "~&[SCHEDULER] Playlist scheduler started~%")
+  t)
+
+(defun stop-playlist-scheduler ()
+  "Stop the playlist scheduler."
+  (cl-cron:stop-cron)
+  (setf *scheduler-running* nil)
+  (format t "~&[SCHEDULER] Playlist scheduler stopped~%")
+  t)
+
+(defun restart-playlist-scheduler ()
+  "Restart the playlist scheduler with current configuration."
+  (stop-playlist-scheduler)
+  (start-playlist-scheduler))
+
+;;; Schedule Management
+
+(defun add-scheduled-playlist (hour playlist-name)
+  "Add or update a playlist in the schedule."
+  (setf *playlist-schedule* 
+        (cons (cons hour playlist-name)
+              (remove hour *playlist-schedule* :key #'car)))
+  (when *scheduler-running*
+    (restart-playlist-scheduler))
+  *playlist-schedule*)
+
+(defun remove-scheduled-playlist (hour)
+  "Remove a playlist from the schedule."
+  (setf *playlist-schedule* 
+        (remove hour *playlist-schedule* :key #'car))
+  (when *scheduler-running*
+    (restart-playlist-scheduler))
+  *playlist-schedule*)
+
+(defun get-schedule ()
+  "Get the current playlist schedule as a sorted list."
+  (sort (copy-list *playlist-schedule*) #'< :key #'car))
+
+(defun get-scheduler-status ()
+  "Get the current status of the scheduler."
+  (list :enabled *scheduler-enabled*
+        :running *scheduler-running*
+        :current-playlist (get-current-scheduled-playlist)
+        :schedule (get-schedule)))
+
+;;; API Endpoints for Admin Interface
+
+(define-api asteroid/scheduler/status () ()
+  "Get the current scheduler status"
+  (require-role :admin)
+  (with-error-handling
+    (let ((status (get-scheduler-status)))
+      (api-output `(("status" . "success")
+                    ("enabled" . ,(if (getf status :enabled) t :json-false))
+                    ("running" . ,(if (getf status :running) t :json-false))
+                    ("current_playlist" . ,(getf status :current-playlist))
+                    ("schedule" . ,(mapcar (lambda (entry)
+                                             `(("hour" . ,(car entry))
+                                               ("playlist" . ,(cdr entry))))
+                                           (getf status :schedule))))))))
+
+(define-api asteroid/scheduler/enable () ()
+  "Enable the playlist scheduler"
+  (require-role :admin)
+  (with-error-handling
+    (setf *scheduler-enabled* t)
+    (unless *scheduler-running*
+      (start-playlist-scheduler))
+    (api-output `(("status" . "success")
+                  ("message" . "Scheduler enabled")))))
+
+(define-api asteroid/scheduler/disable () ()
+  "Disable the playlist scheduler (stops automatic playlist changes)"
+  (require-role :admin)
+  (with-error-handling
+    (setf *scheduler-enabled* nil)
+    (api-output `(("status" . "success")
+                  ("message" . "Scheduler disabled - playlists will not auto-change")))))
+
+(define-api asteroid/scheduler/load-current () ()
+  "Manually load the playlist that should be playing now based on schedule"
+  (require-role :admin)
+  (with-error-handling
+    (let ((playlist (get-current-scheduled-playlist)))
+      (if (load-scheduled-playlist playlist)
+          (api-output `(("status" . "success")
+                        ("message" . ,(format nil "Loaded scheduled playlist: ~a" playlist))
+                        ("playlist" . ,playlist)))
+          (api-output `(("status" . "error")
+                        ("message" . ,(format nil "Failed to load playlist: ~a" playlist)))
+                      :status 500)))))
+
+(define-api asteroid/scheduler/schedule () ()
+  "Get the current playlist schedule"
+  (require-role :admin)
+  (with-error-handling
+    (api-output `(("status" . "success")
+                  ("schedule" . ,(mapcar (lambda (entry)
+                                           `(("hour" . ,(car entry))
+                                             ("playlist" . ,(cdr entry))
+                                             ("time_label" . ,(format nil "~2,'0d:00 UTC" (car entry)))))
+                                         (get-schedule)))))))
+
+(define-api asteroid/scheduler/update (hour playlist) ()
+  "Add or update a scheduled playlist (hour is 0-23 UTC)"
+  (require-role :admin)
+  (with-error-handling
+    (let ((hour-int (parse-integer hour :junk-allowed t)))
+      (if (and hour-int (>= hour-int 0) (<= hour-int 23))
+          (let ((playlist-path (merge-pathnames playlist (get-playlists-directory))))
+            (if (probe-file playlist-path)
+                (progn
+                  (add-scheduled-playlist hour-int playlist)
+                  (api-output `(("status" . "success")
+                                ("message" . ,(format nil "Schedule updated: ~2,'0d:00 UTC -> ~a" hour-int playlist))
+                                ("schedule" . ,(mapcar (lambda (entry)
+                                                         `(("hour" . ,(car entry))
+                                                           ("playlist" . ,(cdr entry))))
+                                                       (get-schedule))))))
+                (api-output `(("status" . "error")
+                              ("message" . ,(format nil "Playlist not found: ~a" playlist)))
+                            :status 404)))
+          (api-output `(("status" . "error")
+                        ("message" . "Invalid hour - must be 0-23"))
+                      :status 400)))))
+
+(define-api asteroid/scheduler/remove (hour) ()
+  "Remove a scheduled playlist"
+  (require-role :admin)
+  (with-error-handling
+    (let ((hour-int (parse-integer hour :junk-allowed t)))
+      (if (and hour-int (>= hour-int 0) (<= hour-int 23))
+          (progn
+            (remove-scheduled-playlist hour-int)
+            (api-output `(("status" . "success")
+                          ("message" . ,(format nil "Removed schedule for ~2,'0d:00 UTC" hour-int))
+                          ("schedule" . ,(mapcar (lambda (entry)
+                                                   `(("hour" . ,(car entry))
+                                                     ("playlist" . ,(cdr entry))))
+                                                 (get-schedule))))))
+          (api-output `(("status" . "error")
+                        ("message" . "Invalid hour - must be 0-23"))
+                      :status 400)))))
+
+;;; Auto-start scheduler when database is connected
+;;; This ensures the scheduler starts after the server is fully initialized
+
+(define-trigger db:connected :after ()
+  "Start the playlist scheduler after database connection is established"
+  (format t "~&[SCHEDULER] Database connected, starting playlist scheduler...~%")
+  (handler-case
+      (progn
+        (start-playlist-scheduler)
+        (format t "~&[SCHEDULER] Scheduler auto-started successfully~%"))
+    (error (e)
+      (format t "~&[SCHEDULER] Warning: Could not auto-start scheduler: ~a~%" e))))
