@@ -53,6 +53,14 @@
   (setf (session:field "user-id") nil)
   (radiance:redirect "/"))
 
+;; Helper to convert Common Lisp universal time to Unix epoch
+(defun cl-time-to-unix (cl-time)
+  "Convert Common Lisp universal time to Unix epoch.
+   CL epoch is 1900-01-01, Unix epoch is 1970-01-01.
+   Difference is 2208988800 seconds."
+  (when cl-time
+    (- cl-time 2208988800)))
+
 ;; API: Get all users (admin only)
 (define-api asteroid/users () ()
   "API endpoint to get all users"
@@ -66,8 +74,8 @@
                                               ("email" . ,(dm:field user "email"))
                                               ("role" . ,(dm:field user "role"))
                                               ("active" . ,(= (dm:field user "active") 1))
-                                              ("created-date" . ,(dm:field user "created-date"))
-                                              ("last-login" . ,(dm:field user "last-login"))))
+                                              ("created-date" . ,(cl-time-to-unix (dm:field user "created-date")))
+                                              ("last-login" . ,(cl-time-to-unix (dm:field user "last-login")))))
                                           users)))))
     (error (e)
       (api-output `(("status" . "error")

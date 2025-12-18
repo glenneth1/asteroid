@@ -57,9 +57,13 @@
                                              "</select>"
                                              "</td>"
                                              "<td>" (if (ps:@ user active) "✅ Active" "❌ Inactive") "</td>"
-                                             "<td>" (if (ps:getprop user "last-login")
-                                                       (ps:chain (ps:new (-date (ps:getprop user "last-login"))) (to-locale-string))
-                                                       "Never") "</td>"
+                                             "<td>" (let ((login-val (ps:getprop user "last-login")))
+                                                      (if login-val
+                                                          (let ((date-val (if (> login-val 9999999999)
+                                                                              login-val  ; Already milliseconds
+                                                                              (* login-val 1000))))  ; Convert seconds to ms
+                                                            (ps:chain (ps:new (-date date-val)) (to-locale-string)))
+                                                          "Never")) "</td>"
                                              "<td class=\"user-actions\">"
                                              (if (ps:@ user active)
                                                  (+ "<button class=\"btn btn-danger\" onclick=\"deactivateUser('" (ps:@ user id) "')\">Deactivate</button>")
