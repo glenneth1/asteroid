@@ -58,7 +58,7 @@
                                              "</td>"
                                              "<td>" (if (ps:@ user active) "✅ Active" "❌ Inactive") "</td>"
                                              "<td>" (if (ps:getprop user "last-login")
-                                                       (ps:chain (ps:new (-date (* (ps:getprop user "last-login") 1000))) (to-locale-string))
+                                                       (ps:chain (ps:new (-date (ps:getprop user "last-login"))) (to-locale-string))
                                                        "Never") "</td>"
                                              "<td class=\"user-actions\">"
                                              (if (ps:@ user active)

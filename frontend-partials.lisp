@@ -96,3 +96,9 @@
           (progn
             (setf (header "Content-Type") "text/plain")
             "Stream Offline")))))
+
+(define-api asteroid/channel-name () ()
+  "Get the current curated channel name for live updates.
+   Returns JSON with the channel name from the current playlist's PHASE header."
+  (with-error-handling
+    (api-output `(("channel_name" . ,(get-curated-channel-name))))))

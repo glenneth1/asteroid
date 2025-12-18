@@ -594,8 +594,37 @@
      
      ;; Update now playing every 5 seconds
      (set-interval update-now-playing 5000)
-     
-     ;; Listen for messages from popout window
+    
+    ;; Poll server for channel name changes (works across all listeners)
+    (let ((last-channel-name nil))
+      (set-interval
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/channel-name")
+           (then (lambda (response)
+                   (if (ps:@ response ok)
+                       (ps:chain response (json))
+                       nil)))
+           (then (lambda (data)
+                   (when data
+                     (let ((current-channel-name (or (ps:@ data data channel_name)
+                                                     (ps:@ data channel_name))))
+                       (when (and current-channel-name
+                                  (not (= current-channel-name last-channel-name)))
+                         (setf last-channel-name current-channel-name)
+                         ;; Update localStorage for cross-window sync
+                         (ps:chain local-storage (set-item "curated-channel-name" current-channel-name))
+                         ;; Update channel selector in current document
+                         (let ((channel-selector (ps:chain document (get-element-by-id "stream-channel"))))
+                           (when channel-selector
+                             (let ((curated-option (ps:chain channel-selector (query-selector "option[value='curated']"))))
+                               (when curated-option
+                                 (setf (ps:@ curated-option text-content) (+ "🎧 " current-channel-name)))))))))))
+           (catch (lambda (error)
+                    (ps:chain console (log "Could not fetch channel name:" error))))))
+        10000))  ;; Poll every 10 seconds
+    
+    ;; Listen for messages from popout window
      (ps:chain window
       (add-event-listener
        "message"
