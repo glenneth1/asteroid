@@ -70,9 +70,13 @@
         (when (and (= 1 user-active)
                    (verify-password password user-password))
           ;; Update last login using data-model (database agnostic)
+          ;; Use ISO 8601 format that PostgreSQL TIMESTAMP can parse
           (handler-case
               (progn
-                (setf (dm:field user "last-login") (format nil "~a" (local-time:now)))
+                (setf (dm:field user "last-login") 
+                      (local-time:format-timestring nil (local-time:now)
+                                                    :format '(:year "-" (:month 2) "-" (:day 2) " " 
+                                                              (:hour 2) ":" (:min 2) ":" (:sec 2))))
                 (dm:save user))
             (error (e)
               (format t "Warning: Could not update last-login: ~a~%" e)))

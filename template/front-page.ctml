@@ -126,6 +126,15 @@
         </div>
       </div>
     </main>
+    
+    <footer class="site-footer">
+      <span>Listed on <a href="http://www.internet-radio.com/stations/ambient/" target="_blank" rel="noopener">Internet Radio</a></span>
+      <span class="craftering">
+        <a href="https://craftering.systemcrafters.net/@asteroid/previous">←</a>
+        <a href="https://craftering.systemcrafters.net/">craftering</a>
+        <a href="https://craftering.systemcrafters.net/@asteroid/next">→</a>
+      </span>
+    </footer>
   </div>
 </body>
 </html>
