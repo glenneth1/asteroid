@@ -165,6 +165,24 @@
                         (get-stream-config (ps:@ stream-base-url value) channel quality))))
          (if config (ps:@ config mount) "asteroid.mp3")))
      
+     ;; Track last recorded title to avoid duplicate history entries
+     (defvar *last-recorded-title-main* nil)
+     
+     ;; Record track to listening history (only if logged in)
+     (defun record-track-listen-main (title)
+       (when (and title (not (= title "")) (not (= title "Loading...")) 
+                  (not (= title "NA")) (not (= title *last-recorded-title-main*)))
+         (setf *last-recorded-title-main* title)
+         (ps:chain
+          (fetch (+ "/api/asteroid/user/history/record?title=" (encode-u-r-i-component title))
+                 (ps:create :method "POST"))
+          (then (lambda (response)
+                  (when (ps:@ response ok)
+                    (ps:chain console (log "Recorded listen:" title)))))
+          (catch (lambda (error)
+                   ;; Silently fail - user might not be logged in
+                   nil)))))
+     
      ;; Update now playing info from API
      (defun update-now-playing ()
        (let ((mount (get-current-mount)))
@@ -176,8 +194,19 @@
                         (ps:chain response (text))
                         (throw (ps:new (-error "Error connecting to stream")))))))
           (then (lambda (data)
-                  (setf (ps:@ (ps:chain document (get-element-by-id "now-playing")) inner-h-t-m-l)
-                        data)))
+                  (let ((now-playing-el (ps:chain document (get-element-by-id "now-playing"))))
+                    (when now-playing-el
+                      ;; Get current title before updating
+                      (let ((old-title-el (ps:chain now-playing-el (query-selector "#current-track-title"))))
+                        (setf (ps:@ now-playing-el inner-h-t-m-l) data)
+                        ;; Get new title after updating
+                        (let ((new-title-el (ps:chain now-playing-el (query-selector "#current-track-title"))))
+                          (when new-title-el
+                            (let ((new-title (ps:@ new-title-el text-content)))
+                              ;; Record if title changed
+                              (when (or (not old-title-el) 
+                                        (not (= (ps:@ old-title-el text-content) new-title)))
+                                (record-track-listen-main new-title))))))))))
           (catch (lambda (error)
                    (ps:chain console (log "Could not fetch stream status:" error)))))))
      

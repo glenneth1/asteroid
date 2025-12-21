@@ -73,64 +73,51 @@
 ;;; Listening History - Per-user track play history
 ;;; ==========================================================================
 
-(defun record-listen (user-id track-id &key (duration 0) (completed nil))
-  "Record a track listen in user's history"
+(defun record-listen (user-id &key track-id track-title (duration 0) (completed nil))
+  "Record a track listen in user's history. Can use track-id or track-title."
   (with-db
-    (postmodern:query
-     (:insert-into 'listening_history
-      :set '"user-id" user-id
-           '"track-id" track-id
-           '"listened-at" (:current_timestamp)
-           '"listen-duration" duration
-           'completed (if completed 1 0)))))
+    (if track-id
+        (postmodern:query
+         (:raw (format nil "INSERT INTO listening_history (\"user-id\", \"track-id\", track_title, \"listen-duration\", completed) VALUES (~a, ~a, ~a, ~a, ~a)"
+                       user-id track-id
+                       (if track-title (format nil "$$~a$$" track-title) "NULL")
+                       duration (if completed 1 0))))
+        (when track-title
+          (postmodern:query
+           (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, $$~a$$, ~a, ~a)"
+                         user-id track-title duration (if completed 1 0))))))))
 
 (defun get-listening-history (user-id &key (limit 20) (offset 0))
-  "Get user's listening history with track details"
+  "Get user's listening history - works with title-based history"
   (with-db
     (postmodern:query
-     (:limit
-      (:order-by
-       (:select 'lh._id 'lh.listened-at 'lh.listen-duration 'lh.completed
-                't.title 't.artist 't.album 't.duration 't._id
-        :from (:as 'listening_history 'lh)
-        :inner-join (:as 'tracks 't) :on (:= 'lh.track-id 't._id)
-        :where (:= 'lh.user-id user-id))
-       (:desc 'lh.listened-at))
-      limit offset)
+     (:raw (format nil "SELECT _id, \"listened-at\", \"listen-duration\", completed, track_title, \"track-id\" FROM listening_history WHERE \"user-id\" = ~a ORDER BY \"listened-at\" DESC LIMIT ~a OFFSET ~a"
+                   user-id limit offset))
      :alists)))
 
 (defun get-listening-stats (user-id)
   "Get aggregate listening statistics for a user"
   (with-db
     (let ((stats (postmodern:query
-                  (:select (:count '*) (:sum 'listen-duration)
-                   :from 'listening_history
-                   :where (:= '"user-id" user-id))
+                  (:raw (format nil "SELECT COUNT(*), COALESCE(SUM(\"listen-duration\"), 0) FROM listening_history WHERE \"user-id\" = ~a" user-id))
                   :row)))
       (list :tracks-played (or (first stats) 0)
             :total-listen-time (or (second stats) 0)))))
 
 (defun get-top-artists (user-id &key (limit 5))
-  "Get user's most listened artists"
+  "Get user's most listened artists - extracts artist from track_title"
   (with-db
+    ;; Extract artist from 'Artist - Title' format in track_title
     (postmodern:query
-     (:limit
-      (:order-by
-       (:select 't.artist (:as (:count '*) 'play_count)
-        :from (:as 'listening_history 'lh)
-        :inner-join (:as 'tracks 't) :on (:= 'lh.track-id 't._id)
-        :where (:= 'lh.user-id user-id)
-        :group-by 't.artist)
-       (:desc 'play_count))
-      limit)
+     (:raw (format nil "SELECT SPLIT_PART(track_title, ' - ', 1) as artist, COUNT(*) as play_count FROM listening_history WHERE \"user-id\" = ~a AND track_title IS NOT NULL GROUP BY SPLIT_PART(track_title, ' - ', 1) ORDER BY play_count DESC LIMIT ~a"
+                   user-id limit))
      :alists)))
 
 (defun clear-listening-history (user-id)
   "Clear all listening history for a user"
   (with-db
     (postmodern:query
-     (:delete-from 'listening_history
-      :where (:= '"user-id" user-id)))))
+     (:raw (format nil "DELETE FROM listening_history WHERE \"user-id\" = ~a" user-id)))))
 
 ;;; ==========================================================================
 ;;; API Endpoints for User Favorites
@@ -214,24 +201,29 @@
       (api-output `(("status" . "success")
                     ("history" . ,(mapcar (lambda (h)
                                             `(("id" . ,(cdr (assoc :_id h)))
-                                              ("track_id" . ,(cdr (assoc :_id h)))
-                                              ("title" . ,(cdr (assoc :title h)))
-                                              ("artist" . ,(cdr (assoc :artist h)))
-                                              ("album" . ,(cdr (assoc :album h)))
-                                              ("duration" . ,(cdr (assoc :duration h)))
+                                              ("track_id" . ,(cdr (assoc :track-id h)))
+                                              ("title" . ,(or (cdr (assoc :track-title h))
+                                                              (cdr (assoc :track_title h))))
                                               ("listened_at" . ,(cdr (assoc :listened-at h)))
-                                              ("completed" . ,(= 1 (cdr (assoc :completed h))))))
+                                              ("listen_duration" . ,(cdr (assoc :listen-duration h)))
+                                              ("completed" . ,(let ((c (cdr (assoc :completed h))))
+                                                                (and c (= 1 c))))))
                                           history)))))))
 
-(define-api asteroid/user/history/record (track-id &optional duration completed) ()
-  "Record a track listen (called by player)"
+(define-api asteroid/user/history/record (&optional track-id title duration completed) ()
+  "Record a track listen (called by player). Can use track-id or title."
   (require-authentication)
   (with-error-handling
-    (let* ((user-id (session:field "user-id"))
-           (track-id-int (parse-integer track-id))
-           (duration-int (if duration (parse-integer duration) 0))
+    (let* ((user-id-raw (session:field "user-id"))
+           (user-id (if (stringp user-id-raw)
+                        (parse-integer user-id-raw :junk-allowed t)
+                        user-id-raw))
+           (track-id-int (when (and track-id (not (string= track-id "")))
+                           (parse-integer track-id :junk-allowed t)))
+           (duration-int (if duration (parse-integer duration :junk-allowed t) 0))
            (completed-bool (and completed (string-equal completed "true"))))
-      (record-listen user-id track-id-int :duration duration-int :completed completed-bool)
+      (record-listen user-id :track-id track-id-int :track-title title 
+                     :duration (or duration-int 0) :completed completed-bool)
       (api-output `(("status" . "success")
                     ("message" . "Listen recorded"))))))
 
