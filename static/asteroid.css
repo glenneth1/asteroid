@@ -1702,3 +1702,74 @@ body.popout-body .status-mini{
     padding: 4px 8px;
     font-size: 0.8em;
 }
+
+.activity-chart{
+    padding: 15px;
+}
+
+.activity-chart .chart-container{
+    min-height: 120px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.activity-chart .chart-bars{
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    height: 100px;
+    width: 100%;
+    max-width: 600px;
+}
+
+.activity-chart .chart-bar-wrapper{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    max-width: 20px;
+}
+
+.activity-chart .chart-bar{
+    width: 100%;
+    min-height: 2px;
+    background: linear-gradient(to top, #006600, #00cc00);
+    border-radius: 2px 2px 0 0;
+    -moz-transition: height 0.3s ease;
+    -o-transition: height 0.3s ease;
+    -webkit-transition: height 0.3s ease;
+    -ms-transition: height 0.3s ease;
+    transition: height 0.3s ease;
+}
+
+.activity-chart .chart-bar:hover{
+    background: linear-gradient(to top, #009900, #00ff00);
+}
+
+.activity-chart .chart-day{
+    font-size: 0.6em;
+    color: #666;
+    margin-top: 4px;
+}
+
+.activity-chart .chart-note{
+    text-align: center;
+    color: #888;
+    font-size: 0.9em;
+    margin-top: 10px;
+}
+
+.activity-chart .loading-message{
+    color: #666;
+    font-style: italic;
+    text-align: center;
+}
+
+.activity-chart .no-data{
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}

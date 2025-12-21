@@ -119,6 +119,14 @@
     (postmodern:query
      (:raw (format nil "DELETE FROM listening_history WHERE \"user-id\" = ~a" user-id)))))
 
+(defun get-listening-activity (user-id &key (days 30))
+  "Get listening activity aggregated by day for the last N days"
+  (with-db
+    (postmodern:query
+     (:raw (format nil "SELECT DATE(\"listened-at\") as day, COUNT(*) as track_count FROM listening_history WHERE \"user-id\" = ~a AND \"listened-at\" >= NOW() - INTERVAL '~a days' GROUP BY DATE(\"listened-at\") ORDER BY day ASC"
+                   user-id days))
+     :alists)))
+
 ;;; ==========================================================================
 ;;; API Endpoints for User Favorites
 ;;; ==========================================================================
@@ -235,3 +243,16 @@
       (clear-listening-history user-id)
       (api-output `(("status" . "success")
                     ("message" . "Listening history cleared"))))))
+
+(define-api asteroid/user/activity (&optional (days "30")) ()
+  "Get listening activity by day for the last N days"
+  (require-authentication)
+  (with-error-handling
+    (let* ((user-id (session:field "user-id"))
+           (days-int (or (parse-integer days :junk-allowed t) 30))
+           (activity (get-listening-activity user-id :days days-int)))
+      (api-output `(("status" . "success")
+                    ("activity" . ,(mapcar (lambda (a)
+                                             `(("day" . ,(cdr (assoc :day a)))
+                                               ("track_count" . ,(cdr (assoc :track-count a)))))
+                                           activity)))))))
