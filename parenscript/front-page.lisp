@@ -721,7 +721,77 @@
         (when (and *popout-window* (ps:@ *popout-window* closed))
           (update-popout-button nil)
           (setf *popout-window* nil)))
-      1000)))
+      1000)
+     
+     ;; Track Request Functions
+     (defun submit-track-request ()
+       (let ((title-input (ps:chain document (get-element-by-id "request-title")))
+             (message-input (ps:chain document (get-element-by-id "request-message")))
+             (status-div (ps:chain document (get-element-by-id "request-status"))))
+         (when (and title-input message-input status-div)
+           (let ((title (ps:@ title-input value))
+                 (message (ps:@ message-input value)))
+             (if (or (not title) (= title ""))
+                 (progn
+                   (setf (ps:@ status-div style display) "block")
+                   (setf (ps:@ status-div class-name) "request-status error")
+                   (setf (ps:@ status-div text-content) "Please enter a track title"))
+                 (progn
+                   (setf (ps:@ status-div style display) "block")
+                   (setf (ps:@ status-div class-name) "request-status info")
+                   (setf (ps:@ status-div text-content) "Submitting request...")
+                   (ps:chain
+                    (fetch (+ "/api/asteroid/requests/submit?title=" (encode-u-r-i-component title)
+                             (if message (+ "&message=" (encode-u-r-i-component message)) ""))
+                           (ps:create :method "POST"))
+                    (then (lambda (response)
+                            (if (ps:@ response ok)
+                                (ps:chain response (json))
+                                (progn
+                                  (setf (ps:@ status-div class-name) "request-status error")
+                                  (setf (ps:@ status-div text-content) "Please log in to submit requests")
+                                  nil))))
+                    (then (lambda (data)
+                            (when data
+                              (let ((status (or (ps:@ data data status) (ps:@ data status))))
+                                (if (= status "success")
+                                    (progn
+                                      (setf (ps:@ status-div class-name) "request-status success")
+                                      (setf (ps:@ status-div text-content) "Request submitted! An admin will review it soon.")
+                                      (setf (ps:@ title-input value) "")
+                                      (setf (ps:@ message-input value) ""))
+                                    (progn
+                                      (setf (ps:@ status-div class-name) "request-status error")
+                                      (setf (ps:@ status-div text-content) "Failed to submit request")))))))
+                    (catch (lambda (error)
+                             (ps:chain console (error "Error submitting request:" error))
+                             (setf (ps:@ status-div class-name) "request-status error")
+                             (setf (ps:@ status-div text-content) "Error submitting request"))))))))))
+     
+     (defun load-recent-requests ()
+       (let ((container (ps:chain document (get-element-by-id "recent-requests-list"))))
+         (when container
+           (ps:chain
+            (fetch "/api/asteroid/requests/recent")
+            (then (lambda (response) (ps:chain response (json))))
+            (then (lambda (result)
+                    (let ((data (or (ps:@ result data) result)))
+                      (if (and (= (ps:@ data status) "success")
+                              (ps:@ data requests)
+                              (> (ps:@ data requests length) 0))
+                          (let ((html ""))
+                            (ps:chain (ps:@ data requests) (for-each (lambda (req)
+                              (setf html (+ html "<div class=\"request-item\">"
+                                           "<span class=\"request-title\">" (ps:@ req title) "</span>"
+                                           "<span class=\"request-by\">Requested by @" (ps:@ req username) "</span>"
+                                           "</div>")))))
+                            (setf (ps:@ container inner-h-t-m-l) html))
+                          (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-requests\">No recent requests yet. Be the first!</p>")))))
+            (catch (lambda (error)
+                     (ps:chain console (log "Could not load recent requests:" error))))))))
+     
+     ;; Load recent requests on page load
+     (load-recent-requests)))
   "Compiled JavaScript for front-page - generated at load time")
 
 (defun generate-front-page-js ()

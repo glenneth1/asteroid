@@ -1167,13 +1167,14 @@
                                 ("session_count" . 0)
                                 ("favorite_genre" . "Ambient"))))))))
 
-(define-api asteroid/user/recent-tracks (&optional (limit "3")) ()
+(define-api asteroid/user/recent-tracks (&optional (limit "3") (offset "0")) ()
   "Get recently played tracks for user"
   (require-authentication)
   (with-error-handling
     (let* ((user-id (session:field "user-id"))
-           (limit-int (parse-integer limit :junk-allowed t))
-           (history (get-listening-history user-id :limit (or limit-int 3))))
+           (limit-int (or (parse-integer limit :junk-allowed t) 3))
+           (offset-int (or (parse-integer offset :junk-allowed t) 0))
+           (history (get-listening-history user-id :limit limit-int :offset offset-int)))
       (api-output `(("status" . "success")
                     ("tracks" . ,(mapcar (lambda (h)
                                            `(("title" . ,(or (cdr (assoc :track-title h))
