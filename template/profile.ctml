@@ -21,22 +21,33 @@
     <!-- User Profile Header -->
     <div class="admin-section">
         <h2>🎧 User Profile</h2>
-        <div class="profile-info">
-          <div class="info-group">
-            <span class="info-label">Username:</span>
-            <span class="info-value" data-text="username">user</span>
+        <div class="profile-header">
+          <div class="avatar-section">
+            <div class="avatar-container" id="avatar-container">
+              <img id="user-avatar" src="/asteroid/static/icons/default-avatar.svg" alt="User Avatar" class="avatar-image">
+              <div class="avatar-overlay" onclick="document.getElementById('avatar-input').click()">
+                <span>Change</span>
+              </div>
+            </div>
+            <input type="file" id="avatar-input" accept="image/*" style="display: none" onchange="uploadAvatar(this)">
           </div>
-          <div class="info-group">
-            <span class="info-label">Role:</span>
-            <span class="info-value" data-text="user-role">listener</span>
-          </div>
-          <div class="info-group">
-            <span class="info-label">Member Since:</span>
-            <span class="info-value" data-text="join-date">2024-01-01</span>
-          </div>
-          <div class="info-group">
-            <span class="info-label">Last Active:</span>
-            <span class="info-value" data-text="last-active">Today</span>
+          <div class="profile-info">
+            <div class="info-group">
+              <span class="info-label">Username:</span>
+              <span class="info-value" data-text="username">user</span>
+            </div>
+            <div class="info-group">
+              <span class="info-label">Role:</span>
+              <span class="info-value" data-text="user-role">listener</span>
+            </div>
+            <div class="info-group">
+              <span class="info-label">Member Since:</span>
+              <span class="info-value" data-text="join-date">2024-01-01</span>
+            </div>
+            <div class="info-group">
+              <span class="info-label">Last Active:</span>
+              <span class="info-value" data-text="last-active">Today</span>
+            </div>
           </div>
         </div>
       </div>

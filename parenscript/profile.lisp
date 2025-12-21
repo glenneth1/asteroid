@@ -232,6 +232,45 @@
      (defun load-more-favorites ()
        (show-message "Loading more favorites..." "info"))
      
+     (defun load-avatar ()
+       (ps:chain
+        (fetch "/api/asteroid/user/avatar")
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (result)
+                (let ((data (or (ps:@ result data) result)))
+                  (when (and (= (ps:@ data status) "success")
+                            (ps:@ data avatar_path))
+                    (let ((img (ps:chain document (get-element-by-id "user-avatar"))))
+                      (when img
+                        (setf (ps:@ img src) (ps:@ data avatar_path))))))))
+        (catch (lambda (error)
+                 (ps:chain console (log "No avatar set or error loading:" error))))))
+     
+     (defun upload-avatar (input)
+       (let ((file (ps:getprop (ps:@ input files) 0)))
+         (when file
+           (let ((form-data (ps:new (-form-data))))
+             (ps:chain form-data (append "avatar" file))
+             (ps:chain form-data (append "filename" (ps:@ file name)))
+             (show-message "Uploading avatar..." "info")
+             (ps:chain
+              (fetch "/api/asteroid/user/avatar/upload"
+                     (ps:create :method "POST"
+                                :body form-data))
+              (then (lambda (response) (ps:chain response (json))))
+              (then (lambda (result)
+                      (let ((data (or (ps:@ result data) result)))
+                        (if (= (ps:@ data status) "success")
+                            (progn
+                              (let ((img (ps:chain document (get-element-by-id "user-avatar"))))
+                                (when img
+                                  (setf (ps:@ img src) (+ (ps:@ data avatar_path) "?" (ps:chain -date (now))))))
+                              (show-message "Avatar updated!" "success"))
+                            (show-message "Failed to upload avatar" "error")))))
+              (catch (lambda (error)
+                       (ps:chain console (error "Error uploading avatar:" error))
+                       (show-message "Error uploading avatar" "error"))))))))
+     
      (defun load-activity-chart ()
        (ps:chain
         (fetch "/api/asteroid/user/activity?days=30")
@@ -303,7 +342,8 @@
        (load-recent-tracks)
        (load-favorites)
        (load-top-artists)
-       (load-activity-chart))
+       (load-activity-chart)
+       (load-avatar))
      
      ;; Action functions
      (defun load-more-recent-tracks ()
