@@ -146,18 +146,11 @@
     <div class="admin-section">
         <h2>📈 Listening Activity</h2>
         <div class="activity-chart">
-          <p>Activity over the last 30 days</p>
-          <div class="chart-placeholder">
-            <div class="chart-bar" style="height: 20%" data-day="1"></div>
-            <div class="chart-bar" style="height: 45%" data-day="2"></div>
-            <div class="chart-bar" style="height: 30%" data-day="3"></div>
-            <div class="chart-bar" style="height: 60%" data-day="4"></div>
-            <div class="chart-bar" style="height: 80%" data-day="5"></div>
-            <div class="chart-bar" style="height: 25%" data-day="6"></div>
-            <div class="chart-bar" style="height: 40%" data-day="7"></div>
-            <!-- More bars would be generated dynamically -->
+          <p>Tracks played over the last 30 days</p>
+          <div class="chart-container" id="activity-chart">
+            <p class="loading-message">Loading activity data...</p>
           </div>
-          <p class="chart-note">Listening hours per day</p>
+          <p class="chart-note" id="activity-total">Total: 0 tracks</p>
         </div>
       </div>
 

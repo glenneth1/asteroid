@@ -232,6 +232,54 @@
      (defun load-more-favorites ()
        (show-message "Loading more favorites..." "info"))
      
+     (defun load-activity-chart ()
+       (ps:chain
+        (fetch "/api/asteroid/user/activity?days=30")
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (result)
+                (let ((data (or (ps:@ result data) result))
+                      (container (ps:chain document (get-element-by-id "activity-chart")))
+                      (total-el (ps:chain document (get-element-by-id "activity-total"))))
+                  (when container
+                    (if (and (= (ps:@ data status) "success")
+                            (ps:@ data activity)
+                            (> (ps:@ data activity length) 0))
+                        (let ((activity (ps:@ data activity))
+                              (max-count 1)
+                              (total 0))
+                          ;; Find max for scaling
+                          (ps:chain activity (for-each (lambda (day)
+                            (let ((count (or (ps:@ day track_count) 0)))
+                              (setf total (+ total count))
+                              (when (> count max-count)
+                                (setf max-count count))))))
+                          ;; Build chart HTML
+                          (let ((html "<div class=\"chart-bars\">"))
+                            (ps:chain activity (for-each (lambda (day)
+                              (let* ((count (or (ps:@ day track_count) 0))
+                                     (height (ps:chain -math (round (* (/ count max-count) 100))))
+                                     (date-str (ps:@ day day))
+                                     (date-parts (ps:chain date-str (split "-")))
+                                     (day-label (if (> (ps:@ date-parts length) 2)
+                                                    (ps:getprop date-parts 2)
+                                                    "")))
+                                (setf html (+ html "<div class=\"chart-bar-wrapper\">"
+                                             "<div class=\"chart-bar\" style=\"height: " height "%\" title=\"" date-str ": " count " tracks\"></div>"
+                                             "<span class=\"chart-day\">" day-label "</span>"
+                                             "</div>"))))))
+                            (setf html (+ html "</div>"))
+                            (setf (ps:@ container inner-h-t-m-l) html))
+                          ;; Update total
+                          (when total-el
+                            (setf (ps:@ total-el text-content) (+ "Total: " total " tracks in the last 30 days"))))
+                        ;; No data
+                        (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-data\">No listening activity yet. Start listening to build your history!</p>"))))))
+        (catch (lambda (error)
+                 (ps:chain console (error "Error loading activity:" error))
+                 (let ((container (ps:chain document (get-element-by-id "activity-chart"))))
+                   (when container
+                     (setf (ps:@ container inner-h-t-m-l) "<p class=\"error\">Failed to load activity data</p>")))))))
+     
      (defun load-profile-data ()
        (ps:chain console (log "Loading profile data..."))
        
@@ -254,7 +302,8 @@
        (load-listening-stats)
        (load-recent-tracks)
        (load-favorites)
-       (load-top-artists))
+       (load-top-artists)
+       (load-activity-chart))
      
      ;; Action functions
      (defun load-more-recent-tracks ()
