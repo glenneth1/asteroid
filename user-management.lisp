@@ -174,12 +174,12 @@
         ;; Not authenticated - emit error and signal to stop processing
         (progn
           (if is-api-request
-              ;; API request - emit JSON error with 401 status
+              ;; API request - return JSON error with 401 status using api-output
               (progn
                 (format t "Authentication failed - returning JSON 401~%")
-                (setf (radiance:return-code *response*) 401)
-                (setf (radiance:content-type *response*) "application/json")
-                (error 'radiance:request-denied :message "Authentication required"))
+                (api-output `(("status" . "error")
+                              ("message" . "Authentication required"))
+                            :status 401))
               ;; Page request - redirect to login
               (progn
                 (format t "Authentication failed - redirecting to login~%")

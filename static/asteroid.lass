@@ -1360,6 +1360,47 @@
     :padding "4px 8px"
     :font-size "0.8em"))
   
+  ;; Avatar styling
+  (.profile-header
+   :display "flex"
+   :gap "30px"
+   :align-items "flex-start")
+  
+  (.avatar-section
+   :flex-shrink "0")
+  
+  (.avatar-container
+   :position "relative"
+   :width "120px"
+   :height "120px"
+   :border-radius "50%"
+   :overflow "hidden"
+   :border "3px solid #00cc00"
+   :cursor "pointer"
+   :background "#1a1a1a")
+  
+  (.avatar-image
+   :width "100%"
+   :height "100%"
+   :object-fit "cover")
+  
+  (.avatar-overlay
+   :position "absolute"
+   :bottom "0"
+   :left "0"
+   :right "0"
+   :background "rgba(0, 0, 0, 0.7)"
+   :color "#00cc00"
+   :text-align "center"
+   :padding "8px"
+   :font-size "0.8em"
+   :opacity "0"
+   :transition "opacity 0.2s ease")
+  
+  ((:and .avatar-container :hover)
+   (.avatar-overlay
+    :opacity "1"))
+  
   ;; Activity chart styling
   (.activity-chart
    :padding "15px"

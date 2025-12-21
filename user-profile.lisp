@@ -73,6 +73,12 @@
 ;;; Listening History - Per-user track play history
 ;;; ==========================================================================
 
+(defun sql-escape-string (str)
+  "Escape a string for SQL by doubling single quotes"
+  (if str
+      (cl-ppcre:regex-replace-all "'" str "''")
+      ""))
+
 (defun record-listen (user-id &key track-id track-title (duration 0) (completed nil))
   "Record a track listen in user's history. Can use track-id or track-title."
   (with-db
@@ -80,12 +86,12 @@
         (postmodern:query
          (:raw (format nil "INSERT INTO listening_history (\"user-id\", \"track-id\", track_title, \"listen-duration\", completed) VALUES (~a, ~a, ~a, ~a, ~a)"
                        user-id track-id
-                       (if track-title (format nil "$$~a$$" track-title) "NULL")
+                       (if track-title (format nil "'~a'" (sql-escape-string track-title)) "NULL")
                        duration (if completed 1 0))))
         (when track-title
           (postmodern:query
-           (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, $$~a$$, ~a, ~a)"
-                         user-id track-title duration (if completed 1 0))))))))
+           (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, '~a', ~a, ~a)"
+                         user-id (sql-escape-string track-title) duration (if completed 1 0))))))))
 
 (defun get-listening-history (user-id &key (limit 20) (offset 0))
   "Get user's listening history - works with title-based history"
@@ -230,8 +236,10 @@
                            (parse-integer track-id :junk-allowed t)))
            (duration-int (if duration (parse-integer duration :junk-allowed t) 0))
            (completed-bool (and completed (string-equal completed "true"))))
-      (record-listen user-id :track-id track-id-int :track-title title 
-                     :duration (or duration-int 0) :completed completed-bool)
+      (format t "Recording listen: user-id=~a title=~a~%" user-id title)
+      (when (and user-id title)
+        (record-listen user-id :track-id track-id-int :track-title title 
+                       :duration (or duration-int 0) :completed completed-bool))
       (api-output `(("status" . "success")
                     ("message" . "Listen recorded"))))))
 
@@ -256,3 +264,64 @@
                                              `(("day" . ,(cdr (assoc :day a)))
                                                ("track_count" . ,(cdr (assoc :track-count a)))))
                                            activity)))))))
+
+;;; ==========================================================================
+;;; Avatar Management
+;;; ==========================================================================
+
+(defun get-avatars-directory ()
+  "Get the path to the avatars directory"
+  (merge-pathnames "static/avatars/" (asdf:system-source-directory :asteroid)))
+
+(defun save-avatar (user-id temp-file-path original-filename)
+  "Save an avatar file from temp path and return the relative path"
+  (let* ((extension (pathname-type original-filename))
+         (safe-ext (if (member extension '("png" "jpg" "jpeg" "gif" "webp") :test #'string-equal)
+                       extension
+                       "png"))
+         (new-filename (format nil "~a.~a" user-id safe-ext))
+         (full-path (merge-pathnames new-filename (get-avatars-directory)))
+         (relative-path (format nil "/asteroid/static/avatars/~a" new-filename)))
+    ;; Copy from temp file to avatars directory
+    (uiop:copy-file temp-file-path full-path)
+    ;; Update database
+    (with-db
+      (postmodern:query
+       (:raw (format nil "UPDATE \"USERS\" SET avatar_path = '~a' WHERE _id = ~a"
+                     relative-path user-id))))
+    relative-path))
+
+(defun get-user-avatar (user-id)
+  "Get the avatar path for a user"
+  (with-db
+    (postmodern:query
+     (:raw (format nil "SELECT avatar_path FROM \"USERS\" WHERE _id = ~a" user-id))
+     :single)))
+
+(define-api asteroid/user/avatar/upload () ()
+  "Upload a new avatar image"
+  (require-authentication)
+  (with-error-handling
+    (let* ((user-id (session:field "user-id"))
+           ;; Radiance wraps hunchentoot - post-var returns (path filename content-type) for files
+           (file-info (radiance:post-var "avatar"))
+           (temp-path (when (listp file-info) (first file-info)))
+           (original-name (when (listp file-info) (second file-info))))
+      (format t "Avatar upload: file-info=~a temp-path=~a original-name=~a~%" file-info temp-path original-name)
+      (if (and temp-path (probe-file temp-path))
+          (let ((avatar-path (save-avatar user-id temp-path (or original-name "avatar.png"))))
+            (api-output `(("status" . "success")
+                          ("message" . "Avatar uploaded successfully")
+                          ("avatar_path" . ,avatar-path))))
+          (api-output `(("status" . "error")
+                        ("message" . "No file provided"))
+                      :status 400)))))
+
+(define-api asteroid/user/avatar () ()
+  "Get current user's avatar path"
+  (require-authentication)
+  (with-error-handling
+    (let* ((user-id (session:field "user-id"))
+           (avatar-path (get-user-avatar user-id)))
+      (api-output `(("status" . "success")
+                    ("avatar_path" . ,avatar-path))))))
