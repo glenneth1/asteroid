@@ -120,37 +120,6 @@
                  (update-element "session-count" "0")
                  (update-element "favorite-genre" "Unknown")))))
      
-     (defun load-recent-tracks ()
-       (ps:chain
-        (fetch "/api/asteroid/user/recent-tracks?limit=3")
-        (then (lambda (response) (ps:chain response (json))))
-        (then (lambda (result)
-                (let ((data (or (ps:@ result data) result)))
-                  (if (and (= (ps:@ data status) "success")
-                          (ps:@ data tracks)
-                          (> (ps:@ data tracks length) 0))
-                      (ps:chain data tracks
-                                (for-each (lambda (track index)
-                                            (let ((track-num (+ index 1)))
-                                              (update-element (+ "recent-track-" track-num "-title")
-                                                            (or (ps:@ track title) "Unknown Track"))
-                                              (update-element (+ "recent-track-" track-num "-artist")
-                                                            (or (ps:@ track artist) "Unknown Artist"))
-                                              (update-element (+ "recent-track-" track-num "-duration")
-                                                            (format-duration (or (ps:@ track duration) 0)))
-                                              (update-element (+ "recent-track-" track-num "-played-at")
-                                                            (format-relative-time (ps:@ track played_at)))))))
-                      (loop for i from 1 to 3
-                            do (let* ((track-item-selector (+ "[data-text=\"recent-track-" i "-title\"]"))
-                                     (track-item-el (ps:chain document (query-selector track-item-selector)))
-                                     (track-item (when track-item-el (ps:chain track-item-el (closest ".track-item")))))
-                                 (when (and track-item
-                                           (or (not (ps:@ data tracks))
-                                               (not (ps:getprop (ps:@ data tracks) (- i 1)))))
-                                   (setf (ps:@ track-item style display) "none"))))))))
-        (catch (lambda (error)
-                 (ps:chain console (error "Error loading recent tracks:" error))))))
-     
      (defun load-top-artists ()
        (ps:chain
         (fetch "/api/asteroid/user/top-artists?limit=5")
@@ -355,43 +324,12 @@
                  (show-error "Error loading profile data"))))
        
        (load-listening-stats)
-       (load-recent-tracks)
        (load-favorites)
        (load-top-artists)
        (load-activity-chart)
        (load-avatar))
      
-     ;; Track offset for pagination
-     (defvar *recent-tracks-offset* 3)
-     
      ;; Action functions
-     (defun load-more-recent-tracks ()
-       (ps:chain console (log "Loading more recent tracks..."))
-       (ps:chain
-        (fetch (+ "/api/asteroid/user/recent-tracks?limit=10&offset=" *recent-tracks-offset*))
-        (then (lambda (response) (ps:chain response (json))))
-        (then (lambda (result)
-                (let ((data (or (ps:@ result data) result))
-                      (container (ps:chain document (get-element-by-id "recent-tracks-list"))))
-                  (when container
-                    (if (and (= (ps:@ data status) "success")
-                            (ps:@ data tracks)
-                            (> (ps:@ data tracks length) 0))
-                        (progn
-                          (ps:chain (ps:@ data tracks) (for-each (lambda (track)
-                            (let ((item (ps:chain document (create-element "div"))))
-                              (setf (ps:@ item class-name) "track-item")
-                              (setf (ps:@ item inner-h-t-m-l)
-                                    (+ "<span class=\"track-title\">" (or (ps:@ track title) "Unknown") "</span>"
-                                       "<span class=\"track-time\">" (or (ps:@ track played_at) "") "</span>"))
-                              (ps:chain container (append-child item))))))
-                          (setf *recent-tracks-offset* (+ *recent-tracks-offset* (ps:@ data tracks length)))
-                          (show-message (+ "Loaded " (ps:@ data tracks length) " more tracks") "success"))
-                        (show-message "No more tracks to load" "info"))))))
-        (catch (lambda (error)
-                 (ps:chain console (error "Error loading more tracks:" error))
-                 (show-message "Error loading tracks" "error")))))
-     
      (defun edit-profile ()
        (ps:chain console (log "Edit profile clicked"))
        (show-message "Profile editing coming soon!" "info"))
