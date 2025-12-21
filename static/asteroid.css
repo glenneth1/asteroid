@@ -1754,6 +1754,94 @@ body.popout-body .status-mini{
     opacity: 1;
 }
 
+.request-panel{
+    background: rgba(0, 255, 0, 0.05);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.request-description{
+    color: #888;
+    margin-bottom: 15px;
+}
+
+.request-form{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.request-input{
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 10px;
+    color: #00cc00;
+    font-size: 1em;
+}
+
+.request-input:focus{
+    border-color: #00cc00;
+    outline: none;
+}
+
+.request-status{
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.request-status.success{
+    background: rgba(0, 255, 0, 0.2);
+    color: #00ff00;
+}
+
+.request-status.error{
+    background: rgba(255, 0, 0, 0.2);
+    color: #ff6b6b;
+}
+
+.request-status.info{
+    background: rgba(0, 150, 255, 0.2);
+    color: #66b3ff;
+}
+
+.recent-requests{
+    margin-top: 20px;
+    border-top: 1px solid #333;
+    padding-top: 15px;
+}
+
+.recent-requests h4{
+    color: #888;
+    margin-bottom: 10px;
+}
+
+.request-item{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #222;
+}
+
+.request-title{
+    color: #00cc00;
+}
+
+.request-by{
+    color: #666;
+    font-size: 0.9em;
+}
+
+.no-requests{
+    color: #666;
+    font-style: italic;
+}
+
 .activity-chart{
     padding: 15px;
 }

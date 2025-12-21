@@ -80,18 +80,27 @@
       ""))
 
 (defun record-listen (user-id &key track-id track-title (duration 0) (completed nil))
-  "Record a track listen in user's history. Can use track-id or track-title."
+  "Record a track listen in user's history. Can use track-id or track-title.
+   Prevents duplicate entries for the same track within 60 seconds."
   (with-db
-    (if track-id
-        (postmodern:query
-         (:raw (format nil "INSERT INTO listening_history (\"user-id\", \"track-id\", track_title, \"listen-duration\", completed) VALUES (~a, ~a, ~a, ~a, ~a)"
-                       user-id track-id
-                       (if track-title (format nil "'~a'" (sql-escape-string track-title)) "NULL")
-                       duration (if completed 1 0))))
-        (when track-title
-          (postmodern:query
-           (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, '~a', ~a, ~a)"
-                         user-id (sql-escape-string track-title) duration (if completed 1 0))))))))
+    ;; Check for recent duplicate (same user + same title within 60 seconds)
+    (let ((recent-exists
+            (when track-title
+              (postmodern:query
+               (:raw (format nil "SELECT 1 FROM listening_history WHERE \"user-id\" = ~a AND track_title = '~a' AND \"listened-at\" > NOW() - INTERVAL '60 seconds' LIMIT 1"
+                             user-id (sql-escape-string track-title)))
+               :single))))
+      (unless recent-exists
+        (if track-id
+            (postmodern:query
+             (:raw (format nil "INSERT INTO listening_history (\"user-id\", \"track-id\", track_title, \"listen-duration\", completed) VALUES (~a, ~a, ~a, ~a, ~a)"
+                           user-id track-id
+                           (if track-title (format nil "'~a'" (sql-escape-string track-title)) "NULL")
+                           duration (if completed "TRUE" "FALSE"))))
+            (when track-title
+              (postmodern:query
+               (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, '~a', ~a, ~a)"
+                             user-id (sql-escape-string track-title) duration (if completed "TRUE" "FALSE"))))))))))
 
 (defun get-listening-history (user-id &key (limit 20) (offset 0))
   "Get user's listening history - works with title-based history"
@@ -224,24 +233,34 @@
                                                                 (and c (= 1 c))))))
                                           history)))))))
 
+(defun get-session-user-id ()
+  "Get user-id from session, handling BIT type from PostgreSQL"
+  (let ((user-id-raw (session:field "user-id")))
+    (cond
+      ((null user-id-raw) nil)
+      ((integerp user-id-raw) user-id-raw)
+      ((stringp user-id-raw) (parse-integer user-id-raw :junk-allowed t))
+      ((bit-vector-p user-id-raw) (parse-integer (format nil "~a" user-id-raw) :junk-allowed t))
+      (t (handler-case (parse-integer (format nil "~a" user-id-raw) :junk-allowed t)
+           (error () nil))))))
+
 (define-api asteroid/user/history/record (&optional track-id title duration completed) ()
   "Record a track listen (called by player). Can use track-id or title."
-  (require-authentication)
-  (with-error-handling
-    (let* ((user-id-raw (session:field "user-id"))
-           (user-id (if (stringp user-id-raw)
-                        (parse-integer user-id-raw :junk-allowed t)
-                        user-id-raw))
-           (track-id-int (when (and track-id (not (string= track-id "")))
-                           (parse-integer track-id :junk-allowed t)))
-           (duration-int (if duration (parse-integer duration :junk-allowed t) 0))
-           (completed-bool (and completed (string-equal completed "true"))))
-      (format t "Recording listen: user-id=~a title=~a~%" user-id title)
-      (when (and user-id title)
-        (record-listen user-id :track-id track-id-int :track-title title 
-                       :duration (or duration-int 0) :completed completed-bool))
-      (api-output `(("status" . "success")
-                    ("message" . "Listen recorded"))))))
+  (let ((user-id (get-session-user-id)))
+    (if (null user-id)
+        (api-output `(("status" . "error")
+                      ("message" . "Not authenticated"))
+                    :status 401)
+        (with-error-handling
+          (let* ((track-id-int (when (and track-id (not (string= track-id "")))
+                                 (parse-integer track-id :junk-allowed t)))
+                 (duration-int (if duration (parse-integer duration :junk-allowed t) 0))
+                 (completed-bool (and completed (string-equal completed "true"))))
+            (when title
+              (record-listen user-id :track-id track-id-int :track-title title 
+                             :duration (or duration-int 0) :completed completed-bool))
+            (api-output `(("status" . "success")
+                          ("message" . "Listen recorded"))))))))
 
 (define-api asteroid/user/history/clear () ()
   "Clear user's listening history"
