@@ -104,6 +104,17 @@
         </div>
       </div>
 
+    <!-- Favorite Tracks -->
+    <div class="admin-section">
+        <h2>❤️ Favorite Tracks</h2>
+        <div class="favorites-list" id="favorites-list">
+          <p class="loading-message">Loading favorites...</p>
+        </div>
+        <div class="profile-actions">
+          <button class="btn btn-secondary" onclick="loadMoreFavorites()">Load More</button>
+        </div>
+      </div>
+
     <!-- Top Artists -->
     <div class="admin-section">
         <h2>🎤 Top Artists</h2>

@@ -202,17 +202,73 @@
      (defun update-mini-now-playing ()
        (let ((mount (get-current-mount)))
          (ps:chain
-          (fetch (+ "/api/asteroid/partial/now-playing-inline?mount=" mount))
+          (fetch (+ "/api/asteroid/partial/now-playing-json?mount=" mount))
           (then (lambda (response)
                   (if (ps:@ response ok)
-                      (ps:chain response (text))
-                      "")))
-          (then (lambda (text)
-                  (let ((el (ps:chain document (get-element-by-id "mini-now-playing"))))
-                    (when el
-                      (setf (ps:@ el text-content) text)))))
+                      (ps:chain response (json))
+                      nil)))
+          (then (lambda (data)
+                  (when data
+                    (let ((el (ps:chain document (get-element-by-id "mini-now-playing")))
+                          (track-id-el (ps:chain document (get-element-by-id "current-track-id-mini")))
+                          (title (or (ps:@ data data title) (ps:@ data title) "Loading...")))
+                      (when el
+                        (setf (ps:@ el text-content) title))
+                      (when track-id-el
+                        (let ((track-id (or (ps:@ data data track_id) (ps:@ data track_id))))
+                          (setf (ps:@ track-id-el value) (or track-id ""))))))))
           (catch (lambda (error)
                    (ps:chain console (log "Could not fetch now playing:" error)))))))
+     
+     ;; Toggle favorite for mini player
+     (defun toggle-favorite-mini ()
+       (let ((track-id-el (ps:chain document (get-element-by-id "current-track-id-mini")))
+             (title-el (ps:chain document (get-element-by-id "mini-now-playing")))
+             (btn (ps:chain document (get-element-by-id "favorite-btn-mini"))))
+         (let ((track-id (when track-id-el (ps:@ track-id-el value)))
+               (title (when title-el (ps:@ title-el text-content)))
+               (is-favorited (ps:chain btn class-list (contains "favorited"))))
+           ;; Need either track-id or title
+           (when (or (and track-id (not (= track-id ""))) title)
+             (let ((params (+ "title=" (encode-u-r-i-component (or title ""))
+                             (if (and track-id (not (= track-id "")))
+                                 (+ "&track-id=" track-id)
+                                 ""))))
+               (if is-favorited
+                   ;; Remove favorite
+                   (ps:chain
+                    (fetch (+ "/api/asteroid/user/favorites/remove?" params)
+                           (ps:create :method "POST"))
+                    (then (lambda (response)
+                            (cond
+                              ((not (ps:@ response ok))
+                               (alert "Please log in to manage favorites")
+                               nil)
+                              (t (ps:chain response (json))))))
+                    (then (lambda (data)
+                            (when (and data (or (= (ps:@ data status) "success")
+                                               (= (ps:@ data data status) "success")))
+                              (ps:chain btn class-list (remove "favorited"))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆"))))
+                    (catch (lambda (error)
+                             (ps:chain console (error "Error removing favorite:" error)))))
+                   ;; Add favorite
+                   (ps:chain
+                    (fetch (+ "/api/asteroid/user/favorites/add?" params)
+                           (ps:create :method "POST"))
+                    (then (lambda (response)
+                            (cond
+                              ((not (ps:@ response ok))
+                               (alert "Please log in to save favorites")
+                               nil)
+                              (t (ps:chain response (json))))))
+                    (then (lambda (data)
+                            (when (and data (or (= (ps:@ data status) "success")
+                                               (= (ps:@ data data status) "success")))
+                              (ps:chain btn class-list (add "favorited"))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★"))))
+                    (catch (lambda (error)
+                             (ps:chain console (error "Error adding favorite:" error)))))))))))
      
      ;; Update popout now playing display (parses artist - title)
      (defun update-popout-now-playing ()
@@ -641,6 +697,7 @@
      (setf (ps:@ window init-popout-player) init-popout-player)
      (setf (ps:@ window update-mini-now-playing) update-mini-now-playing)
      (setf (ps:@ window update-popout-now-playing) update-popout-now-playing)
+     (setf (ps:@ window toggle-favorite-mini) toggle-favorite-mini)
      
      ;; Auto-initialize on DOMContentLoaded based on which elements exist
      (ps:chain document

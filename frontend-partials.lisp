@@ -1,5 +1,23 @@
 (in-package :asteroid)
 
+(defun find-track-by-title (title)
+  "Find a track in the database by its title. Returns track ID or nil."
+  (when (and title (not (string= title "Unknown")))
+    (handler-case
+        (with-db
+          (let* ((search-pattern (format nil "%~a%" title))
+                 (result (postmodern:query
+                          (:limit
+                           (:select '_id
+                            :from 'tracks
+                            :where (:ilike 'title search-pattern))
+                           1)
+                          :single)))
+            result))
+      (error (e)
+        (declare (ignore e))
+        nil))))
+
 (defun icecast-now-playing (icecast-base-url &optional (mount "asteroid.mp3"))
   "Fetch now-playing information from Icecast server.
   
@@ -54,7 +72,8 @@
             
             `((:listenurl . ,(format nil "~a/~a" *stream-base-url* mount))
               (:title . ,title)
-              (:listeners . ,total-listeners)))))))
+              (:listeners . ,total-listeners)
+              (:track-id . ,(find-track-by-title title))))))))
 
 (define-api asteroid/partial/now-playing (&optional mount) ()
   "Get Partial HTML with live status from Icecast server.
@@ -75,7 +94,8 @@
             (setf (header "Content-Type") "text/html")
             (clip:process-to-string
              (load-template "partial/now-playing")
-             :stats now-playing-stats))
+             :stats now-playing-stats
+             :track-id (cdr (assoc :track-id now-playing-stats))))
           (progn
             (setf (header "Content-Type") "text/html")
             (clip:process-to-string
@@ -96,6 +116,21 @@
           (progn
             (setf (header "Content-Type") "text/plain")
             "Stream Offline")))))
+
+(define-api asteroid/partial/now-playing-json (&optional mount) ()
+  "Get JSON with now playing info including track ID for favorites.
+   Optional MOUNT parameter specifies which stream to get metadata from."
+  (with-error-handling
+    (let* ((mount-name (or mount "asteroid.mp3"))
+           (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
+      (if now-playing-stats
+          (api-output `(("status" . "success")
+                        ("title" . ,(cdr (assoc :title now-playing-stats)))
+                        ("listeners" . ,(cdr (assoc :listeners now-playing-stats)))
+                        ("track_id" . ,(cdr (assoc :track-id now-playing-stats)))))
+          (api-output `(("status" . "offline")
+                        ("title" . "Stream Offline")
+                        ("track_id" . nil)))))))
 
 (define-api asteroid/channel-name () ()
   "Get the current curated channel name for live updates.

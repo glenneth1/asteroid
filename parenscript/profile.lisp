@@ -167,6 +167,66 @@
         (catch (lambda (error)
                  (ps:chain console (error "Error loading top artists:" error))))))
      
+     (defvar *favorites-offset* 0)
+     
+     (defun load-favorites ()
+       (ps:chain
+        (fetch "/api/asteroid/user/favorites")
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (result)
+                (let ((data (or (ps:@ result data) result))
+                      (container (ps:chain document (get-element-by-id "favorites-list"))))
+                  (when container
+                    (if (and (= (ps:@ data status) "success")
+                            (ps:@ data favorites)
+                            (> (ps:@ data favorites length) 0))
+                        (progn
+                          (setf (ps:@ container inner-h-t-m-l) "")
+                          (ps:chain data favorites
+                                    (for-each (lambda (fav)
+                                                (let ((item (ps:chain document (create-element "div"))))
+                                                  (setf (ps:@ item class-name) "track-item favorite-item")
+                                                  (setf (ps:@ item inner-h-t-m-l)
+                                                        (+ "<div class=\"track-info\">"
+                                                           "<span class=\"track-title\">" (or (ps:@ fav title) "Unknown") "</span>"
+                                                           "<span class=\"track-artist\">" (or (ps:@ fav artist) "") "</span>"
+                                                           "</div>"
+                                                           "<div class=\"track-meta\">"
+                                                           "<span class=\"rating\">" (render-stars (or (ps:@ fav rating) 1)) "</span>"
+                                                           "<button class=\"btn btn-small btn-danger\" onclick=\"removeFavorite(" (ps:@ fav track_id) ")\">Remove</button>"
+                                                           "</div>"))
+                                                  (ps:chain container (append-child item)))))))
+                        (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-data\">No favorites yet. Like tracks while listening!</p>"))))))
+        (catch (lambda (error)
+                 (ps:chain console (error "Error loading favorites:" error))
+                 (let ((container (ps:chain document (get-element-by-id "favorites-list"))))
+                   (when container
+                     (setf (ps:@ container inner-h-t-m-l) "<p class=\"error\">Failed to load favorites</p>")))))))
+     
+     (defun render-stars (rating)
+       (let ((stars ""))
+         (dotimes (i 5)
+           (setf stars (+ stars (if (< i rating) "★" "☆"))))
+         stars))
+     
+     (defun remove-favorite (track-id)
+       (ps:chain
+        (fetch (+ "/api/asteroid/user/favorites/remove?track-id=" track-id)
+               (ps:create :method "POST"))
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (data)
+                (if (= (ps:@ data status) "success")
+                    (progn
+                      (show-message "Removed from favorites" "success")
+                      (load-favorites))
+                    (show-message "Failed to remove favorite" "error"))))
+        (catch (lambda (error)
+                 (ps:chain console (error "Error removing favorite:" error))
+                 (show-message "Error removing favorite" "error")))))
+     
+     (defun load-more-favorites ()
+       (show-message "Loading more favorites..." "info"))
+     
      (defun load-profile-data ()
        (ps:chain console (log "Loading profile data..."))
        
@@ -188,6 +248,7 @@
        
        (load-listening-stats)
        (load-recent-tracks)
+       (load-favorites)
        (load-top-artists))
      
      ;; Action functions
