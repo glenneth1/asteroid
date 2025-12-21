@@ -51,6 +51,19 @@
                                    (position :integer)
                                    (added_date :integer))))
 
+  (unless (db:collection-exists-p "user_favorites")
+    (db:create "user_favorites" '((user-id :integer)
+                                  (track-id :integer)
+                                  (rating :integer)
+                                  (created-date :integer))))
+
+  (unless (db:collection-exists-p "listening_history")
+    (db:create "listening_history" '((user-id :integer)
+                                     (track-id :integer)
+                                     (listened-at :integer)
+                                     (listen-duration :integer)
+                                     (completed :integer))))
+
   ;; TODO: the radiance db interface is too basic to contain anything
   ;; but strings, integers, booleans, and maybe timestamps... we will
   ;; need to rethink this. currently track/playlist relationships are

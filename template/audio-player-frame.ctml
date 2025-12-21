@@ -37,6 +37,11 @@
     
     <span class="now-playing-mini" id="mini-now-playing">Loading...</span>
     
+    <button class="btn-favorite-mini" id="favorite-btn-mini" onclick="toggleFavoriteMini()" title="Add to favorites">
+      <span class="star-icon">☆</span>
+    </button>
+    <input type="hidden" id="current-track-id-mini" value="">
+    
     <button id="reconnect-btn" onclick="reconnectStream()" class="persistent-reconnect-btn" title="Reconnect if audio stops working">
       <img src="/asteroid/static/icons/sync.png" alt="Reconnect" style="width: 18px; height: 18px; vertical-align: middle; filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);">
     </button>

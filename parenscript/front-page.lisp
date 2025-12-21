@@ -592,6 +592,56 @@
            
            (redirect-when-frame)))))
      
+     ;; Toggle favorite for current track
+     (defun toggle-favorite ()
+       (let ((track-id-el (ps:chain document (get-element-by-id "current-track-id")))
+             (title-el (ps:chain document (get-element-by-id "current-track-title")))
+             (btn (ps:chain document (get-element-by-id "favorite-btn"))))
+         (let ((track-id (when track-id-el (ps:@ track-id-el value)))
+               (title (when title-el (ps:@ title-el text-content)))
+               (is-favorited (ps:chain btn class-list (contains "favorited"))))
+           ;; Need either track-id or title
+           (when (or (and track-id (not (= track-id ""))) title)
+             (let ((params (+ "title=" (encode-u-r-i-component (or title ""))
+                             (if (and track-id (not (= track-id "")))
+                                 (+ "&track-id=" track-id)
+                                 ""))))
+               (if is-favorited
+                   ;; Remove favorite
+                   (ps:chain
+                    (fetch (+ "/api/asteroid/user/favorites/remove?" params)
+                           (ps:create :method "POST"))
+                    (then (lambda (response)
+                            (cond
+                              ((not (ps:@ response ok))
+                               (alert "Please log in to manage favorites")
+                               nil)
+                              (t (ps:chain response (json))))))
+                    (then (lambda (data)
+                            (when (and data (or (= (ps:@ data status) "success")
+                                               (= (ps:@ data data status) "success")))
+                              (ps:chain btn class-list (remove "favorited"))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆"))))
+                    (catch (lambda (error)
+                             (ps:chain console (error "Error removing favorite:" error)))))
+                   ;; Add favorite
+                   (ps:chain
+                    (fetch (+ "/api/asteroid/user/favorites/add?" params)
+                           (ps:create :method "POST"))
+                    (then (lambda (response)
+                            (cond
+                              ((not (ps:@ response ok))
+                               (alert "Please log in to save favorites")
+                               nil)
+                              (t (ps:chain response (json))))))
+                    (then (lambda (data)
+                            (when (and data (or (= (ps:@ data status) "success")
+                                               (= (ps:@ data data status) "success")))
+                              (ps:chain btn class-list (add "favorited"))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★"))))
+                    (catch (lambda (error)
+                             (ps:chain console (error "Error adding favorite:" error)))))))))))
+     
      ;; Update now playing every 5 seconds
      (set-interval update-now-playing 5000)
     

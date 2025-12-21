@@ -164,24 +164,26 @@
   (let* ((user-id (session:field "user-id"))
          (uri (radiance:path (radiance:uri *request*)))
          ;; Use explicit flag if provided, otherwise auto-detect from URI
-         (is-api-request (if api t (search "/api/" uri))))
+         ;; Check for "api/" anywhere in the path
+         (is-api-request (if api t (or (search "/api/" uri)
+                                       (search "api/" uri)))))
     (format t "Authentication check - User ID: ~a, URI: ~a, Is API: ~a~%" 
             user-id uri (if is-api-request "YES" "NO"))
     (if user-id
         t  ; Authenticated - return T to continue
-        ;; Not authenticated - emit error
-        (if is-api-request
-            ;; API request - emit JSON error and return the value from api-output
-            (progn
-              (format t "Authentication failed - returning JSON 401~%")
-              (radiance:api-output
-               '(("error" . "Authentication required"))
-               :status 401
-               :message "You must be logged in to access this resource"))
-            ;; Page request - redirect to login (redirect doesn't return)
-            (progn
-              (format t "Authentication failed - redirecting to login~%")
-              (radiance:redirect "/login"))))))
+        ;; Not authenticated - emit error and signal to stop processing
+        (progn
+          (if is-api-request
+              ;; API request - emit JSON error with 401 status
+              (progn
+                (format t "Authentication failed - returning JSON 401~%")
+                (setf (radiance:return-code *response*) 401)
+                (setf (radiance:content-type *response*) "application/json")
+                (error 'radiance:request-denied :message "Authentication required"))
+              ;; Page request - redirect to login
+              (progn
+                (format t "Authentication failed - redirecting to login~%")
+                (radiance:redirect "/login")))))))
 
 (defun require-role (role &key (api nil))
   "Require user to have a specific role.

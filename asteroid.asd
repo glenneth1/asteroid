@@ -63,6 +63,7 @@
                (:file "stream-control")
                (:file "playlist-scheduler")
                (:file "listener-stats")
+               (:file "user-profile")
                (:file "auth-routes")
                (:file "frontend-partials")
                (:file "asteroid")))

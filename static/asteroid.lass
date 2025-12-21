@@ -1274,4 +1274,89 @@
 
    (.craftering
     (a :margin "0 5px")))
+
+  ;; Now playing favorite button
+  (.now-playing-track
+   :display "flex"
+   :align-items "center"
+   :gap "10px"
+   
+   (p :margin 0))
+  
+  (.btn-favorite
+   :background "transparent"
+   :border "none"
+   :cursor "pointer"
+   :padding "5px 10px"
+   :font-size "1.4em"
+   :transition "transform 0.2s ease, color 0.2s ease"
+   
+   (.star-icon
+    :color "#888"))
+  
+  ((:and .btn-favorite :hover)
+   :transform "scale(1.2)"
+   
+   (.star-icon
+    :color "#ffcc00"))
+  
+  ((:and .btn-favorite .favorited)
+   (.star-icon
+    :color "#ffcc00"))
+  
+  ;; Mini favorite button for frame player
+  (.btn-favorite-mini
+   :background "transparent"
+   :border "none"
+   :cursor "pointer"
+   :padding "2px 8px"
+   :font-size "1.3em"
+   :transition "transform 0.2s ease, color 0.2s ease"
+   :margin-left "8px"
+   
+   (.star-icon
+    :color "#00cc00"))
+  
+  ((:and .btn-favorite-mini :hover)
+   :transform "scale(1.3)"
+   
+   (.star-icon
+    :color "#ffcc00"))
+  
+  ((:and .btn-favorite-mini .favorited)
+   (.star-icon
+    :color "#ffcc00"))
+
+  ;; Favorites list styling
+  (.favorites-list
+   :margin "10px 0"
+   
+   (.favorite-item
+    :display "flex"
+    :justify-content "space-between"
+    :align-items "center"
+    :padding "10px 15px"
+    :margin "5px 0"
+    :background "rgba(0, 255, 0, 0.05)"
+    :border "1px solid #333"
+    :border-radius "4px"
+    :transition "background 0.2s ease")
+   
+   ((:and .favorite-item :hover)
+    :background "rgba(0, 255, 0, 0.1)")
+   
+   (.rating
+    :color "#ffcc00"
+    :font-size "1.1em"
+    :margin-right "10px")
+   
+   (.no-data
+    :color "#666"
+    :font-style "italic"
+    :text-align "center"
+    :padding "20px")
+   
+   (.btn-small
+    :padding "4px 8px"
+    :font-size "0.8em"))
 ) ;; End of let block
