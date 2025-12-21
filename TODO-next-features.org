@@ -5,7 +5,7 @@
    1) [ ] [[https://www.radio.net/][Radio.net]]
    2) [ ] [[https://tunein.com/][TuneIn]] (requires application)
    3) [ ] [[https://streema.com/][Streema]]
-   4) [ ] [[https://www.internet-radio.com/][Internet-Radio.com]]
+   4) [X] [[https://www.internet-radio.com/][Internet-Radio.com]]
 
 2) [0/5] Integrate with various social platforms
    1) [ ] Mastodon
@@ -24,9 +24,9 @@
 
 2) [0/3] Listener Requests
    This obviously ties into User profiles, but should also be available to anonymous users.
-   1) [ ] Request library tracks
-   2) [ ] Request tracks to add to library
-   3) [ ] Tie into user playlists
+   1) [X] Request library tracks
+   2) [X] Request tracks to add to library
+   3) [ ] Tie into user playlists - KIND OF COMPLETE!!??
 
 3) [0/3] Calendar for Schedule/Programming
    1) [ ] Define Scheduled Program
@@ -48,11 +48,11 @@
    2) [ ] potentially weight 'random' by user prefs/voting records
 
 6) [0/5] Themed streams
-   1) [ ] Main curated amgbient 'low orbit'
-   2) [ ] Random from full library 'deep space'
-   3) [ ] Darker ambient
-   4) [ ] Underworld and friends
-   5) [ ] &c
+   1) [X] Main curated amgbient 'low orbit'
+   2) [X] Random from full library 'deep space'
+   3) [X] Darker ambient
+   4) [X] Underworld and friends
+   5) [X] &c
 
 7) [0/5] Integrate with various social platforms
    1) [ ] Mastodon
