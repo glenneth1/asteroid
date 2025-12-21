@@ -69,6 +69,21 @@
      (:raw (format nil "SELECT COUNT(*) FROM user_favorites WHERE \"user-id\" = ~a" user-id))
      :single)))
 
+(defun get-track-favorite-count (track-title)
+  "Get count of how many users have favorited a track by title"
+  (if (and track-title (not (string= track-title "")))
+      (handler-case
+          (with-db
+            (let* ((escaped-title (sql-escape-string track-title))
+                   (result (postmodern:query
+                            (:raw (format nil "SELECT COUNT(*) FROM user_favorites WHERE track_title = '~a'" escaped-title))
+                            :single)))
+              (or result 0)))
+        (error (e)
+          (declare (ignore e))
+          0))
+      0))
+
 ;;; ==========================================================================
 ;;; Listening History - Per-user track play history
 ;;; ==========================================================================

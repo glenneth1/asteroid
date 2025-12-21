@@ -88,14 +88,16 @@
                             (icecast-now-playing *stream-base-url* "asteroid-shuffle.mp3")))
            (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
       (if now-playing-stats
-          (progn
+          (let* ((title (cdr (assoc :title now-playing-stats)))
+                 (favorite-count (or (get-track-favorite-count title) 0)))
             ;; TODO: it should be able to define a custom api-output for this
             ;; (api-output <clip-parser> :format "html"))
             (setf (header "Content-Type") "text/html")
             (clip:process-to-string
              (load-template "partial/now-playing")
              :stats now-playing-stats
-             :track-id (cdr (assoc :track-id now-playing-stats))))
+             :track-id (cdr (assoc :track-id now-playing-stats))
+             :favorite-count favorite-count))
           (progn
             (setf (header "Content-Type") "text/html")
             (clip:process-to-string
@@ -124,10 +126,13 @@
     (let* ((mount-name (or mount "asteroid.mp3"))
            (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
       (if now-playing-stats
-          (api-output `(("status" . "success")
-                        ("title" . ,(cdr (assoc :title now-playing-stats)))
-                        ("listeners" . ,(cdr (assoc :listeners now-playing-stats)))
-                        ("track_id" . ,(cdr (assoc :track-id now-playing-stats)))))
+          (let* ((title (cdr (assoc :title now-playing-stats)))
+                 (favorite-count (or (get-track-favorite-count title) 0)))
+            (api-output `(("status" . "success")
+                          ("title" . ,title)
+                          ("listeners" . ,(cdr (assoc :listeners now-playing-stats)))
+                          ("track_id" . ,(cdr (assoc :track-id now-playing-stats)))
+                          ("favorite_count" . ,favorite-count))))
           (api-output `(("status" . "offline")
                         ("title" . "Stream Offline")
                         ("track_id" . nil)))))))

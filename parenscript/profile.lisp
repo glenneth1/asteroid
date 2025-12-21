@@ -327,7 +327,46 @@
        (load-favorites)
        (load-top-artists)
        (load-activity-chart)
-       (load-avatar))
+       (load-avatar)
+       (load-my-requests))
+     
+     ;; Load user's track requests
+     (defun load-my-requests ()
+       (ps:chain
+        (fetch "/api/asteroid/requests/my")
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (result)
+                (let ((data (or (ps:@ result data) result))
+                      (container (ps:chain document (get-element-by-id "my-requests-list"))))
+                  (when container
+                    (if (and (= (ps:@ data status) "success")
+                            (ps:@ data requests)
+                            (> (ps:@ data requests length) 0))
+                        (let ((html ""))
+                          (ps:chain (ps:@ data requests) (for-each (lambda (req)
+                            (let ((status-class (cond
+                                                  ((= (ps:@ req status) "pending") "status-pending")
+                                                  ((= (ps:@ req status) "approved") "status-approved")
+                                                  ((= (ps:@ req status) "rejected") "status-rejected")
+                                                  ((= (ps:@ req status) "played") "status-played")
+                                                  (t "")))
+                                  (status-icon (cond
+                                                 ((= (ps:@ req status) "pending") "⏳")
+                                                 ((= (ps:@ req status) "approved") "✓")
+                                                 ((= (ps:@ req status) "rejected") "✗")
+                                                 ((= (ps:@ req status) "played") "🎵")
+                                                 (t "?"))))
+                              (setf html (+ html
+                                "<div class=\"my-request-item " status-class "\">"
+                                "<div class=\"request-title\">" (ps:@ req title) "</div>"
+                                "<div class=\"request-status\">"
+                                "<span class=\"status-badge " status-class "\">" status-icon " " (ps:@ req status) "</span>"
+                                "</div>"
+                                "</div>"))))))
+                          (setf (ps:@ container inner-h-t-m-l) html))
+                        (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-requests\">You haven't made any requests yet.</p>"))))))
+        (catch (lambda (error)
+                 (ps:chain console (error "Error loading requests:" error))))))
      
      ;; Action functions
      (defun edit-profile ()
@@ -426,11 +465,402 @@
          
          false))
      
+     ;; ========================================
+     ;; User Playlists functionality
+     ;; ========================================
+     
+     (defvar *library-page* 1)
+     (defvar *library-search* "")
+     (defvar *library-artist* "")
+     (defvar *library-total* 0)
+     (defvar *current-playlist-tracks* (array))
+     (defvar *user-playlists* (array))
+     
+     ;; Load user's playlists
+     (defun load-my-playlists ()
+       (ps:chain
+        (fetch "/api/asteroid/user/playlists")
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (result)
+                (let ((data (or (ps:@ result data) result))
+                      (container (ps:chain document (get-element-by-id "my-playlists-list"))))
+                  (when container
+                    (if (and (= (ps:@ data status) "success")
+                            (ps:@ data playlists)
+                            (> (ps:@ data playlists length) 0))
+                        (progn
+                          (setf *user-playlists* (ps:@ data playlists))
+                          (let ((html ""))
+                            (ps:chain (ps:@ data playlists) (for-each (lambda (pl)
+                              (let ((playlist-id (or (ps:@ pl id) (aref pl "id")))
+                                    (status-class (cond
+                                                    ((= (ps:@ pl status) "draft") "status-draft")
+                                                    ((= (ps:@ pl status) "submitted") "status-pending")
+                                                    ((= (ps:@ pl status) "approved") "status-approved")
+                                                    ((= (ps:@ pl status) "rejected") "status-rejected")
+                                                    (t "")))
+                                    (status-icon (cond
+                                                   ((= (ps:@ pl status) "draft") "📝")
+                                                   ((= (ps:@ pl status) "submitted") "⏳")
+                                                   ((= (ps:@ pl status) "approved") "✓")
+                                                   ((= (ps:@ pl status) "rejected") "✗")
+                                                   (t "?"))))
+                                (ps:chain console (log "Playlist:" pl "ID:" playlist-id))
+                                (setf html (+ html
+                                  "<div class=\"playlist-item " status-class "\">"
+                                  "<div class=\"playlist-info\">"
+                                  "<span class=\"playlist-name\">" (or (ps:@ pl name) (aref pl "name")) "</span>"
+                                  "<span class=\"playlist-meta\">" (or (ps:@ pl track-count) (aref pl "track-count") 0) " tracks</span>"
+                                  "</div>"
+                                  "<div class=\"playlist-actions\">"
+                                  "<span class=\"status-badge " status-class "\">" status-icon " " (or (ps:@ pl status) (aref pl "status")) "</span>"
+                                  (if (= (or (ps:@ pl status) (aref pl "status")) "draft")
+                                      (+ "<button class=\"btn btn-small\" onclick=\"editPlaylist(" playlist-id ")\">Edit</button>")
+                                      "")
+                                  "</div>"
+                                  "</div>"))))))
+                            (setf (ps:@ container inner-h-t-m-l) html)))
+                        (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-data\">No playlists yet. Create one to get started!</p>"))))))
+        (catch (lambda (error)
+                 (ps:chain console (error "Error loading playlists:" error))))))
+     
+     ;; Modal functions
+     (defun show-create-playlist-modal ()
+       (let ((modal (ps:chain document (get-element-by-id "create-playlist-modal"))))
+         (when modal
+           (setf (ps:@ modal style display) "flex"))))
+     
+     (defun hide-create-playlist-modal ()
+       (let ((modal (ps:chain document (get-element-by-id "create-playlist-modal"))))
+         (when modal
+           (setf (ps:@ modal style display) "none")
+           (ps:chain (ps:chain document (get-element-by-id "create-playlist-form")) (reset)))))
+     
+     (defun show-library-browser ()
+       (let ((modal (ps:chain document (get-element-by-id "library-browser-modal"))))
+         (when modal
+           (setf (ps:@ modal style display) "flex")
+           (load-library-tracks)
+           (update-playlist-select))))
+     
+     (defun hide-library-browser ()
+       (let ((modal (ps:chain document (get-element-by-id "library-browser-modal"))))
+         (when modal
+           (setf (ps:@ modal style display) "none"))))
+     
+     (defun show-library-browser-for-playlist ()
+       (show-library-browser))
+     
+     (defun show-edit-playlist-modal ()
+       (let ((modal (ps:chain document (get-element-by-id "edit-playlist-modal"))))
+         (when modal
+           (setf (ps:@ modal style display) "flex"))))
+     
+     (defun hide-edit-playlist-modal ()
+       (let ((modal (ps:chain document (get-element-by-id "edit-playlist-modal"))))
+         (when modal
+           (setf (ps:@ modal style display) "none"))))
+     
+     ;; Create playlist
+     (defun create-playlist (event)
+       (ps:chain event (prevent-default))
+       (let ((name (ps:@ (ps:chain document (get-element-by-id "playlist-name")) value))
+             (description (ps:@ (ps:chain document (get-element-by-id "playlist-description")) value))
+             (message-div (ps:chain document (get-element-by-id "create-playlist-message"))))
+         (ps:chain
+          (fetch (+ "/api/asteroid/user/playlists/create?name=" (encode-u-r-i-component name)
+                    "&description=" (encode-u-r-i-component description))
+                 (ps:create :method "POST"))
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (show-message "Playlist created!" "success")
+                          (hide-create-playlist-modal)
+                          (load-my-playlists)
+                          ;; Open the new playlist for editing
+                          (when (ps:@ data playlist id)
+                            (edit-playlist (ps:@ data playlist id))))
+                        (progn
+                          (setf (ps:@ message-div text-content) (or (ps:@ data message) "Failed to create playlist"))
+                          (setf (ps:@ message-div class-name) "message error"))))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error creating playlist:" error))
+                   (setf (ps:@ message-div text-content) "Error creating playlist")
+                   (setf (ps:@ message-div class-name) "message error")))))
+       false)
+     
+     ;; Edit playlist
+     (defun edit-playlist (playlist-id)
+       (ps:chain console (log "edit-playlist called with id:" playlist-id))
+       (ps:chain
+        (fetch (+ "/api/asteroid/user/playlists/get?id=" playlist-id))
+        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (result)
+                (ps:chain console (log "edit-playlist response:" result))
+                (let ((data (or (ps:@ result data) result)))
+                  (if (= (ps:@ data status) "success")
+                      (let* ((pl (ps:@ data playlist))
+                             (pl-id (or (ps:@ pl id) (aref pl "id")))
+                             (pl-name (or (ps:@ pl name) (aref pl "name")))
+                             (pl-desc (or (ps:@ pl description) (aref pl "description") ""))
+                             (pl-tracks (or (ps:@ pl tracks) (aref pl "tracks") (array))))
+                        (ps:chain console (log "Playlist id:" pl-id "name:" pl-name))
+                        (setf (ps:@ (ps:chain document (get-element-by-id "current-edit-playlist-id")) value) pl-id)
+                        (setf (ps:@ (ps:chain document (get-element-by-id "edit-playlist-name")) value) pl-name)
+                        (setf (ps:@ (ps:chain document (get-element-by-id "edit-playlist-description")) value) pl-desc)
+                        (setf (ps:@ (ps:chain document (get-element-by-id "edit-playlist-title")) text-content) (+ "Edit: " pl-name))
+                        (setf *current-playlist-tracks* pl-tracks)
+                        (render-playlist-tracks)
+                        (show-edit-playlist-modal))
+                      (show-message "Failed to load playlist" "error")))))
+        (catch (lambda (error)
+                 (ps:chain console (error "Error loading playlist:" error))
+                 (show-message "Error loading playlist" "error")))))
+     
+     (defun render-playlist-tracks ()
+       (let ((container (ps:chain document (get-element-by-id "playlist-tracks-list"))))
+         (when container
+           (if (> (ps:@ *current-playlist-tracks* length) 0)
+               (let ((html ""))
+                 (ps:chain *current-playlist-tracks* (for-each (lambda (track index)
+                   (setf html (+ html
+                     "<div class=\"playlist-track-item\" data-index=\"" index "\">"
+                     "<span class=\"track-number\">" (+ index 1) ".</span>"
+                     "<span class=\"track-title\">" (ps:@ track title) "</span>"
+                     "<span class=\"track-artist\">" (ps:@ track artist) "</span>"
+                     "<div class=\"track-controls\">"
+                     "<button class=\"btn btn-tiny\" onclick=\"moveTrackInPlaylist(" index ", -1)\" " (if (= index 0) "disabled" "") ">↑</button>"
+                     "<button class=\"btn btn-tiny\" onclick=\"moveTrackInPlaylist(" index ", 1)\" " (if (= index (- (ps:@ *current-playlist-tracks* length) 1)) "disabled" "") ">↓</button>"
+                     "<button class=\"btn btn-tiny btn-danger\" onclick=\"removeTrackFromPlaylist(" index ")\">✕</button>"
+                     "</div>"
+                     "</div>")))))
+                 (setf (ps:@ container inner-h-t-m-l) html))
+               (setf (ps:@ container inner-h-t-m-l) "<p class=\"empty-message\">No tracks yet. Browse the library to add tracks!</p>")))))
+     
+     (defun move-track-in-playlist (index direction)
+       (let ((new-index (+ index direction)))
+         (when (and (>= new-index 0) (< new-index (ps:@ *current-playlist-tracks* length)))
+           (let ((track (ps:chain *current-playlist-tracks* (splice index 1))))
+             (ps:chain *current-playlist-tracks* (splice new-index 0 (ps:getprop track 0)))
+             (render-playlist-tracks)
+             (save-playlist-tracks)))))
+     
+     (defun remove-track-from-playlist (index)
+       (ps:chain *current-playlist-tracks* (splice index 1))
+       (render-playlist-tracks)
+       (save-playlist-tracks))
+     
+     (defun add-track-to-playlist (track-id title artist album)
+       (ps:chain console (log "addTrackToPlaylist called with track-id:" track-id "title:" title))
+       (let ((playlist-id (ps:@ (ps:chain document (get-element-by-id "current-edit-playlist-id")) value)))
+         (when (not playlist-id)
+           ;; No playlist open, use the select dropdown
+           (let ((select (ps:chain document (get-element-by-id "add-to-playlist-select"))))
+             (when select
+               (setf playlist-id (ps:@ select value)))))
+         (when (not playlist-id)
+           (show-message "Please select a playlist first" "warning")
+           (return))
+         ;; Add to current tracks array
+         (ps:chain console (log "Adding track with id:" track-id "to playlist:" playlist-id))
+         ;; Create object and set id property explicitly
+         (let ((track-obj (ps:create)))
+           (setf (ps:@ track-obj id) track-id)
+           (setf (ps:@ track-obj title) title)
+           (setf (ps:@ track-obj artist) artist)
+           (setf (ps:@ track-obj album) album)
+           (ps:chain *current-playlist-tracks* (push track-obj)))
+         (ps:chain console (log "Current tracks:" *current-playlist-tracks*))
+         (render-playlist-tracks)
+         (save-playlist-tracks)
+         (show-message (+ "Added: " title) "success")))
+     
+     (defun save-playlist-tracks ()
+       (let ((playlist-id (ps:@ (ps:chain document (get-element-by-id "current-edit-playlist-id")) value)))
+         (when playlist-id
+           ;; Access id property directly - use 'trk' not 't' (t is boolean true in Lisp/ParenScript)
+           (let ((track-ids (ps:chain *current-playlist-tracks* (map (lambda (trk) (ps:@ trk id))))))
+             (ps:chain console (log "Saving track-ids:" track-ids))
+             (ps:chain
+              (fetch (+ "/api/asteroid/user/playlists/update?id=" playlist-id
+                        "&tracks=" (encode-u-r-i-component (ps:chain -j-s-o-n (stringify track-ids))))
+                     (ps:create :method "POST"))
+              (then (lambda (response) (ps:chain response (json))))
+              (catch (lambda (error)
+                       (ps:chain console (error "Error saving playlist:" error)))))))))
+     
+     (defun save-playlist-metadata ()
+       (let ((playlist-id (ps:@ (ps:chain document (get-element-by-id "current-edit-playlist-id")) value))
+             (name (ps:@ (ps:chain document (get-element-by-id "edit-playlist-name")) value))
+             (description (ps:@ (ps:chain document (get-element-by-id "edit-playlist-description")) value)))
+         (ps:chain
+          (fetch (+ "/api/asteroid/user/playlists/update?id=" playlist-id
+                    "&name=" (encode-u-r-i-component name)
+                    "&description=" (encode-u-r-i-component description))
+                 (ps:create :method "POST"))
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (show-message "Playlist saved!" "success")
+                          (setf (ps:@ (ps:chain document (get-element-by-id "edit-playlist-title")) text-content) (+ "Edit: " name))
+                          (load-my-playlists))
+                        (show-message "Failed to save playlist" "error")))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error saving playlist:" error))
+                   (show-message "Error saving playlist" "error"))))))
+     
+     (defun submit-playlist-for-review ()
+       (let ((playlist-id (ps:@ (ps:chain document (get-element-by-id "current-edit-playlist-id")) value)))
+         (when (not (confirm "Submit this playlist for admin review? You won't be able to edit it after submission."))
+           (return))
+         (ps:chain
+          (fetch (+ "/api/asteroid/user/playlists/submit?id=" playlist-id)
+                 (ps:create :method "POST"))
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (show-message "Playlist submitted for review!" "success")
+                          (hide-edit-playlist-modal)
+                          (load-my-playlists))
+                        (show-message (or (ps:@ data message) "Failed to submit playlist") "error")))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error submitting playlist:" error))
+                   (show-message "Error submitting playlist" "error"))))))
+     
+     (defun delete-current-playlist ()
+       (let ((playlist-id (ps:@ (ps:chain document (get-element-by-id "current-edit-playlist-id")) value)))
+         (when (not (confirm "Delete this playlist? This cannot be undone."))
+           (return))
+         (ps:chain
+          (fetch (+ "/api/asteroid/user/playlists/delete?id=" playlist-id)
+                 (ps:create :method "POST"))
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  (let ((data (or (ps:@ result data) result)))
+                    (if (= (ps:@ data status) "success")
+                        (progn
+                          (show-message "Playlist deleted" "success")
+                          (hide-edit-playlist-modal)
+                          (load-my-playlists))
+                        (show-message "Failed to delete playlist" "error")))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error deleting playlist:" error))
+                   (show-message "Error deleting playlist" "error"))))))
+     
+     ;; Library browsing
+     (defun load-library-tracks ()
+       (let ((url (+ "/api/asteroid/library/browse?page=" *library-page*)))
+         (when (and *library-search* (> (ps:@ *library-search* length) 0))
+           (setf url (+ url "&search=" (encode-u-r-i-component *library-search*))))
+         (when (and *library-artist* (> (ps:@ *library-artist* length) 0))
+           (setf url (+ url "&artist=" (encode-u-r-i-component *library-artist*))))
+         (ps:chain
+          (fetch url)
+          (then (lambda (response) (ps:chain response (json))))
+          (then (lambda (result)
+                  (let ((data (or (ps:@ result data) result))
+                        (container (ps:chain document (get-element-by-id "library-tracks")))
+                        (artist-select (ps:chain document (get-element-by-id "library-artist-filter"))))
+                    (when container
+                      (setf *library-total* (or (ps:@ data total) 0))
+                      (if (and (= (ps:@ data status) "success")
+                              (ps:@ data tracks)
+                              (> (ps:@ data tracks length) 0))
+                          (let ((html ""))
+                            (ps:chain (ps:@ data tracks) (for-each (lambda (track)
+                              (setf html (+ html
+                                "<div class=\"library-track-item\">"
+                                "<div class=\"track-info\">"
+                                "<span class=\"track-title\">" (ps:@ track title) "</span>"
+                                "<span class=\"track-artist\">" (ps:@ track artist) "</span>"
+                                "<span class=\"track-album\">" (ps:@ track album) "</span>"
+                                "</div>"
+                                "<button class=\"btn btn-small btn-primary\" onclick=\"addTrackToPlaylist("
+                                (ps:@ track id) ", '"
+                                (ps:chain (ps:@ track title) (replace (ps:regex "/'/g") "\\'")) "', '"
+                                (ps:chain (ps:@ track artist) (replace (ps:regex "/'/g") "\\'")) "', '"
+                                (ps:chain (ps:@ track album) (replace (ps:regex "/'/g") "\\'")) "')\">+ Add</button>"
+                                "</div>")))))
+                            (setf (ps:@ container inner-h-t-m-l) html))
+                          (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-data\">No tracks found</p>")))
+                    ;; Update artist filter
+                    (when (and artist-select (ps:@ data artists))
+                      (let ((current-val (ps:@ artist-select value)))
+                        (setf (ps:@ artist-select inner-h-t-m-l) "<option value=\"\">All Artists</option>")
+                        (ps:chain (ps:@ data artists) (for-each (lambda (artist)
+                          (let ((opt (ps:chain document (create-element "option"))))
+                            (setf (ps:@ opt value) artist)
+                            (setf (ps:@ opt text-content) artist)
+                            (ps:chain artist-select (append-child opt))))))
+                        (setf (ps:@ artist-select value) current-val)))
+                    ;; Update pagination
+                    (update-library-pagination))))
+          (catch (lambda (error)
+                   (ps:chain console (error "Error loading library:" error)))))))
+     
+     (defun update-library-pagination ()
+       (let ((page-info (ps:chain document (get-element-by-id "library-page-info")))
+             (prev-btn (ps:chain document (get-element-by-id "lib-prev-btn")))
+             (next-btn (ps:chain document (get-element-by-id "lib-next-btn")))
+             (total-pages (ps:chain -math (ceil (/ *library-total* 50)))))
+         (when page-info
+           (setf (ps:@ page-info text-content) (+ "Page " *library-page* " of " total-pages)))
+         (when prev-btn
+           (setf (ps:@ prev-btn disabled) (<= *library-page* 1)))
+         (when next-btn
+           (setf (ps:@ next-btn disabled) (>= *library-page* total-pages)))))
+     
+     (defun prev-library-page ()
+       (when (> *library-page* 1)
+         (setf *library-page* (- *library-page* 1))
+         (load-library-tracks)))
+     
+     (defun next-library-page ()
+       (setf *library-page* (+ *library-page* 1))
+       (load-library-tracks))
+     
+     (defvar *search-timeout* nil)
+     
+     (defun search-library ()
+       (when *search-timeout*
+         (clear-timeout *search-timeout*))
+       (setf *search-timeout*
+             (set-timeout
+              (lambda ()
+                (setf *library-search* (ps:@ (ps:chain document (get-element-by-id "library-search")) value))
+                (setf *library-page* 1)
+                (load-library-tracks))
+              300)))
+     
+     (defun filter-by-artist ()
+       (setf *library-artist* (ps:@ (ps:chain document (get-element-by-id "library-artist-filter")) value))
+       (setf *library-page* 1)
+       (load-library-tracks))
+     
+     (defun update-playlist-select ()
+       (let ((select (ps:chain document (get-element-by-id "add-to-playlist-select"))))
+         (when select
+           (setf (ps:@ select inner-h-t-m-l) "<option value=\"\">Select playlist to add to...</option>")
+           (ps:chain *user-playlists* (for-each (lambda (pl)
+             (when (= (ps:@ pl status) "draft")
+               (let ((opt (ps:chain document (create-element "option"))))
+                 (setf (ps:@ opt value) (ps:@ pl id))
+                 (setf (ps:@ opt text-content) (ps:@ pl name))
+                 (ps:chain select (append-child opt))))))))))
+     
      ;; Initialize on page load
      (ps:chain window
                (add-event-listener
                 "DOMContentLoaded"
-                load-profile-data))))
+                (lambda ()
+                  (load-profile-data)
+                  (load-my-playlists))))))
   "Compiled JavaScript for profile page - generated at load time")
 
 (defun generate-profile-js ()

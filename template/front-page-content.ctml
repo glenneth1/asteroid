@@ -92,6 +92,24 @@
           <p class="loading">Loading...</p>
         </div>
       </div>
+      
+      <!-- Track Request Section -->
+      <div class="request-panel">
+        <h3>🎵 Request a Track</h3>
+        <p class="request-description">Want to hear something specific? Submit a request and an admin will review it.</p>
+        <div class="request-form">
+          <input type="text" id="request-title" class="request-input" placeholder="Suggest a track, artist, or album...">
+          <input type="text" id="request-message" class="request-input" placeholder="Why do you want to hear this? (optional)">
+          <button class="btn btn-primary" onclick="submitTrackRequest()">Submit Request</button>
+        </div>
+        <div id="request-status" class="request-status" style="display: none;"></div>
+        <div class="recent-requests">
+          <h4>Recently Played Requests</h4>
+          <div id="recent-requests-list">
+            <p class="no-requests">Loading...</p>
+          </div>
+        </div>
+      </div>
     </main>
     
     <footer class="site-footer">

@@ -33,15 +33,15 @@
    2) [ ] Make calendar editable, reschedule, ammend &c
    3) [ ] Add bumpers to landing page for scheduled programs
 
-4) [0/8] User Profile pages
-   1) [ ] avatars
+4) [5/8] User Profile pages
+   1) [X] avatars
    2) [ ] default playlist
-   3) [ ] tarted up 'now playing' with highlights of previously upvoted tracks
+   3) [X] tarted up 'now playing' with highlights of previously upvoted tracks
    4) [ ] polls
-   5) [ ] Listener requests interface
+   5) [X] Listener requests interface
    6) [ ] Calendar of upcoming scheduled 'shows'
-   7) [ ] requests
-   8) [ ] Custom user playlists, with submission for station airing
+   7) [X] requests
+   8) [X] Custom user playlists, with submission for station airing
 
 5) [0/2] Shuffle/Random queue
    1) [ ] randomly run the whole library

@@ -156,6 +156,10 @@
       (format t "Error getting current user: ~a~%" e)
       nil)))
 
+(defun get-current-user-id ()
+  "Get the currently authenticated user's ID from session"
+  (session:field "user-id"))
+
 (defun require-authentication (&key (api nil))
   "Require user to be authenticated. 
    Returns T if authenticated, NIL if not (after emitting error response).

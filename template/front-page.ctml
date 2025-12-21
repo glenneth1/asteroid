@@ -131,8 +131,8 @@
         <h3>🎵 Request a Track</h3>
         <p class="request-description">Want to hear something specific? Submit a request!</p>
         <div class="request-form">
-          <input type="text" id="request-title" placeholder="Artist - Track Title" class="request-input">
-          <input type="text" id="request-message" placeholder="Optional message (e.g., 'for my late night coding session')" class="request-input">
+          <input type="text" id="request-title" placeholder="Suggest a track, artist, or album..." class="request-input">
+          <input type="text" id="request-message" placeholder="Why do you want to hear this? (optional)" class="request-input">
           <button onclick="submitTrackRequest()" class="btn btn-primary">Submit Request</button>
         </div>
         <div id="request-status" class="request-status" style="display: none;"></div>
