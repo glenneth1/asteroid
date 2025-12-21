@@ -1158,28 +1158,44 @@
 (define-api asteroid/user/listening-stats () ()
   "Get user listening statistics"
   (require-authentication)
-  (let* ((current-user (get-current-user))
-         (user-id (when current-user (dm:id current-user)))
-         (stats (if user-id 
-                    (get-user-listening-stats user-id)
-                    (list :total-listen-time 0 :session-count 0 :tracks-played 0))))
-    (api-output `(("status" . "success")
-                  ("stats" . (("total_listen_time" . ,(getf stats :total-listen-time 0))
-                              ("tracks_played" . ,(getf stats :tracks-played 0))
-                              ("session_count" . ,(getf stats :session-count 0))
-                              ("favorite_genre" . "Unknown")))))))
+  (with-error-handling
+    (let* ((user-id (session:field "user-id"))
+           (stats (get-listening-stats user-id)))
+      (api-output `(("status" . "success")
+                    ("stats" . (("total_listen_time" . ,(getf stats :total-listen-time 0))
+                                ("tracks_played" . ,(getf stats :tracks-played 0))
+                                ("session_count" . 0)
+                                ("favorite_genre" . "Ambient"))))))))
 
 (define-api asteroid/user/recent-tracks (&optional (limit "3")) ()
   "Get recently played tracks for user"
   (require-authentication)
-  (api-output `(("status" . "success")
-                ("tracks" . ()))))
+  (with-error-handling
+    (let* ((user-id (session:field "user-id"))
+           (limit-int (parse-integer limit :junk-allowed t))
+           (history (get-listening-history user-id :limit (or limit-int 3))))
+      (api-output `(("status" . "success")
+                    ("tracks" . ,(mapcar (lambda (h)
+                                           `(("title" . ,(or (cdr (assoc :track-title h))
+                                                             (cdr (assoc :track_title h))))
+                                             ("artist" . "")
+                                             ("played_at" . ,(cdr (assoc :listened-at h)))
+                                             ("duration" . ,(or (cdr (assoc :listen-duration h)) 0))))
+                                         history)))))))
 
 (define-api asteroid/user/top-artists (&optional (limit "5")) ()
   "Get top artists for user"
   (require-authentication)
-  (api-output `(("status" . "success")
-                ("artists" . ()))))
+  (with-error-handling
+    (let* ((user-id (session:field "user-id"))
+           (limit-int (parse-integer limit :junk-allowed t))
+           (artists (get-top-artists user-id :limit (or limit-int 5))))
+      (api-output `(("status" . "success")
+                    ("artists" . ,(mapcar (lambda (a)
+                                            `(("name" . ,(or (cdr (assoc :artist a)) "Unknown"))
+                                              ("play_count" . ,(or (cdr (assoc :play-count a))
+                                                                   (cdr (assoc :play_count a)) 0))))
+                                          artists)))))))
 
 ;; Register page (GET)
 (define-page register #@"/register" ()

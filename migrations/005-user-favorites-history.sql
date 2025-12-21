@@ -1,29 +1,34 @@
 -- Migration 005: User Favorites and Listening History
 -- Adds tables for track favorites/ratings and per-user listening history
+-- Updated to support title-based storage (no tracks table dependency)
 
 -- User favorites table - tracks that users have liked/rated
+-- Supports both track-id (when tracks table is populated) and track_title (for now)
 CREATE TABLE IF NOT EXISTS user_favorites (
     _id SERIAL PRIMARY KEY,
     "user-id" INTEGER NOT NULL REFERENCES "USERS"(_id) ON DELETE CASCADE,
-    "track-id" INTEGER NOT NULL REFERENCES tracks(_id) ON DELETE CASCADE,
+    "track-id" INTEGER,  -- Optional: references tracks(_id) when available
+    track_title TEXT,    -- Store title directly for title-based favorites
     rating INTEGER DEFAULT 1 CHECK (rating >= 1 AND rating <= 5),
-    "created-date" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE("user-id", "track-id")
+    "created-date" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for efficient queries
 CREATE INDEX IF NOT EXISTS idx_user_favorites_user_id ON user_favorites("user-id");
 CREATE INDEX IF NOT EXISTS idx_user_favorites_track_id ON user_favorites("track-id");
 CREATE INDEX IF NOT EXISTS idx_user_favorites_rating ON user_favorites(rating);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_favorites_unique ON user_favorites("user-id", COALESCE(track_title, ''));
 
 -- User listening history - per-user track play history
+-- Supports both track-id and track_title
 CREATE TABLE IF NOT EXISTS listening_history (
     _id SERIAL PRIMARY KEY,
     "user-id" INTEGER NOT NULL REFERENCES "USERS"(_id) ON DELETE CASCADE,
-    "track-id" INTEGER NOT NULL REFERENCES tracks(_id) ON DELETE CASCADE,
+    "track-id" INTEGER,  -- Optional: references tracks(_id) when available
+    track_title TEXT,    -- Store title directly for title-based history
     "listened-at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     "listen-duration" INTEGER DEFAULT 0,  -- seconds listened
-    "completed" BOOLEAN DEFAULT false     -- did they listen to the whole track?
+    completed INTEGER DEFAULT 0           -- 1 if they listened to the whole track
 );
 
 -- Create indexes for efficient queries

@@ -198,6 +198,23 @@
               (config (get-stream-config stream-base-url channel quality)))
          (if config (ps:@ config mount) "asteroid.mp3")))
      
+     ;; Track the last recorded title to avoid duplicate history entries
+     (defvar *last-recorded-title* nil)
+     
+     ;; Record track to listening history (only if logged in)
+     (defun record-track-listen (title)
+       (when (and title (not (= title "")) (not (= title "Loading...")) (not (= title *last-recorded-title*)))
+         (setf *last-recorded-title* title)
+         (ps:chain
+          (fetch (+ "/api/asteroid/user/history/record?title=" (encode-u-r-i-component title))
+                 (ps:create :method "POST"))
+          (then (lambda (response)
+                  (when (ps:@ response ok)
+                    (ps:chain console (log "Recorded listen:" title)))))
+          (catch (lambda (error)
+                   ;; Silently fail - user might not be logged in
+                   nil)))))
+     
      ;; Update mini now playing display (for persistent player frame)
      (defun update-mini-now-playing ()
        (let ((mount (get-current-mount)))
@@ -213,6 +230,9 @@
                           (track-id-el (ps:chain document (get-element-by-id "current-track-id-mini")))
                           (title (or (ps:@ data data title) (ps:@ data title) "Loading...")))
                       (when el
+                        ;; Check if track changed and record to history
+                        (when (not (= (ps:@ el text-content) title))
+                          (record-track-listen title))
                         (setf (ps:@ el text-content) title))
                       (when track-id-el
                         (let ((track-id (or (ps:@ data data track_id) (ps:@ data track_id))))

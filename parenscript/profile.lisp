@@ -193,7 +193,7 @@
                                                            "</div>"
                                                            "<div class=\"track-meta\">"
                                                            "<span class=\"rating\">" (render-stars (or (ps:@ fav rating) 1)) "</span>"
-                                                           "<button class=\"btn btn-small btn-danger\" onclick=\"removeFavorite(" (ps:@ fav track_id) ")\">Remove</button>"
+                                                           "<button class=\"btn btn-small btn-danger\" onclick=\"removeFavorite('" (ps:chain (or (ps:@ fav title) "") (replace (ps:regex "/'/g") "\\'")) "')\">Remove</button>"
                                                            "</div>"))
                                                   (ps:chain container (append-child item)))))))
                         (setf (ps:@ container inner-h-t-m-l) "<p class=\"no-data\">No favorites yet. Like tracks while listening!</p>"))))))
@@ -209,17 +209,22 @@
            (setf stars (+ stars (if (< i rating) "★" "☆"))))
          stars))
      
-     (defun remove-favorite (track-id)
+     (defun remove-favorite (title)
        (ps:chain
-        (fetch (+ "/api/asteroid/user/favorites/remove?track-id=" track-id)
+        (fetch (+ "/api/asteroid/user/favorites/remove?title=" (encode-u-r-i-component title))
                (ps:create :method "POST"))
-        (then (lambda (response) (ps:chain response (json))))
+        (then (lambda (response)
+                (if (ps:@ response ok)
+                    (ps:chain response (json))
+                    (throw (ps:new (-error "Request failed"))))))
         (then (lambda (data)
-                (if (= (ps:@ data status) "success")
-                    (progn
-                      (show-message "Removed from favorites" "success")
-                      (load-favorites))
-                    (show-message "Failed to remove favorite" "error"))))
+                ;; API returns {"status": 200, "data": {"status": "success"}}
+                (let ((inner-status (or (ps:@ data data status) (ps:@ data status))))
+                  (if (or (= inner-status "success") (= (ps:@ data status) 200))
+                      (progn
+                        (show-message "Removed from favorites" "success")
+                        (load-favorites))
+                      (show-message "Failed to remove favorite" "error")))))
         (catch (lambda (error)
                  (ps:chain console (error "Error removing favorite:" error))
                  (show-message "Error removing favorite" "error")))))
