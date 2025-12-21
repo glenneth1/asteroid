@@ -75,46 +75,6 @@
         </div>
       </div>
 
-    <!-- Recently Played Tracks -->
-    <div class="admin-section">
-        <h2>🎵 Recently Played</h2>
-        <div class="tracks-list" id="recent-tracks">
-          <div class="track-item">
-            <div class="track-info">
-              <span class="track-title" data-text="recent-track-1-title">No recent tracks</span>
-              <span class="track-artist" data-text="recent-track-1-artist"></span>
-            </div>
-            <div class="track-meta">
-              <span class="track-duration" data-text="recent-track-1-duration"></span>
-              <span class="track-played-at" data-text="recent-track-1-played-at"></span>
-            </div>
-          </div>
-          <div class="track-item">
-            <div class="track-info">
-              <span class="track-title" data-text="recent-track-2-title"></span>
-              <span class="track-artist" data-text="recent-track-2-artist"></span>
-            </div>
-            <div class="track-meta">
-              <span class="track-duration" data-text="recent-track-2-duration"></span>
-              <span class="track-played-at" data-text="recent-track-2-played-at"></span>
-            </div>
-          </div>
-          <div class="track-item">
-            <div class="track-info">
-              <span class="track-title" data-text="recent-track-3-title"></span>
-              <span class="track-artist" data-text="recent-track-3-artist"></span>
-            </div>
-            <div class="track-meta">
-              <span class="track-duration" data-text="recent-track-3-duration"></span>
-              <span class="track-played-at" data-text="recent-track-3-played-at"></span>
-            </div>
-          </div>
-        </div>
-        <div class="profile-actions">
-          <button class="btn btn-secondary" onclick="loadMoreRecentTracks()">Load More</button>
-        </div>
-      </div>
-
     <!-- Favorite Tracks -->
     <div class="admin-section">
         <h2>❤️ Favorite Tracks</h2>
