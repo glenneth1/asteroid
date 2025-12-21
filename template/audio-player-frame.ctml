@@ -36,6 +36,7 @@
     </audio>
     
     <span class="now-playing-mini" id="mini-now-playing">Loading...</span>
+    <span class="favorite-count-mini" id="favorite-count-mini"></span>
     
     <button class="btn-favorite-mini" id="favorite-btn-mini" onclick="toggleFavoriteMini()" title="Add to favorites">
       <span class="star-icon">☆</span>

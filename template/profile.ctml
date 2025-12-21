@@ -75,6 +75,27 @@
         </div>
       </div>
 
+    <!-- My Track Requests -->
+    <div class="admin-section">
+        <h2>🎵 My Track Requests</h2>
+        <div id="my-requests-list" class="requests-list">
+          <p class="loading-message">Loading your requests...</p>
+        </div>
+      </div>
+
+    <!-- My Playlists -->
+    <div class="admin-section">
+        <h2>📝 My Playlists</h2>
+        <p class="section-description">Create custom playlists from the music library and submit them for station airplay!</p>
+        <div class="playlist-actions">
+          <button class="btn btn-primary" onclick="showCreatePlaylistModal()">➕ Create New Playlist</button>
+          <button class="btn btn-secondary" onclick="showLibraryBrowser()">🎵 Browse Library</button>
+        </div>
+        <div id="my-playlists-list" class="playlists-list">
+          <p class="loading-message">Loading your playlists...</p>
+        </div>
+      </div>
+
     <!-- Favorite Tracks -->
     <div class="admin-section">
         <h2>❤️ Favorite Tracks</h2>
@@ -156,6 +177,76 @@
           <button class="btn btn-secondary" onclick="clearListeningHistory()">🗑️ Clear History</button>
         </div>
       </div>
+  </div>
+
+  <!-- Create Playlist Modal -->
+  <div id="create-playlist-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="modal-close" onclick="hideCreatePlaylistModal()">&times;</span>
+      <h2>Create New Playlist</h2>
+      <form id="create-playlist-form" onsubmit="return createPlaylist(event)">
+        <div class="form-group">
+          <label for="playlist-name">Playlist Name:</label>
+          <input type="text" id="playlist-name" name="name" required maxlength="100" placeholder="My Awesome Playlist">
+        </div>
+        <div class="form-group">
+          <label for="playlist-description">Description (optional):</label>
+          <textarea id="playlist-description" name="description" maxlength="500" rows="3" placeholder="Describe your playlist..."></textarea>
+        </div>
+        <div id="create-playlist-message" class="message"></div>
+        <button type="submit" class="btn btn-primary">Create Playlist</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Library Browser Modal -->
+  <div id="library-browser-modal" class="modal" style="display: none; z-index: 1100;">
+    <div class="modal-content modal-large">
+      <span class="modal-close" onclick="hideLibraryBrowser()">&times;</span>
+      <h2>🎵 Music Library</h2>
+      <div class="library-controls">
+        <input type="text" id="library-search" placeholder="Search tracks..." onkeyup="searchLibrary()">
+        <select id="library-artist-filter" onchange="filterByArtist()">
+          <option value="">All Artists</option>
+        </select>
+        <select id="add-to-playlist-select">
+          <option value="">Select playlist to add to...</option>
+        </select>
+      </div>
+      <div id="library-tracks" class="library-tracks-list">
+        <p class="loading-message">Loading library...</p>
+      </div>
+      <div class="library-pagination">
+        <button class="btn btn-secondary" onclick="prevLibraryPage()" id="lib-prev-btn" disabled>← Previous</button>
+        <span id="library-page-info">Page 1</span>
+        <button class="btn btn-secondary" onclick="nextLibraryPage()" id="lib-next-btn">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Playlist Modal -->
+  <div id="edit-playlist-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+      <span class="modal-close" onclick="hideEditPlaylistModal()">&times;</span>
+      <h2 id="edit-playlist-title">Edit Playlist</h2>
+      <div class="playlist-edit-header">
+        <input type="text" id="edit-playlist-name" placeholder="Playlist name">
+        <textarea id="edit-playlist-description" placeholder="Description..." rows="2"></textarea>
+        <button class="btn btn-secondary" onclick="savePlaylistMetadata()">Save Details</button>
+      </div>
+      <div class="playlist-tracks-container">
+        <h3>Tracks in Playlist</h3>
+        <div id="playlist-tracks-list" class="playlist-tracks-sortable">
+          <p class="empty-message">No tracks yet. Browse the library to add tracks!</p>
+        </div>
+      </div>
+      <div class="playlist-edit-actions">
+        <button class="btn btn-secondary" onclick="showLibraryBrowserForPlaylist()">➕ Add Tracks</button>
+        <button class="btn btn-primary" onclick="submitPlaylistForReview()" id="submit-playlist-btn">📤 Submit for Review</button>
+        <button class="btn btn-danger" onclick="deleteCurrentPlaylist()">🗑️ Delete Playlist</button>
+      </div>
+      <input type="hidden" id="current-edit-playlist-id" value="">
+    </div>
   </div>
 
   <!-- Initialization handled by profile.js -->

@@ -163,11 +163,19 @@
   (sort (copy-list *playlist-schedule*) #'< :key #'car))
 
 (defun get-available-playlists ()
-  "Get list of available playlist files from the playlists directory."
-  (let ((playlists-dir (get-playlists-directory)))
-    (when (probe-file playlists-dir)
-      (mapcar #'file-namestring
-              (directory (merge-pathnames "*.m3u" playlists-dir))))))
+  "Get list of available playlist files from the playlists directory and user-submissions."
+  (let ((playlists-dir (get-playlists-directory))
+        (submissions-dir (merge-pathnames "user-submissions/" (get-playlists-directory))))
+    (append
+     ;; Main playlists directory
+     (when (probe-file playlists-dir)
+       (mapcar #'file-namestring
+               (directory (merge-pathnames "*.m3u" playlists-dir))))
+     ;; User submissions directory (prefixed with user-submissions/)
+     (when (probe-file submissions-dir)
+       (mapcar (lambda (path) 
+                 (format nil "user-submissions/~a" (file-namestring path)))
+               (directory (merge-pathnames "*.m3u" submissions-dir)))))))
 
 (defun get-server-time-info ()
   "Get current server time information in both UTC and local timezone."

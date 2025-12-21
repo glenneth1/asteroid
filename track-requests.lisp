@@ -49,6 +49,18 @@
                         LIMIT ~a" user-id limit))
      :alists)))
 
+(defun get-requests-by-status (status &key (limit 50))
+  "Get requests by status with user info"
+  (with-db
+    (postmodern:query
+     (:raw (format nil "SELECT r._id, r.track_title, r.track_path, r.message, r.status, r.\"created-at\", u.username
+                        FROM track_requests r 
+                        JOIN \"USERS\" u ON r.\"user-id\" = u._id 
+                        WHERE r.status = '~a' 
+                        ORDER BY r.\"created-at\" DESC 
+                        LIMIT ~a" status limit))
+     :alists)))
+
 (defun get-recent-played-requests (&key (limit 10))
   "Get recently played requests with user attribution"
   (with-db
@@ -158,6 +170,21 @@
   (require-role :admin)
   (with-error-handling
     (let ((requests (get-pending-requests)))
+      (api-output `(("status" . "success")
+                    ("requests" . ,(mapcar (lambda (r)
+                                             `(("id" . ,(cdr (assoc :_id r)))
+                                               ("title" . ,(cdr (assoc :track-title r)))
+                                               ("path" . ,(cdr (assoc :track-path r)))
+                                               ("message" . ,(cdr (assoc :message r)))
+                                               ("username" . ,(cdr (assoc :username r)))
+                                               ("created_at" . ,(cdr (assoc :created-at r)))))
+                                           requests)))))))
+
+(define-api asteroid/admin/requests/list (&optional (status "pending")) ()
+  "Get requests by status (pending, approved, rejected, played)"
+  (require-role :admin)
+  (with-error-handling
+    (let ((requests (get-requests-by-status status)))
       (api-output `(("status" . "success")
                     ("requests" . ,(mapcar (lambda (r)
                                              `(("id" . ,(cdr (assoc :_id r)))

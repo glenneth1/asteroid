@@ -64,6 +64,7 @@
                (:file "playlist-scheduler")
                (:file "listener-stats")
                (:file "user-profile")
+               (:file "user-playlists")
                (:file "track-requests")
                (:file "auth-routes")
                (:file "frontend-partials")

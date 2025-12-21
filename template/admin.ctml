@@ -102,6 +102,22 @@
       </div>
     </div>
 
+    <!-- Track Requests -->
+    <div class="admin-section">
+      <h2>🎵 Track Requests</h2>
+      <div class="request-tabs" style="margin-bottom: 15px;">
+        <button class="btn btn-tab active" id="tab-pending" onclick="showRequestTab('pending')">⏳ Pending</button>
+        <button class="btn btn-tab" id="tab-approved" onclick="showRequestTab('approved')">✓ Approved</button>
+        <button class="btn btn-tab" id="tab-rejected" onclick="showRequestTab('rejected')">✗ Rejected</button>
+        <button class="btn btn-tab" id="tab-played" onclick="showRequestTab('played')">🎵 Played</button>
+        <button class="btn btn-secondary" onclick="refreshTrackRequests()" style="margin-left: 15px;">🔄 Refresh</button>
+        <span id="requests-status" style="margin-left: 15px;"></span>
+      </div>
+      <div id="pending-requests-container">
+        <p class="loading">Loading requests...</p>
+      </div>
+    </div>
+
     <!-- Music Library Management -->
     <div class="admin-section">
       <h2>Music Library Management</h2>
@@ -344,6 +360,15 @@
         <strong>Reload Playlist:</strong> Force Liquidsoap to re-read stream-queue.m3u.<br>
         <strong>Restart Container:</strong> Restart the Liquidsoap Docker container (causes brief stream interruption).
       </p>
+    </div>
+
+    <!-- User Playlist Review -->
+    <div class="admin-section">
+      <h2>📋 User Playlist Submissions</h2>
+      <p>Review and approve user-submitted playlists. Approved playlists will be available for scheduling.</p>
+      <div id="user-playlists-container">
+        <p class="loading-message">Loading submissions...</p>
+      </div>
     </div>
 
     <!-- User Management -->

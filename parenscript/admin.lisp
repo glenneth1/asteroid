@@ -29,6 +29,7 @@
                  (refresh-liquidsoap-status)
                  (setup-stats-refresh)
                  (refresh-scheduler-status)
+                 (refresh-track-requests)
                  ;; Update Liquidsoap status every 10 seconds
                  (set-interval refresh-liquidsoap-status 10000)
                  ;; Update scheduler status every 30 seconds
@@ -1286,6 +1287,216 @@
                 (ps:chain console (error "Error loading scheduled playlist:" error))
                 (alert "Error loading scheduled playlist")))))
     
+    ;; ========================================
+    ;; Track Requests Management
+    ;; ========================================
+    
+    (defvar *current-request-tab* "pending")
+    
+    (defun format-request-time (timestamp)
+      "Format a timestamp for display"
+      (if (not timestamp)
+          ""
+          (let* ((ts-str (+ "" timestamp))
+                 (iso-str (if (ps:chain ts-str (includes " "))
+                              (+ (ps:chain ts-str (replace " " "T")) "Z")
+                              ts-str))
+                 (date (ps:new (-date iso-str))))
+            (if (ps:chain -number (is-na-n (ps:chain date (get-time))))
+                "Recently"
+                (ps:chain date (to-locale-string))))))
+    
+    (defun show-request-tab (tab)
+      (setf *current-request-tab* tab)
+      ;; Update tab button styles
+      (let ((tabs (ps:chain document (query-selector-all ".btn-tab"))))
+        (ps:chain tabs (for-each (lambda (btn)
+          (ps:chain btn class-list (remove "active"))))))
+      (let ((active-tab (ps:chain document (get-element-by-id (+ "tab-" tab)))))
+        (when active-tab
+          (ps:chain active-tab class-list (add "active"))))
+      ;; Load the appropriate requests
+      (refresh-track-requests))
+    
+    (defun refresh-track-requests ()
+      (let ((container (ps:chain document (get-element-by-id "pending-requests-container")))
+            (status-el (ps:chain document (get-element-by-id "requests-status")))
+            (url (+ "/api/asteroid/admin/requests/list?status=" *current-request-tab*)))
+        (when status-el
+          (setf (ps:@ status-el text-content) "Loading..."))
+        (ps:chain
+         (fetch url)
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (when status-el
+                     (setf (ps:@ status-el text-content) ""))
+                   (when container
+                     (if (and (= (ps:@ data status) "success")
+                             (ps:@ data requests)
+                             (> (ps:@ data requests length) 0))
+                         (let ((html ""))
+                           (ps:chain (ps:@ data requests) (for-each (lambda (req)
+                             (let ((actions-html 
+                                    (cond
+                                      ((= *current-request-tab* "pending")
+                                       (+ "<button class=\"btn btn-success btn-sm\" onclick=\"approveRequest(" (ps:@ req id) ")\">✓ Approve</button>"
+                                          "<button class=\"btn btn-danger btn-sm\" onclick=\"rejectRequest(" (ps:@ req id) ")\">✗ Reject</button>"))
+                                      ((= *current-request-tab* "approved")
+                                       "<span class=\"status-badge status-approved\">✓ Approved</span>")
+                                      ((= *current-request-tab* "rejected")
+                                       "<span class=\"status-badge status-rejected\">✗ Rejected</span>")
+                                      ((= *current-request-tab* "played")
+                                       "<span class=\"status-badge status-played\">🎵 Played</span>")
+                                      (t ""))))
+                               (setf html (+ html 
+                                 "<div class=\"request-item-admin\" data-request-id=\"" (ps:@ req id) "\">"
+                                 "<div class=\"request-info\">"
+                                 "<strong>" (ps:@ req title) "</strong>"
+                                 "<span class=\"request-user\">Requested by @" (ps:@ req username) "</span>"
+                                 (if (ps:@ req message)
+                                     (+ "<p class=\"request-message\">\"" (ps:@ req message) "\"</p>")
+                                     "")
+                                 "<span class=\"request-time\">" (format-request-time (ps:@ req created_at)) "</span>"
+                                 "</div>"
+                                 "<div class=\"request-actions\">"
+                                 actions-html
+                                 "</div>"
+                                 "</div>"))))))
+                           (setf (ps:@ container inner-h-t-m-l) html))
+                         (setf (ps:@ container inner-h-t-m-l) (+ "<p style=\"color: #888;\">No " *current-request-tab* " requests</p>")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error loading requests:" error))
+                  (when status-el
+                    (setf (ps:@ status-el text-content) "Error loading requests")))))))
+    
+    (defun approve-request (request-id)
+      (ps:chain
+       (fetch (+ "/api/asteroid/requests/approve?id=" request-id)
+              (ps:create :method "POST"))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (progn
+                       (show-toast "✓ Request approved")
+                       (refresh-track-requests))
+                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error approving request:" error))
+                (alert "Error approving request")))))
+    
+    (defun reject-request (request-id)
+      (when (confirm "Are you sure you want to reject this request?")
+        (ps:chain
+         (fetch (+ "/api/asteroid/requests/reject?id=" request-id)
+                (ps:create :method "POST"))
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (if (= (ps:@ data status) "success")
+                       (progn
+                         (show-toast "Request rejected")
+                         (refresh-track-requests))
+                       (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error rejecting request:" error))
+                  (alert "Error rejecting request"))))))
+    
+    ;; ========================================
+    ;; User Playlist Review Functions
+    ;; ========================================
+    
+    (defun load-user-playlist-submissions ()
+      (ps:chain
+       (fetch "/api/asteroid/admin/user-playlists")
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((container (ps:chain document (get-element-by-id "user-playlists-container")))
+                     (data (or (ps:@ result data) result)))
+                 (when container
+                   (if (and (= (ps:@ data status) "success") 
+                            (ps:@ data playlists)
+                            (> (ps:@ data playlists length) 0))
+                       (let ((html "<table class='admin-table'><thead><tr><th>Playlist</th><th>User</th><th>Tracks</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>"))
+                         (ps:chain (ps:@ data playlists) (for-each (lambda (pl)
+                           (let* ((ts (aref pl "submittedDate"))
+                                (submitted-date (if ts
+                                                    (ps:chain (ps:new (*Date (* ts 1000))) (to-locale-string))
+                                                    "N/A")))
+                             (setf html (+ html
+                               "<tr>"
+                               "<td><strong>" (aref pl "name") "</strong>"
+                               (if (aref pl "description") (+ "<br><small>" (aref pl "description") "</small>") "")
+                               "</td>"
+                               "<td>" (or (aref pl "username") "Unknown") "</td>"
+                               "<td>" (or (aref pl "trackCount") 0) " tracks</td>"
+                               "<td>" submitted-date "</td>"
+                               "<td>"
+                               "<button class='btn btn-info btn-sm' onclick='previewPlaylist(" (aref pl "id") ")'>👁 Preview</button> "
+                               "<button class='btn btn-success btn-sm' onclick='approvePlaylist(" (aref pl "id") ")'>✓ Approve</button> "
+                               "<button class='btn btn-danger btn-sm' onclick='rejectPlaylist(" (aref pl "id") ")'>✗ Reject</button>"
+                               "</td>"
+                               "</tr>"))))))
+                         (setf html (+ html "</tbody></table>"))
+                         (setf (ps:@ container inner-h-t-m-l) html))
+                       (setf (ps:@ container inner-h-t-m-l) "<p class='no-data'>No playlists awaiting review</p>"))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error loading user playlists:" error))
+                (let ((container (ps:chain document (get-element-by-id "user-playlists-container"))))
+                  (when container
+                    (setf (ps:@ container inner-h-t-m-l) "<p class='error'>Error loading submissions</p>")))))))
+    
+    (defun approve-playlist (playlist-id)
+      (when (confirm "Approve this playlist? It will be available for scheduling.")
+        (ps:chain
+         (fetch (+ "/api/asteroid/admin/user-playlists/review?id=" playlist-id "&action=approve")
+                (ps:create :method "POST"))
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (if (= (ps:@ data status) "success")
+                       (progn
+                         (alert "Playlist approved!")
+                         (load-user-playlist-submissions))
+                       (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error approving playlist:" error))
+                  (alert "Error approving playlist"))))))
+    
+    (defun reject-playlist (playlist-id)
+      (let ((notes (prompt "Reason for rejection (optional):")))
+        (ps:chain
+         (fetch (+ "/api/asteroid/admin/user-playlists/review?id=" playlist-id 
+                   "&action=reject&notes=" (encode-u-r-i-component (or notes "")))
+                (ps:create :method "POST"))
+         (then (lambda (response) (ps:chain response (json))))
+         (then (lambda (result)
+                 (let ((data (or (ps:@ result data) result)))
+                   (if (= (ps:@ data status) "success")
+                       (progn
+                         (alert "Playlist rejected.")
+                         (load-user-playlist-submissions))
+                       (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+         (catch (lambda (error)
+                  (ps:chain console (error "Error rejecting playlist:" error))
+                  (alert "Error rejecting playlist"))))))
+    
+    (defun preview-playlist (playlist-id)
+      (ps:chain
+       (fetch (+ "/api/asteroid/admin/user-playlists/preview?id=" playlist-id))
+       (then (lambda (response) (ps:chain response (json))))
+       (then (lambda (result)
+               (let ((data (or (ps:@ result data) result)))
+                 (if (= (ps:@ data status) "success")
+                     (let ((m3u (aref data "m3u")))
+                       ;; Show in a modal or alert
+                       (alert (+ "Playlist M3U Preview:\n\n" m3u)))
+                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+       (catch (lambda (error)
+                (ps:chain console (error "Error previewing playlist:" error))
+                (alert "Error previewing playlist")))))
+    
     ;; Make functions globally accessible for onclick handlers
     (setf (ps:@ window go-to-page) go-to-page)
     (setf (ps:@ window previous-page) previous-page)
@@ -1309,6 +1520,17 @@
     (setf (ps:@ window load-current-scheduled-playlist) load-current-scheduled-playlist)
     (setf (ps:@ window add-schedule-entry) add-schedule-entry)
     (setf (ps:@ window remove-schedule-entry) remove-schedule-entry)
+    (setf (ps:@ window refresh-track-requests) refresh-track-requests)
+    (setf (ps:@ window approve-request) approve-request)
+    (setf (ps:@ window reject-request) reject-request)
+    (setf (ps:@ window show-request-tab) show-request-tab)
+    (setf (ps:@ window load-user-playlist-submissions) load-user-playlist-submissions)
+    (setf (ps:@ window approve-playlist) approve-playlist)
+    (setf (ps:@ window reject-playlist) reject-playlist)
+    (setf (ps:@ window preview-playlist) preview-playlist)
+    
+    ;; Load user playlist submissions on page load
+    (load-user-playlist-submissions)
     ))
   "Compiled JavaScript for admin dashboard - generated at load time")
 

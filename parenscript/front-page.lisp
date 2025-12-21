@@ -168,6 +168,39 @@
      ;; Track last recorded title to avoid duplicate history entries
      (defvar *last-recorded-title-main* nil)
      
+     ;; Cache of user's favorite track titles for quick lookup
+     (defvar *user-favorites-cache* (array))
+     
+     ;; Load user's favorites into cache
+     (defun load-favorites-cache ()
+       (ps:chain
+        (fetch "/api/asteroid/user/favorites")
+        (then (lambda (response)
+                (if (ps:@ response ok)
+                    (ps:chain response (json))
+                    nil)))
+        (then (lambda (data)
+                (when (and data (ps:@ data data) (ps:@ data data favorites))
+                  (setf *user-favorites-cache* 
+                        (ps:chain (ps:@ data data favorites) 
+                                  (map (lambda (f) (ps:@ f title))))))))
+        (catch (lambda (error) nil))))
+     
+     ;; Check if current track is in favorites and update UI
+     (defun check-favorite-status ()
+       (let ((title-el (ps:chain document (get-element-by-id "current-track-title")))
+             (btn (ps:chain document (get-element-by-id "favorite-btn"))))
+         (when (and title-el btn)
+           (let ((title (ps:@ title-el text-content))
+                 (star-icon (ps:chain btn (query-selector ".star-icon"))))
+             (if (ps:chain *user-favorites-cache* (includes title))
+                 (progn
+                   (ps:chain btn class-list (add "favorited"))
+                   (when star-icon (setf (ps:@ star-icon text-content) "★")))
+                 (progn
+                   (ps:chain btn class-list (remove "favorited"))
+                   (when star-icon (setf (ps:@ star-icon text-content) "☆"))))))))
+     
      ;; Record track to listening history (only if logged in)
      (defun record-track-listen-main (title)
        (when (and title (not (= title "")) (not (= title "Loading...")) 
@@ -177,8 +210,7 @@
           (fetch (+ "/api/asteroid/user/history/record?title=" (encode-u-r-i-component title))
                  (ps:create :method "POST"))
           (then (lambda (response)
-                  (when (ps:@ response ok)
-                    (ps:chain console (log "Recorded listen:" title)))))
+                  (ps:@ response ok)))
           (catch (lambda (error)
                    ;; Silently fail - user might not be logged in
                    nil)))))
@@ -206,7 +238,20 @@
                               ;; Record if title changed
                               (when (or (not old-title-el) 
                                         (not (= (ps:@ old-title-el text-content) new-title)))
-                                (record-track-listen-main new-title))))))))))
+                                (record-track-listen-main new-title))
+                              ;; Check if this track is in user's favorites
+                              (check-favorite-status)
+                              ;; Update favorite count display
+                              (let ((count-el (ps:chain document (get-element-by-id "favorite-count-display")))
+                                    (count-val-el (ps:chain document (get-element-by-id "favorite-count-value"))))
+                                (when (and count-el count-val-el)
+                                  (let ((fav-count (parse-int (or (ps:@ count-val-el value) "0") 10)))
+                                    (if (> fav-count 0)
+                                        (setf (ps:@ count-el text-content)
+                                              (if (= fav-count 1)
+                                                  "1 person loves this track ❤️"
+                                                  (+ fav-count " people love this track ❤️")))
+                                        (setf (ps:@ count-el text-content) "")))))))))))))
           (catch (lambda (error)
                    (ps:chain console (log "Could not fetch stream status:" error)))))))
      
@@ -582,6 +627,9 @@
            (when is-frameset-page
              (set-interval update-stream-information 10000)))
 
+         ;; Load user's favorites for highlight feature
+         (load-favorites-cache)
+         
          ;; Update now playing
          (update-now-playing)
 
@@ -650,7 +698,9 @@
                             (when (and data (or (= (ps:@ data status) "success")
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (remove "favorited"))
-                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆"))))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆")
+                              ;; Refresh now playing to update favorite count
+                              (update-now-playing))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error removing favorite:" error)))))
                    ;; Add favorite
@@ -667,7 +717,8 @@
                             (when (and data (or (= (ps:@ data status) "success")
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (add "favorited"))
-                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★"))))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★")
+                              (update-now-playing))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error adding favorite:" error)))))))))))
      

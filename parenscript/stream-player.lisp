@@ -201,6 +201,39 @@
      ;; Track the last recorded title to avoid duplicate history entries
      (defvar *last-recorded-title* nil)
      
+     ;; Cache of user's favorite track titles for quick lookup (mini player)
+     (defvar *user-favorites-cache-mini* (array))
+     
+     ;; Load user's favorites into cache (mini player)
+     (defun load-favorites-cache-mini ()
+       (ps:chain
+        (fetch "/api/asteroid/user/favorites")
+        (then (lambda (response)
+                (if (ps:@ response ok)
+                    (ps:chain response (json))
+                    nil)))
+        (then (lambda (data)
+                (when (and data (ps:@ data data) (ps:@ data data favorites))
+                  (setf *user-favorites-cache-mini* 
+                        (ps:chain (ps:@ data data favorites) 
+                                  (map (lambda (f) (ps:@ f title))))))))
+        (catch (lambda (error) nil))))
+     
+     ;; Check if current track is in favorites and update mini player UI
+     (defun check-favorite-status-mini ()
+       (let ((title-el (ps:chain document (get-element-by-id "mini-now-playing")))
+             (btn (ps:chain document (get-element-by-id "favorite-btn-mini"))))
+         (when (and title-el btn)
+           (let ((title (ps:@ title-el text-content))
+                 (star-icon (ps:chain btn (query-selector ".star-icon"))))
+             (if (ps:chain *user-favorites-cache-mini* (includes title))
+                 (progn
+                   (ps:chain btn class-list (add "favorited"))
+                   (when star-icon (setf (ps:@ star-icon text-content) "★")))
+                 (progn
+                   (ps:chain btn class-list (remove "favorited"))
+                   (when star-icon (setf (ps:@ star-icon text-content) "☆"))))))))
+     
      ;; Record track to listening history (only if logged in)
      (defun record-track-listen (title)
        (when (and title (not (= title "")) (not (= title "Loading...")) (not (= title *last-recorded-title*)))
@@ -209,11 +242,8 @@
           (fetch (+ "/api/asteroid/user/history/record?title=" (encode-u-r-i-component title))
                  (ps:create :method "POST"))
           (then (lambda (response)
-                  (when (ps:@ response ok)
-                    (ps:chain console (log "Recorded listen:" title)))))
-          (catch (lambda (error)
-                   ;; Silently fail - user might not be logged in
-                   nil)))))
+                  (ps:@ response ok)))
+          (catch (lambda (error) nil)))))
      
      ;; Update mini now playing display (for persistent player frame)
      (defun update-mini-now-playing ()
@@ -233,10 +263,20 @@
                         ;; Check if track changed and record to history
                         (when (not (= (ps:@ el text-content) title))
                           (record-track-listen title))
-                        (setf (ps:@ el text-content) title))
+                        (setf (ps:@ el text-content) title)
+                        ;; Check if this track is in user's favorites
+                        (check-favorite-status-mini))
                       (when track-id-el
                         (let ((track-id (or (ps:@ data data track_id) (ps:@ data track_id))))
-                          (setf (ps:@ track-id-el value) (or track-id ""))))))))
+                          (setf (ps:@ track-id-el value) (or track-id ""))))
+                      ;; Update favorite count display
+                      (let ((count-el (ps:chain document (get-element-by-id "favorite-count-mini")))
+                            (fav-count (or (ps:@ data data favorite_count) (ps:@ data favorite_count) 0)))
+                        (when count-el
+                          (cond
+                            ((= fav-count 0) (setf (ps:@ count-el text-content) ""))
+                            ((= fav-count 1) (setf (ps:@ count-el text-content) "1 ❤️"))
+                            (t (setf (ps:@ count-el text-content) (+ fav-count " ❤️"))))))))))
           (catch (lambda (error)
                    (ps:chain console (log "Could not fetch now playing:" error)))))))
      
@@ -269,7 +309,10 @@
                             (when (and data (or (= (ps:@ data status) "success")
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (remove "favorited"))
-                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆"))))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆")
+                              ;; Reload cache and refresh display to update favorite count
+                              (load-favorites-cache-mini)
+                              (update-mini-now-playing))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error removing favorite:" error)))))
                    ;; Add favorite
@@ -286,7 +329,10 @@
                             (when (and data (or (= (ps:@ data status) "success")
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (add "favorited"))
-                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★"))))
+                              (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★")
+                              ;; Reload cache and refresh display to update favorite count
+                              (load-favorites-cache-mini)
+                              (update-mini-now-playing))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error adding favorite:" error)))))))))))
      
@@ -604,6 +650,9 @@
      (defun init-persistent-player ()
        (let ((audio-element (ps:chain document (get-element-by-id "persistent-audio"))))
          (when audio-element
+           ;; Load user's favorites for highlight feature
+           (load-favorites-cache-mini)
+           
            ;; Try to enable low-latency mode if supported
            (when (ps:@ navigator media-session)
              (setf (ps:@ navigator media-session metadata)
