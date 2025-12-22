@@ -22,6 +22,16 @@
 
     <hostname>localhost</hostname>
 
+    <!-- YP Directory listings -->
+    <directory>
+        <yp-url-timeout>15</yp-url-timeout>
+        <yp-url>http://icecast-yp.internet-radio.com</yp-url>
+    </directory>
+    <directory>
+        <yp-url-timeout>15</yp-url-timeout>
+        <yp-url>http://dir.xiph.org/cgi-bin/yp-cgi</yp-url>
+    </directory>
+
     <listen-socket>
         <port>8000</port>
     </listen-socket>
