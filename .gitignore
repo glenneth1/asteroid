@@ -58,3 +58,4 @@ performance-logs/
 # Temporary files
 /static/asteroid.css
 stream-queue.m3u
+.jj/
