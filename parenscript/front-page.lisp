@@ -183,7 +183,9 @@
                 (when (and data (ps:@ data data) (ps:@ data data favorites))
                   (setf *user-favorites-cache* 
                         (ps:chain (ps:@ data data favorites) 
-                                  (map (lambda (f) (ps:@ f title))))))))
+                                  (map (lambda (f) (ps:@ f title)))))
+                  ;; Update UI after cache is loaded
+                  (check-favorite-status))))
         (catch (lambda (error) nil))))
      
      ;; Check if current track is in favorites and update UI
@@ -699,8 +701,9 @@
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (remove "favorited"))
                               (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆")
-                              ;; Refresh now playing to update favorite count
-                              (update-now-playing))))
+                              ;; Reload cache (don't call update-now-playing as it would
+                              ;; check the old cache before reload completes)
+                              (load-favorites-cache))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error removing favorite:" error)))))
                    ;; Add favorite
@@ -718,7 +721,9 @@
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (add "favorited"))
                               (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★")
-                              (update-now-playing))))
+                              ;; Reload cache (don't call update-now-playing as it would
+                              ;; check the old cache before reload completes)
+                              (load-favorites-cache))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error adding favorite:" error)))))))))))
      

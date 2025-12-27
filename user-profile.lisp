@@ -161,6 +161,10 @@
 ;;; API Endpoints for User Favorites
 ;;; ==========================================================================
 
+(defun aget-profile (key alist)
+  "Get value from alist using string-equal comparison for key (Postmodern returns uppercase keys)"
+  (cdr (assoc key alist :test (lambda (a b) (string-equal (string a) (string b))))))
+
 (define-api asteroid/user/favorites () ()
   "Get current user's favorite tracks"
   (require-authentication)
@@ -168,13 +172,13 @@
     (let* ((user-id (session:field "user-id"))
            (favorites (get-user-favorites user-id)))
       (api-output `(("status" . "success")
-                    ("favorites" . ,(mapcar (lambda (fav)
-                                              `(("id" . ,(cdr (assoc :_id fav)))
-                                                ("track_id" . ,(cdr (assoc :track-id fav)))
-                                                ("title" . ,(or (cdr (assoc :track-title fav))
-                                                                (cdr (assoc :track_title fav))))
-                                                ("rating" . ,(cdr (assoc :rating fav)))))
-                                            favorites))
+                    ("favorites" . ,(or (mapcar (lambda (fav)
+                                                  `(("id" . ,(aget-profile "-ID" fav))
+                                                    ("track_id" . ,(aget-profile "TRACK-ID" fav))
+                                                    ("title" . ,(aget-profile "TRACK-TITLE" fav))
+                                                    ("rating" . ,(aget-profile "RATING" fav))))
+                                                favorites)
+                                        (list)))  ; Return empty list instead of null
                     ("count" . ,(get-favorites-count user-id)))))))
 
 (define-api asteroid/user/favorites/add (&optional track-id rating title) ()

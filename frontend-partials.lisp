@@ -1,18 +1,35 @@
 (in-package :asteroid)
 
 (defun find-track-by-title (title)
-  "Find a track in the database by its title. Returns track ID or nil."
+  "Find a track in the database by its title. Returns track ID or nil.
+   Handles 'Artist - Title' format from Icecast metadata."
   (when (and title (not (string= title "Unknown")))
     (handler-case
         (with-db
-          (let* ((search-pattern (format nil "%~a%" title))
-                 (result (postmodern:query
-                          (:limit
-                           (:select '_id
-                            :from 'tracks
-                            :where (:ilike 'title search-pattern))
-                           1)
-                          :single)))
+          ;; Parse 'Artist - Title' format if present
+          (let* ((parts (cl-ppcre:split " - " title :limit 2))
+                 (has-artist (> (length parts) 1))
+                 (artist-part (when has-artist (first parts)))
+                 (title-part (if has-artist (second parts) title))
+                 (result
+                   (if has-artist
+                       ;; Search by both artist and title
+                       (postmodern:query
+                        (:limit
+                         (:select '_id
+                          :from 'tracks
+                          :where (:and (:ilike 'artist (format nil "%~a%" artist-part))
+                                       (:ilike 'title (format nil "%~a%" title-part))))
+                         1)
+                        :single)
+                       ;; Fallback: search by title only
+                       (postmodern:query
+                        (:limit
+                         (:select '_id
+                          :from 'tracks
+                          :where (:ilike 'title (format nil "%~a%" title-part)))
+                         1)
+                        :single))))
             result))
       (error (e)
         (declare (ignore e))
