@@ -34,7 +34,6 @@
       (error (e)
         (declare (ignore e))
         nil))))
-
 (defun icecast-now-playing (icecast-base-url &optional (mount "asteroid.mp3"))
   "Fetch now-playing information from Icecast server.
   
