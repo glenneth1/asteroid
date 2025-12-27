@@ -207,7 +207,7 @@
      ;; Load user's favorites into cache (mini player)
      (defun load-favorites-cache-mini ()
        (ps:chain
-        (fetch "/api/asteroid/user/favorites")
+        (fetch "/api/asteroid/user/favorites" (ps:create :credentials "include"))
         (then (lambda (response)
                 (if (ps:@ response ok)
                     (ps:chain response (json))
@@ -304,7 +304,7 @@
                    ;; Remove favorite
                    (ps:chain
                     (fetch (+ "/api/asteroid/user/favorites/remove?" params)
-                           (ps:create :method "POST"))
+                           (ps:create :method "POST" :credentials "include"))
                     (then (lambda (response)
                             (cond
                               ((not (ps:@ response ok))
@@ -324,7 +324,7 @@
                    ;; Add favorite
                    (ps:chain
                     (fetch (+ "/api/asteroid/user/favorites/add?" params)
-                           (ps:create :method "POST"))
+                           (ps:create :method "POST" :credentials "include"))
                     (then (lambda (response)
                             (cond
                               ((not (ps:@ response ok))
@@ -784,7 +784,13 @@
                     (init-persistent-player))
                   ;; Check for popout player
                   (when (ps:chain document (get-element-by-id "live-audio"))
-                    (init-popout-player))))))
+                    (init-popout-player))))
+       ;; Listen for messages from parent frame (e.g., favorites cache reload)
+       (ps:chain window (add-event-listener
+                         "message"
+                         (lambda (event)
+                           (when (= (ps:@ event data) "reload-favorites")
+                             (load-favorites-cache-mini)))))))
    )
   "Compiled JavaScript for stream player - generated at load time")
 

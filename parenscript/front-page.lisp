@@ -703,7 +703,11 @@
                               (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆")
                               ;; Reload cache (don't call update-now-playing as it would
                               ;; check the old cache before reload completes)
-                              (load-favorites-cache))))
+                              (load-favorites-cache)
+                              ;; Notify frame player to reload its cache
+                              (let ((player-frame (ps:chain document (get-element-by-id "player-frame"))))
+                                (when (and player-frame (ps:@ player-frame content-window))
+                                  (ps:chain player-frame content-window (post-message "reload-favorites" "*")))))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error removing favorite:" error)))))
                    ;; Add favorite
@@ -723,7 +727,11 @@
                               (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★")
                               ;; Reload cache (don't call update-now-playing as it would
                               ;; check the old cache before reload completes)
-                              (load-favorites-cache))))
+                              (load-favorites-cache)
+                              ;; Notify frame player to reload its cache
+                              (let ((player-frame (ps:chain document (get-element-by-id "player-frame"))))
+                                (when (and player-frame (ps:@ player-frame content-window))
+                                  (ps:chain player-frame content-window (post-message "reload-favorites" "*")))))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error adding favorite:" error)))))))))))
      
