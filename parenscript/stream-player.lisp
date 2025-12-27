@@ -213,10 +213,15 @@
                     (ps:chain response (json))
                     nil)))
         (then (lambda (data)
-                (when (and data (ps:@ data data) (ps:@ data data favorites))
-                  (setf *user-favorites-cache-mini* 
-                        (ps:chain (ps:@ data data favorites) 
-                                  (map (lambda (f) (ps:@ f title))))))))
+                (when data
+                  ;; Handle both wrapped (data.data.favorites) and unwrapped (data.favorites) responses
+                  (let ((favorites (or (and (ps:@ data data) (ps:@ data data favorites))
+                                       (ps:@ data favorites))))
+                    (when favorites
+                      (setf *user-favorites-cache-mini* 
+                            (ps:chain favorites (map (lambda (f) (ps:@ f title)))))
+                      ;; Update UI after cache is loaded
+                      (check-favorite-status-mini))))))
         (catch (lambda (error) nil))))
      
      ;; Check if current track is in favorites and update mini player UI
@@ -224,9 +229,10 @@
        (let ((title-el (ps:chain document (get-element-by-id "mini-now-playing")))
              (btn (ps:chain document (get-element-by-id "favorite-btn-mini"))))
          (when (and title-el btn)
-           (let ((title (ps:@ title-el text-content))
-                 (star-icon (ps:chain btn (query-selector ".star-icon"))))
-             (if (ps:chain *user-favorites-cache-mini* (includes title))
+           (let* ((track-title (ps:@ title-el text-content))
+                  (star-icon (ps:chain btn (query-selector ".star-icon")))
+                  (is-in-cache (ps:chain *user-favorites-cache-mini* (includes track-title))))
+             (if is-in-cache
                  (progn
                    (ps:chain btn class-list (add "favorited"))
                    (when star-icon (setf (ps:@ star-icon text-content) "★")))
@@ -310,9 +316,9 @@
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (remove "favorited"))
                               (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "☆")
-                              ;; Reload cache and refresh display to update favorite count
-                              (load-favorites-cache-mini)
-                              (update-mini-now-playing))))
+                              ;; Reload cache to update favorite count (don't call update-mini-now-playing
+                              ;; as it would check the old cache before reload completes)
+                              (load-favorites-cache-mini))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error removing favorite:" error)))))
                    ;; Add favorite
@@ -330,9 +336,9 @@
                                                (= (ps:@ data data status) "success")))
                               (ps:chain btn class-list (add "favorited"))
                               (setf (ps:@ (ps:chain btn (query-selector ".star-icon")) text-content) "★")
-                              ;; Reload cache and refresh display to update favorite count
-                              (load-favorites-cache-mini)
-                              (update-mini-now-playing))))
+                              ;; Reload cache to update favorite count (don't call update-mini-now-playing
+                              ;; as it would check the old cache before reload completes)
+                              (load-favorites-cache-mini))))
                     (catch (lambda (error)
                              (ps:chain console (error "Error adding favorite:" error)))))))))))
      

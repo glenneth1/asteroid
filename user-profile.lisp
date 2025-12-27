@@ -10,6 +10,8 @@
 (defun add-favorite (user-id track-id &optional (rating 1) track-title)
   "Add a track to user's favorites with optional rating (1-5).
    If track-id is nil but track-title is provided, stores by title."
+  (when (null user-id)
+    (return-from add-favorite nil))
   (let ((rating-val (max 1 (min 5 (or rating 1)))))
     (with-db
       (if track-id
@@ -26,6 +28,8 @@
 
 (defun remove-favorite (user-id track-id &optional track-title)
   "Remove a track from user's favorites by track-id or title"
+  (when (null user-id)
+    (return-from remove-favorite nil))
   (with-db
     (if track-id
         (postmodern:query
@@ -38,6 +42,8 @@
 
 (defun update-favorite-rating (user-id track-id rating)
   "Update the rating for a favorited track"
+  (when (null user-id)
+    (return-from update-favorite-rating nil))
   (let ((rating-val (max 1 (min 5 rating))))
     (with-db
       (postmodern:query
@@ -48,6 +54,8 @@
 
 (defun get-user-favorites (user-id &key (limit 50) (offset 0))
   "Get user's favorite tracks - works with both track-id and title-based favorites"
+  (when (null user-id)
+    (return-from get-user-favorites nil))
   (with-db
     (postmodern:query
      (:raw (format nil "SELECT _id, rating, \"created-date\", track_title, \"track-id\" FROM user_favorites WHERE \"user-id\" = ~a ORDER BY \"created-date\" DESC LIMIT ~a OFFSET ~a"
@@ -56,6 +64,8 @@
 
 (defun is-track-favorited (user-id track-id)
   "Check if a track is in user's favorites, returns rating or nil"
+  (when (null user-id)
+    (return-from is-track-favorited nil))
   (with-db
     (postmodern:query
      (:raw (format nil "SELECT rating FROM user_favorites WHERE \"user-id\" = ~a AND \"track-id\" = ~a"
@@ -64,6 +74,8 @@
 
 (defun get-favorites-count (user-id)
   "Get total count of user's favorites"
+  (when (null user-id)
+    (return-from get-favorites-count 0))
   (with-db
     (postmodern:query
      (:raw (format nil "SELECT COUNT(*) FROM user_favorites WHERE \"user-id\" = ~a" user-id))
@@ -111,11 +123,11 @@
              (:raw (format nil "INSERT INTO listening_history (\"user-id\", \"track-id\", track_title, \"listen-duration\", completed) VALUES (~a, ~a, ~a, ~a, ~a)"
                            user-id track-id
                            (if track-title (format nil "'~a'" (sql-escape-string track-title)) "NULL")
-                           duration (if completed 1 0))))
+                           duration (if completed "TRUE" "FALSE"))))
             (when track-title
               (postmodern:query
                (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, '~a', ~a, ~a)"
-                             user-id (sql-escape-string track-title) duration (if completed 1 0))))))))))
+                             user-id (sql-escape-string track-title) duration (if completed "TRUE" "FALSE"))))))))))
 
 (defun get-listening-history (user-id &key (limit 20) (offset 0))
   "Get user's listening history - works with title-based history"
@@ -161,6 +173,10 @@
 ;;; API Endpoints for User Favorites
 ;;; ==========================================================================
 
+(defun aget-profile (key alist)
+  "Get value from alist using string-equal comparison for key (Postmodern returns uppercase keys)"
+  (cdr (assoc key alist :test (lambda (a b) (string-equal (string a) (string b))))))
+
 (define-api asteroid/user/favorites () ()
   "Get current user's favorite tracks"
   (require-authentication)
@@ -168,13 +184,13 @@
     (let* ((user-id (session:field "user-id"))
            (favorites (get-user-favorites user-id)))
       (api-output `(("status" . "success")
-                    ("favorites" . ,(mapcar (lambda (fav)
-                                              `(("id" . ,(cdr (assoc :_id fav)))
-                                                ("track_id" . ,(cdr (assoc :track-id fav)))
-                                                ("title" . ,(or (cdr (assoc :track-title fav))
-                                                                (cdr (assoc :track_title fav))))
-                                                ("rating" . ,(cdr (assoc :rating fav)))))
-                                            favorites))
+                    ("favorites" . ,(or (mapcar (lambda (fav)
+                                                  `(("id" . ,(aget-profile "-ID" fav))
+                                                    ("track_id" . ,(aget-profile "TRACK-ID" fav))
+                                                    ("title" . ,(aget-profile "TRACK-TITLE" fav))
+                                                    ("rating" . ,(aget-profile "RATING" fav))))
+                                                favorites)
+                                        (list)))  ; Return empty list instead of null
                     ("count" . ,(get-favorites-count user-id)))))))
 
 (define-api asteroid/user/favorites/add (&optional track-id rating title) ()
