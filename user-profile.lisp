@@ -89,74 +89,110 @@
 ;;; Listening History - Per-user track play history
 ;;; ==========================================================================
 
-(defun sql-escape-string (str)
-  "Escape a string for SQL by doubling single quotes"
-  (if str
-      (cl-ppcre:regex-replace-all "'" str "''")
-      ""))
+(defun get-recent-listen (user-id track-title)
+  "Check if user has listened to this track in the last 60 seconds"
+  (when (and user-id track-title)
+    ;; Get recent listens and check timestamps manually since data-model
+    ;; doesn't support interval comparisons directly
+    (let ((recent (dm:get "listening_history" 
+                          (db:query (:and (:= 'user-id user-id)
+                                          (:= 'track_title track-title)))
+                          :amount 1
+                          :sort '(("listened-at" :DESC)))))
+      (when recent
+        (let* ((listen (first recent))
+               (listened-at (dm:field listen "listened-at")))
+          ;; Check if within 60 seconds (listened-at is a timestamp)
+          (when listened-at
+            (let ((now (get-universal-time))
+                  (listen-time (if (integerp listened-at)
+                                   listened-at
+                                   (get-universal-time))))
+              (< (- now listen-time) 60))))))))
 
 (defun record-listen (user-id &key track-id track-title (duration 0) (completed nil))
   "Record a track listen in user's history. Can use track-id or track-title.
    Prevents duplicate entries for the same track within 60 seconds."
-  (with-db
-    ;; Check for recent duplicate (same user + same title within 60 seconds)
-    (let ((recent-exists
-            (when track-title
-              (postmodern:query
-               (:raw (format nil "SELECT 1 FROM listening_history WHERE \"user-id\" = ~a AND track_title = '~a' AND \"listened-at\" > NOW() - INTERVAL '60 seconds' LIMIT 1"
-                             user-id (sql-escape-string track-title)))
-               :single))))
-      (unless recent-exists
-        (if track-id
-            (postmodern:query
-             (:raw (format nil "INSERT INTO listening_history (\"user-id\", \"track-id\", track_title, \"listen-duration\", completed) VALUES (~a, ~a, ~a, ~a, ~a)"
-                           user-id track-id
-                           (if track-title (format nil "'~a'" (sql-escape-string track-title)) "NULL")
-                           duration (if completed 1 0))))
-            (when track-title
-              (postmodern:query
-               (:raw (format nil "INSERT INTO listening_history (\"user-id\", track_title, \"listen-duration\", completed) VALUES (~a, '~a', ~a, ~a)"
-                             user-id (sql-escape-string track-title) duration (if completed 1 0))))))))))
+  (when (and user-id (or track-id track-title))
+    ;; Check for recent duplicate
+    (unless (get-recent-listen user-id track-title)
+      (let ((listen (dm:hull "listening_history")))
+        (setf (dm:field listen "user-id") user-id)
+        (setf (dm:field listen "listen-duration") (or duration 0))
+        (setf (dm:field listen "completed") (if completed 1 0))
+        (when track-id
+          (setf (dm:field listen "track-id") track-id))
+        (when track-title
+          (setf (dm:field listen "track_title") track-title))
+        (dm:insert listen)))))
 
 (defun get-listening-history (user-id &key (limit 20) (offset 0))
   "Get user's listening history - works with title-based history"
-  (with-db
-    (postmodern:query
-     (:raw (format nil "SELECT _id, \"listened-at\", \"listen-duration\", completed, track_title, \"track-id\" FROM listening_history WHERE \"user-id\" = ~a ORDER BY \"listened-at\" DESC LIMIT ~a OFFSET ~a"
-                   user-id limit offset))
-     :alists)))
+  (when user-id
+    (dm:get "listening_history" (db:query (:= 'user-id user-id))
+            :amount limit
+            :skip offset
+            :sort '(("listened-at" :DESC)))))
 
 (defun get-listening-stats (user-id)
   "Get aggregate listening statistics for a user"
-  (with-db
-    (let ((stats (postmodern:query
-                  (:raw (format nil "SELECT COUNT(*), COALESCE(SUM(\"listen-duration\"), 0) FROM listening_history WHERE \"user-id\" = ~a" user-id))
-                  :row)))
-      (list :tracks-played (or (first stats) 0)
-            :total-listen-time (or (second stats) 0)))))
+  (when user-id
+    (let* ((history (dm:get "listening_history" (db:query (:= 'user-id user-id))))
+           (tracks-played (length history))
+           (total-listen-time (reduce #'+ history
+                                       :key (lambda (h) (or (dm:field h "listen-duration") 0))
+                                       :initial-value 0)))
+      (list :tracks-played tracks-played
+            :total-listen-time total-listen-time))))
 
 (defun get-top-artists (user-id &key (limit 5))
   "Get user's most listened artists - extracts artist from track_title"
-  (with-db
-    ;; Extract artist from 'Artist - Title' format in track_title
-    (postmodern:query
-     (:raw (format nil "SELECT SPLIT_PART(track_title, ' - ', 1) as artist, COUNT(*) as play_count FROM listening_history WHERE \"user-id\" = ~a AND track_title IS NOT NULL GROUP BY SPLIT_PART(track_title, ' - ', 1) ORDER BY play_count DESC LIMIT ~a"
-                   user-id limit))
-     :alists)))
+  (when user-id
+    (let* ((history (dm:get "listening_history" (db:query (:= 'user-id user-id))))
+           (artist-counts (make-hash-table :test 'equal)))
+      ;; Count plays per artist
+      (dolist (h history)
+        (let* ((title (dm:field h "track_title"))
+               (artist (when title
+                         (let ((pos (search " - " title)))
+                           (if pos (subseq title 0 pos) title)))))
+          (when artist
+            (incf (gethash artist artist-counts 0)))))
+      ;; Convert to sorted list and take top N
+      (let ((sorted (sort (loop for artist being the hash-keys of artist-counts
+                                using (hash-value count)
+                                collect (cons artist count))
+                          #'> :key #'cdr)))
+        (subseq sorted 0 (min limit (length sorted)))))))
 
 (defun clear-listening-history (user-id)
   "Clear all listening history for a user"
-  (with-db
-    (postmodern:query
-     (:raw (format nil "DELETE FROM listening_history WHERE \"user-id\" = ~a" user-id)))))
+  (when user-id
+    (let ((history (dm:get "listening_history" (db:query (:= 'user-id user-id)))))
+      (dolist (entry history)
+        (dm:delete entry)))))
 
 (defun get-listening-activity (user-id &key (days 30))
   "Get listening activity aggregated by day for the last N days"
-  (with-db
-    (postmodern:query
-     (:raw (format nil "SELECT DATE(\"listened-at\") as day, COUNT(*) as track_count FROM listening_history WHERE \"user-id\" = ~a AND \"listened-at\" >= NOW() - INTERVAL '~a days' GROUP BY DATE(\"listened-at\") ORDER BY day ASC"
-                   user-id days))
-     :alists)))
+  (when user-id
+    (let* ((history (dm:get "listening_history" (db:query (:= 'user-id user-id))))
+           (cutoff-time (- (get-universal-time) (* days 24 60 60)))
+           (day-counts (make-hash-table :test 'equal)))
+      ;; Filter to recent days and count per day
+      (dolist (h history)
+        (let ((listened-at (dm:field h "listened-at")))
+          (when (and listened-at (> listened-at cutoff-time))
+            ;; Convert universal time to date string
+            (multiple-value-bind (sec min hour day month year)
+                (decode-universal-time listened-at)
+              (declare (ignore sec min hour))
+              (let ((date-key (format nil "~4,'0d-~2,'0d-~2,'0d" year month day)))
+                (incf (gethash date-key day-counts 0)))))))
+      ;; Convert to sorted list
+      (sort (loop for day being the hash-keys of day-counts
+                  using (hash-value count)
+                  collect (cons day count))
+            #'string< :key #'car))))
 
 ;;; ==========================================================================
 ;;; API Endpoints for User Favorites
@@ -246,13 +282,12 @@
            (history (get-listening-history user-id)))
       (api-output `(("status" . "success")
                     ("history" . ,(mapcar (lambda (h)
-                                            `(("id" . ,(cdr (assoc :_id h)))
-                                              ("track_id" . ,(cdr (assoc :track-id h)))
-                                              ("title" . ,(or (cdr (assoc :track-title h))
-                                                              (cdr (assoc :track_title h))))
-                                              ("listened_at" . ,(cdr (assoc :listened-at h)))
-                                              ("listen_duration" . ,(cdr (assoc :listen-duration h)))
-                                              ("completed" . ,(let ((c (cdr (assoc :completed h))))
+                                            `(("id" . ,(dm:id h))
+                                              ("track_id" . ,(dm:field h "track-id"))
+                                              ("title" . ,(dm:field h "track_title"))
+                                              ("listened_at" . ,(dm:field h "listened-at"))
+                                              ("listen_duration" . ,(dm:field h "listen-duration"))
+                                              ("completed" . ,(let ((c (dm:field h "completed")))
                                                                 (and c (= 1 c))))))
                                           history)))))))
 
@@ -303,8 +338,8 @@
            (activity (get-listening-activity user-id :days days-int)))
       (api-output `(("status" . "success")
                     ("activity" . ,(mapcar (lambda (a)
-                                             `(("day" . ,(cdr (assoc :day a)))
-                                               ("track_count" . ,(cdr (assoc :track-count a)))))
+                                             `(("day" . ,(car a))
+                                               ("track_count" . ,(cdr a))))
                                            activity)))))))
 
 ;;; ==========================================================================
@@ -326,7 +361,7 @@
          (relative-path (format nil "/asteroid/static/avatars/~a" new-filename)))
     ;; Copy from temp file to avatars directory
     (uiop:copy-file temp-file-path full-path)
-    ;; Update database
+    ;; Update database - use raw SQL for single field update to avoid timestamp issues
     (with-db
       (postmodern:query
        (:raw (format nil "UPDATE \"USERS\" SET avatar_path = '~a' WHERE _id = ~a"
@@ -335,10 +370,10 @@
 
 (defun get-user-avatar (user-id)
   "Get the avatar path for a user"
-  (with-db
-    (postmodern:query
-     (:raw (format nil "SELECT avatar_path FROM \"USERS\" WHERE _id = ~a" user-id))
-     :single)))
+  (when user-id
+    (let ((user (dm:get-one "USERS" (db:query (:= '_id user-id)))))
+      (when user
+        (dm:field user "avatar_path")))))
 
 (define-api asteroid/user/avatar/upload () ()
   "Upload a new avatar image"
