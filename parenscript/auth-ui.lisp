@@ -7,6 +7,9 @@
   (ps:ps*
    '(progn
     
+    ;; Global auth state - accessible by other scripts
+    (defvar *auth-state* (ps:create :logged-in false :is-admin false :user-id nil))
+    
     ;; Check if user is logged in by calling the API
     (defun check-auth-status ()
       (ps:chain
@@ -16,6 +19,8 @@
        (then (lambda (result)
                ;; api-output wraps response in {status, message, data}
                (let ((data (or (ps:@ result data) result)))
+                 ;; Store auth state globally for other scripts to use
+                 (setf *auth-state* data)
                  data)))
        (catch (lambda (error)
                 (ps:chain console (error "Error checking auth status:" error))

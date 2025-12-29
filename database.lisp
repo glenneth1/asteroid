@@ -98,6 +98,37 @@
   (string= (string-upcase (package-name (db:implementation)))
            "I-LAMBDALITE"))
 
+(defun format-timestamp-for-postgres (value)
+  "Convert a timestamp value to ISO 8601 format for PostgreSQL.
+Handles: integers (Unix epoch), local-time timestamps, strings, and NIL."
+  (cond
+    ((null value) nil)
+    ((stringp value) value)  ; Already a string, assume it's formatted
+    ((integerp value)
+     ;; Convert Unix epoch to ISO 8601 string
+     (local-time:format-timestring nil (local-time:unix-to-timestamp value)
+                                   :format '(:year "-" (:month 2) "-" (:day 2) " "
+                                             (:hour 2) ":" (:min 2) ":" (:sec 2))
+                                   :timezone local-time:+utc-zone+))
+    ((typep value 'local-time:timestamp)
+     (local-time:format-timestring nil value
+                                   :format '(:year "-" (:month 2) "-" (:day 2) " "
+                                             (:hour 2) ":" (:min 2) ":" (:sec 2))
+                                   :timezone local-time:+utc-zone+))
+    (t (format nil "~a" value))))  ; Fallback: convert to string
+
+(defun normalize-user-timestamps (data-model)
+  "Ensure USERS table timestamp fields are properly formatted for PostgreSQL."
+  (when (string-equal (dm:collection data-model) "USERS")
+    (let ((created-date (dm:field data-model "created-date"))
+          (last-login (dm:field data-model "last-login")))
+      (when created-date
+        (setf (dm:field data-model "created-date")
+              (format-timestamp-for-postgres created-date)))
+      (when last-login
+        (setf (dm:field data-model "last-login")
+              (format-timestamp-for-postgres last-login))))))
+
 (defun data-model-save (data-model)
   "Wrapper on data-model save method to bypass error using dm:save on lambdalite.
 It uses the same approach as dm:save under the hood through db:save."
@@ -109,4 +140,6 @@ It uses the same approach as dm:save under the hood through db:save."
                    (dm:field-table data-model)))
       (progn
         (format t "Updating database table '~a'~%" (dm:collection data-model))
+        ;; Normalize timestamp fields before saving to PostgreSQL
+        (normalize-user-timestamps data-model)
         (dm:save data-model))))
