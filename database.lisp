@@ -61,7 +61,7 @@
     (db:create "user_listening_history" '((user_id :integer)
                                           (track_title :text)
                                           (track_artist :text)
-                                          (listened_at :integer)
+                                          (listened_at :timestamp)
                                           (duration_seconds :integer))))
 
   (unless (db:collection-exists-p "user_playlists")
@@ -98,8 +98,8 @@
   (string= (string-upcase (package-name (db:implementation)))
            "I-LAMBDALITE"))
 
-(defun format-timestamp-for-postgres (value)
-  "Convert a timestamp value to ISO 8601 format for PostgreSQL.
+(defun format-timestamp-iso8601 (value)
+  "Convert a timestamp value to ISO 8601 format.
 Handles: integers (Unix epoch), local-time timestamps, strings, and NIL."
   (cond
     ((null value) nil)
@@ -124,10 +124,10 @@ Handles: integers (Unix epoch), local-time timestamps, strings, and NIL."
           (last-login (dm:field data-model "last-login")))
       (when created-date
         (setf (dm:field data-model "created-date")
-              (format-timestamp-for-postgres created-date)))
+              (format-timestamp-iso8601 created-date)))
       (when last-login
         (setf (dm:field data-model "last-login")
-              (format-timestamp-for-postgres last-login))))))
+              (format-timestamp-iso8601 last-login))))))
 
 (defun data-model-save (data-model)
   "Wrapper on data-model save method to bypass error using dm:save on lambdalite.
