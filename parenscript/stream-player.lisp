@@ -204,14 +204,17 @@
      ;; Cache of user's favorite track titles for quick lookup (mini player)
      (defvar *user-favorites-cache-mini* (array))
      
-     ;; Load user's favorites into cache (mini player)
+     ;; Load user's favorites into cache (mini player - only if logged in)
      (defun load-favorites-cache-mini ()
-       (ps:chain
-        (fetch "/api/asteroid/user/favorites" (ps:create :credentials "include"))
-        (then (lambda (response)
-                (if (ps:@ response ok)
-                    (ps:chain response (json))
-                    nil)))
+       ;; Check global auth state - only call API if logged in
+       (when (and (not (= (typeof *auth-state*) "undefined"))
+                  (ps:@ *auth-state* logged-in))
+         (ps:chain
+          (fetch "/api/asteroid/user/favorites" (ps:create :credentials "include"))
+          (then (lambda (response)
+                  (if (ps:@ response ok)
+                      (ps:chain response (json))
+                      nil)))
         (then (lambda (data)
                 (when data
                   ;; Handle both wrapped (data.data.favorites) and unwrapped (data.favorites) responses
@@ -222,7 +225,7 @@
                             (ps:chain favorites (map (lambda (f) (ps:@ f title)))))
                       ;; Update UI after cache is loaded
                       (check-favorite-status-mini))))))
-        (catch (lambda (error) nil))))
+          (catch (lambda (error) nil)))))
      
      ;; Check if current track is in favorites and update mini player UI
      (defun check-favorite-status-mini ()
@@ -242,7 +245,10 @@
      
      ;; Record track to listening history (only if logged in)
      (defun record-track-listen (title)
-       (when (and title (not (= title "")) (not (= title "Loading...")) (not (= title *last-recorded-title*)))
+       ;; Check global auth state - only call API if logged in
+       (when (and (not (= (typeof *auth-state*) "undefined"))
+                  (ps:@ *auth-state* logged-in)
+                  title (not (= title "")) (not (= title "Loading...")) (not (= title *last-recorded-title*)))
          (setf *last-recorded-title* title)
          (ps:chain
           (fetch (+ "/api/asteroid/user/history/record?title=" (encode-u-r-i-component title))
@@ -784,13 +790,14 @@
                     (init-persistent-player))
                   ;; Check for popout player
                   (when (ps:chain document (get-element-by-id "live-audio"))
-                    (init-popout-player))))
-       ;; Listen for messages from parent frame (e.g., favorites cache reload)
-       (ps:chain window (add-event-listener
-                         "message"
-                         (lambda (event)
-                           (when (= (ps:@ event data) "reload-favorites")
-                             (load-favorites-cache-mini)))))))
+                    (init-popout-player)))))
+     
+     ;; Listen for messages from parent frame (e.g., favorites cache reload)
+     (ps:chain window (add-event-listener
+                       "message"
+                       (lambda (event)
+                         (when (= (ps:@ event data) "reload-favorites")
+                           (load-favorites-cache-mini))))))
    )
   "Compiled JavaScript for stream player - generated at load time")
 

@@ -171,14 +171,17 @@
      ;; Cache of user's favorite track titles for quick lookup
      (defvar *user-favorites-cache* (array))
      
-     ;; Load user's favorites into cache
+     ;; Load user's favorites into cache (only if logged in)
      (defun load-favorites-cache ()
-       (ps:chain
-        (fetch "/api/asteroid/user/favorites")
-        (then (lambda (response)
-                (if (ps:@ response ok)
-                    (ps:chain response (json))
-                    nil)))
+       ;; Check global auth state - only call API if logged in
+       (when (and (not (= (typeof *auth-state*) "undefined"))
+                  (ps:@ *auth-state* logged-in))
+         (ps:chain
+          (fetch "/api/asteroid/user/favorites")
+          (then (lambda (response)
+                  (if (ps:@ response ok)
+                      (ps:chain response (json))
+                      nil)))
         (then (lambda (data)
                 (when (and data (ps:@ data data) (ps:@ data data favorites))
                   (setf *user-favorites-cache* 
@@ -186,7 +189,7 @@
                                   (map (lambda (f) (ps:@ f title)))))
                   ;; Update UI after cache is loaded
                   (check-favorite-status))))
-        (catch (lambda (error) nil))))
+          (catch (lambda (error) nil)))))
      
      ;; Check if current track is in favorites and update UI
      (defun check-favorite-status ()
@@ -205,7 +208,10 @@
      
      ;; Record track to listening history (only if logged in)
      (defun record-track-listen-main (title)
-       (when (and title (not (= title "")) (not (= title "Loading...")) 
+       ;; Check global auth state - only call API if logged in
+       (when (and (not (= (typeof *auth-state*) "undefined"))
+                  (ps:@ *auth-state* logged-in)
+                  title (not (= title "")) (not (= title "Loading...")) 
                   (not (= title "NA")) (not (= title *last-recorded-title-main*)))
          (setf *last-recorded-title-main* title)
          (ps:chain
@@ -214,7 +220,7 @@
           (then (lambda (response)
                   (ps:@ response ok)))
           (catch (lambda (error)
-                   ;; Silently fail - user might not be logged in
+                   ;; Silently fail
                    nil)))))
      
      ;; Update now playing info from API

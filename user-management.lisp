@@ -78,7 +78,8 @@
                                                     :format '(:year "-" (:month 2) "-" (:day 2) " " 
                                                               (:hour 2) ":" (:min 2) ":" (:sec 2))
                                                     :timezone local-time:+utc-zone+))
-                (dm:save user))
+                ;; Use data-model-save to normalize all timestamp fields before saving
+                (data-model-save user))
             (error (e)
               (format t "Warning: Could not update last-login: ~a~%" e)))
           user)))))
