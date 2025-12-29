@@ -57,12 +57,12 @@
                                   (rating :integer)
                                   (created-date :integer))))
 
-  (unless (db:collection-exists-p "listening_history")
-    (db:create "listening_history" '((user-id :integer)
-                                     (track-id :integer)
-                                     (listened-at :integer)
-                                     (listen-duration :integer)
-                                     (completed :integer))))
+  (unless (db:collection-exists-p "user_listening_history")
+    (db:create "user_listening_history" '((user_id :integer)
+                                          (track_title :text)
+                                          (track_artist :text)
+                                          (listened_at :integer)
+                                          (duration_seconds :integer))))
 
   (unless (db:collection-exists-p "user_playlists")
     (db:create "user_playlists" '((user-id :integer)

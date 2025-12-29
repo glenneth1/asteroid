@@ -94,14 +94,14 @@
   (when (and user-id track-title)
     ;; Get recent listens and check timestamps manually since data-model
     ;; doesn't support interval comparisons directly
-    (let ((recent (dm:get "listening_history" 
-                          (db:query (:and (:= 'user-id user-id)
+    (let ((recent (dm:get "user_listening_history" 
+                          (db:query (:and (:= 'user_id user-id)
                                           (:= 'track_title track-title)))
                           :amount 1
-                          :sort '(("listened-at" :DESC)))))
+                          :sort '(("listened_at" :DESC)))))
       (when recent
         (let* ((listen (first recent))
-               (listened-at (dm:field listen "listened-at")))
+               (listened-at (dm:field listen "listened_at")))
           ;; Check if within 60 seconds (listened-at is a timestamp)
           (when listened-at
             (let ((now (get-universal-time))
@@ -116,12 +116,13 @@
   (when (and user-id (or track-id track-title))
     ;; Check for recent duplicate
     (unless (get-recent-listen user-id track-title)
-      (let ((listen (dm:hull "listening_history")))
-        (setf (dm:field listen "user-id") user-id)
-        (setf (dm:field listen "listen-duration") (or duration 0))
-        (setf (dm:field listen "completed") (if completed 1 0))
-        (when track-id
-          (setf (dm:field listen "track-id") track-id))
+      (let ((listen (dm:hull "user_listening_history")))
+        (setf (dm:field listen "user_id") user-id)
+        (setf (dm:field listen "duration_seconds") (or duration 0))
+        (when track-title
+          (let ((pos (search " - " track-title)))
+            (when pos
+              (setf (dm:field listen "track_artist") (subseq track-title 0 pos)))))
         (when track-title
           (setf (dm:field listen "track_title") track-title))
         (dm:insert listen)))))
@@ -129,26 +130,26 @@
 (defun get-listening-history (user-id &key (limit 20) (offset 0))
   "Get user's listening history - works with title-based history"
   (when user-id
-    (dm:get "listening_history" (db:query (:= 'user-id user-id))
+    (dm:get "user_listening_history" (db:query (:= 'user_id user-id))
             :amount limit
             :skip offset
-            :sort '(("listened-at" :DESC)))))
+            :sort '(("listened_at" :DESC)))))
 
 (defun get-listening-stats (user-id)
   "Get aggregate listening statistics for a user"
   (when user-id
-    (let* ((history (dm:get "listening_history" (db:query (:= 'user-id user-id))))
+    (let* ((history (dm:get "user_listening_history" (db:query (:= 'user_id user-id))))
            (tracks-played (length history))
            (total-listen-time (reduce #'+ history
-                                       :key (lambda (h) (or (dm:field h "listen-duration") 0))
+                                       :key (lambda (h) (or (dm:field h "duration_seconds") 0))
                                        :initial-value 0)))
       (list :tracks-played tracks-played
             :total-listen-time total-listen-time))))
 
 (defun get-top-artists (user-id &key (limit 5))
-  "Get user's most listened artists - extracts artist from track_title"
+  "Get user's most listened artists - extracts artist from track_title or uses track_artist"
   (when user-id
-    (let* ((history (dm:get "listening_history" (db:query (:= 'user-id user-id))))
+    (let* ((history (dm:get "user_listening_history" (db:query (:= 'user_id user-id))))
            (artist-counts (make-hash-table :test 'equal)))
       ;; Count plays per artist
       (dolist (h history)
@@ -168,19 +169,19 @@
 (defun clear-listening-history (user-id)
   "Clear all listening history for a user"
   (when user-id
-    (let ((history (dm:get "listening_history" (db:query (:= 'user-id user-id)))))
+    (let ((history (dm:get "user_listening_history" (db:query (:= 'user_id user-id)))))
       (dolist (entry history)
         (dm:delete entry)))))
 
 (defun get-listening-activity (user-id &key (days 30))
   "Get listening activity aggregated by day for the last N days"
   (when user-id
-    (let* ((history (dm:get "listening_history" (db:query (:= 'user-id user-id))))
+    (let* ((history (dm:get "user_listening_history" (db:query (:= 'user_id user-id))))
            (cutoff-time (- (get-universal-time) (* days 24 60 60)))
            (day-counts (make-hash-table :test 'equal)))
       ;; Filter to recent days and count per day
       (dolist (h history)
-        (let ((listened-at (dm:field h "listened-at")))
+        (let ((listened-at (dm:field h "listened_at")))
           (when (and listened-at (> listened-at cutoff-time))
             ;; Convert universal time to date string
             (multiple-value-bind (sec min hour day month year)
