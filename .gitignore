@@ -62,3 +62,6 @@ stream-queue.m3u
 /docker/environment.sh
 /docker/operations/db_backups/
 playlists/stream-queue.m3u
+/radiance-bootstrap.lisp
+/test-postgres-db.lisp
+/userdump.csv
