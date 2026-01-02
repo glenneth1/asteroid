@@ -4,7 +4,7 @@
 # - Substitute hostname (defaults to localhost for dev)
 # - If ICECAST_ENABLE_YP=true, insert YP directory blocks
 
-cp /etc/icecast.xml.base /etc/icecast.xml
+cp /etc/icecast-base.xml /etc/icecast.xml
 
 # Set hostname (defaults to localhost if not specified)
 ICECAST_HOSTNAME=${ICECAST_HOSTNAME:-localhost}
@@ -14,7 +14,7 @@ sed -i "s|<hostname>localhost</hostname>|<hostname>$ICECAST_HOSTNAME</hostname>|
 if [ "$ICECAST_ENABLE_YP" = "true" ]; then
     echo "YP directory publishing ENABLED"
     # Insert YP config before closing </icecast> tag
-    sed -i 's|</icecast>|'"$(cat /etc/icecast-yp.xml.snippet)"'\n</icecast>|' /etc/icecast.xml
+    sed -i 's|</icecast>|'"$(cat /etc/icecast-yp-snippet.xml)"'\n</icecast>|' /etc/icecast.xml
 else
     echo "YP directory publishing DISABLED (dev mode)"
 fi

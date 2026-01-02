@@ -21,3 +21,8 @@ export ASTEROID_DB_PASSWORD=asteroid_db_2025
 # Production should set this to the public hostname
 # Dev defaults to 'localhost' if unset
 # export ICECAST_HOSTNAME=ice.asteroid.radio
+
+# Station URL (shown in YP directory listings as the station website)
+# This is what listeners click to visit the station
+# Dev defaults to 'http://localhost:8080/asteroid/'
+# export STATION_URL=https://asteroid.radio
