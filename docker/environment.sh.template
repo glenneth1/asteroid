@@ -11,3 +11,8 @@ export ASTEROID_STREAM_URL='http://localhost:8080'
 export ASTEROID_DB_NAME=asteroid
 export ASTEROID_DB_USER=asteroid
 export ASTEROID_DB_PASSWORD=asteroid_db_2025
+
+# YP Directory Publishing (internet-radio.com, xiph.org)
+# Set to 'true' ONLY on production (asteroid.radio)
+# Leave unset or 'false' for development to avoid polluting public listings
+# export ICECAST_ENABLE_YP=true
