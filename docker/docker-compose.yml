@@ -1,15 +1,16 @@
 services:
   icecast:
-    image: infiniteproject/icecast:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.icecast
     container_name: asteroid-icecast
     ports:
       - "${ICECAST_BIND:-127.0.0.1}:8000:8000"
-    volumes:
-      - ./icecast.xml:/etc/icecast.xml
     environment:
       - ICECAST_SOURCE_PASSWORD=H1tn31EhsyLrfRmo
       - ICECAST_ADMIN_PASSWORD=asteroid_admin_2024
       - ICECAST_RELAY_PASSWORD=asteroid_relay_2024
+      - ICECAST_ENABLE_YP=${ICECAST_ENABLE_YP:-false}
     restart: unless-stopped
     networks:
       - asteroid-network

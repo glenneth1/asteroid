@@ -1,0 +1,11 @@
+FROM infiniteproject/icecast:latest
+
+# Copy entrypoint script
+COPY icecast-entrypoint.sh /usr/local/bin/icecast-entrypoint.sh
+RUN chmod +x /usr/local/bin/icecast-entrypoint.sh
+
+# Copy base config and YP snippet
+COPY icecast.xml.base /etc/icecast.xml.base
+COPY icecast-yp.xml.snippet /etc/icecast-yp.xml.snippet
+
+ENTRYPOINT ["/usr/local/bin/icecast-entrypoint.sh"]
