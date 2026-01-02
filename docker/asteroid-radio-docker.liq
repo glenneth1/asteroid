@@ -25,6 +25,9 @@ settings.server.telnet.set(true)
 settings.server.telnet.port.set(1234)
 settings.server.telnet.bind_addr.set("0.0.0.0")
 
+# Station URL for YP directory listings (defaults to localhost for dev)
+station_url = environment.get("STATION_URL") ?? "http://localhost:8080/asteroid/"
+
 # =============================================================================
 # CURATED STREAM (Low Orbit) - Sequential playlist
 # =============================================================================
@@ -83,7 +86,7 @@ output.icecast(
   name="Asteroid Radio",
   description="Music for Hackers - Streaming from the Asteroid",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url=station_url,
   public=true,
   radio
 )
@@ -98,7 +101,7 @@ output.icecast(
   name="Asteroid Radio (AAC)",
   description="Music for Hackers - High efficiency AAC stream",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url=station_url,
   public=true,
   radio
 )
@@ -113,7 +116,7 @@ output.icecast(
   name="Asteroid Radio (Low Quality)",
   description="Music for Hackers - Low bandwidth stream",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url=station_url,
   public=true,
   radio
 )
@@ -159,7 +162,7 @@ output.icecast(
   name="Asteroid Radio (Shuffle)",
   description="Music for Hackers - Random shuffle from the library",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url=station_url,
   public=true,
   shuffle_radio
 )

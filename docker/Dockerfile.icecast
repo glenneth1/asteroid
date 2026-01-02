@@ -5,7 +5,7 @@ COPY icecast-entrypoint.sh /usr/local/bin/icecast-entrypoint.sh
 RUN chmod +x /usr/local/bin/icecast-entrypoint.sh
 
 # Copy base config and YP snippet
-COPY icecast.xml.base /etc/icecast.xml.base
-COPY icecast-yp.xml.snippet /etc/icecast-yp.xml.snippet
+COPY icecast-base.xml /etc/icecast-base.xml
+COPY icecast-yp-snippet.xml /etc/icecast-yp-snippet.xml
 
 ENTRYPOINT ["/usr/local/bin/icecast-entrypoint.sh"]
