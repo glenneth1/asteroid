@@ -16,3 +16,8 @@ export ASTEROID_DB_PASSWORD=asteroid_db_2025
 # Set to 'true' ONLY on production (asteroid.radio)
 # Leave unset or 'false' for development to avoid polluting public listings
 # export ICECAST_ENABLE_YP=true
+
+# Icecast Hostname (reported to YP directories)
+# Production should set this to the public hostname
+# Dev defaults to 'localhost' if unset
+# export ICECAST_HOSTNAME=ice.asteroid.radio
