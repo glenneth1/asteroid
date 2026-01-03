@@ -4,7 +4,7 @@ PACKAGEUTILS=asteroid.app-utils
 OUT=asteroid
 ENTRY=-main
 BROWN_MM="Nil"
-BUILD_FLAGS ?= ""
+BUILD_FLAGS ?=
 
 .PHONY: $(OUT)
 $(OUT): clean
