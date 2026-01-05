@@ -429,6 +429,7 @@
          
          (unless (and container old-audio)
            (show-status "❌ Could not reconnect - reload page" true)
+           (setf *is-reconnecting* false)
            (return-from reconnect-stream nil))
          
          ;; Save current volume and muted state
@@ -469,7 +470,8 @@
              ;; Re-attach event listeners
              (attach-audio-listeners new-audio)
              
-             ;; Try to play
+             ;; Try to play - reset flag so error handler can catch failures
+             (setf *is-reconnecting* false)
              (set-timeout
               (lambda ()
                 (ps:chain new-audio (play)
@@ -496,7 +498,17 @@
                                    600)))
                           (catch (lambda (err)
                                    (ps:chain console (log "Reconnect play failed:" err))
-                                   (show-status "Click play to start stream" false)))))
+                                   ;; Retry with exponential backoff
+                                   (incf *stream-error-count*)
+                                   (if (< *stream-error-count* 5)
+                                       (let ((delay (* 2000 *stream-error-count*)))
+                                         (show-status (+ "⚠️ Reconnect failed, retrying in " (/ delay 1000) "s...") true)
+                                         (setf *is-reconnecting* false)
+                                         (setf *reconnect-timeout*
+                                               (set-timeout (lambda () (reconnect-stream)) delay)))
+                                       (progn
+                                         (setf *is-reconnecting* false)
+                                         (show-status "❌ Could not reconnect. Click play to try again." true)))))))
               300)))))
      
      ;; Simple reconnect for popout player (just reload and play)
@@ -544,12 +556,12 @@
                                          (ps:chain console (log "Audio stalled, will auto-reconnect in 5 seconds..."))
                                          (show-status "⚠️ Stream stalled - reconnecting..." true)
                                          (setf *is-reconnecting* true)
-                                         (set-timeout
-                                          (lambda ()
-                                            (if (< (ps:@ audio-element ready-state) 3)
-                                                (reconnect-stream)
-                                                (setf *is-reconnecting* false)))
-                                          5000)))))
+                                         (setf *reconnect-timeout*
+                                               (set-timeout
+                                                (lambda ()
+                                                  ;; Always reconnect on stall - ready-state is unreliable for streams
+                                                  (reconnect-stream))
+                                                5000))))))
        
        ;; Handle ended event - stream shouldn't end, so reconnect
        (ps:chain audio-element
