@@ -539,10 +539,8 @@
                                        (setf *reconnect-timeout*
                                              (set-timeout
                                               (lambda ()
-                                                ;; Only reconnect if still stalled
-                                                (if (< (ps:@ audio-element ready-state) 3)
-                                                    (reconnect-stream)
-                                                    (setf *is-reconnecting* false)))
+                                                ;; Always reconnect on stall - ready-state is unreliable for streams
+                                                (reconnect-stream))
                                               5000)))))
        
        ;; Ended handler - stream shouldn't end, so reconnect
