@@ -268,18 +268,18 @@
 (defun update-geo-stats (country-code listener-count &optional city)
   "Update geo stats for today, optionally including city.
    listener_count tracks peak concurrent listeners (max seen today).
-   listen_minutes increments by 1 per poll (approximates total listen time)."
+   listen_minutes increments by listener_count per poll (1 minute per listener per poll)."
   (when country-code
     (handler-case
         (with-db
           (let ((city-sql (if city (format nil "'~a'" city) "NULL")))
             (postmodern:execute
              (format nil "INSERT INTO listener_geo_stats (date, country_code, city, listener_count, listen_minutes)
-                        VALUES (CURRENT_DATE, '~a', ~a, ~a, 1)
+                        VALUES (CURRENT_DATE, '~a', ~a, ~a, ~a)
                         ON CONFLICT (date, country_code, city) 
                         DO UPDATE SET listener_count = GREATEST(listener_geo_stats.listener_count, ~a),
-                                      listen_minutes = listener_geo_stats.listen_minutes + 1"
-                     country-code city-sql listener-count listener-count))))
+                                      listen_minutes = listener_geo_stats.listen_minutes + ~a"
+                     country-code city-sql listener-count listener-count listener-count listener-count))))
       (error (e)
         (log:error "Failed to update geo stats: ~a" e)))))
 
