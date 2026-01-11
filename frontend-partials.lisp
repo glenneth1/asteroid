@@ -138,6 +138,8 @@
 (define-api-with-limit asteroid/partial/now-playing-json (&optional mount) (:limit 2 :timeout 1)
   "Get JSON with now playing info including track ID for favorites.
    Optional MOUNT parameter specifies which stream to get metadata from."
+  ;; Register web listener for geo stats (keeps listener active during playback)
+  (register-web-listener)
   (with-error-handling
     (let* ((mount-name (or mount "asteroid.mp3"))
            (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
