@@ -8,6 +8,143 @@
    '(progn
      
      ;; ========================================
+     ;; Mini Spectrum Analyzer (for player frame)
+     ;; ========================================
+     
+     (defvar *mini-audio-context* nil)
+     (defvar *mini-analyser* nil)
+     (defvar *mini-media-source* nil)
+     (defvar *mini-canvas* nil)
+     (defvar *mini-canvas-ctx* nil)
+     (defvar *mini-animation-id* nil)
+     
+     ;; Color themes (same as main spectrum analyzer)
+     (defvar *mini-themes* 
+       (ps:create
+        "monotone" (ps:create "top" "#0047ab" "mid" "#002966" "bottom" "#000d1a")
+        "green" (ps:create "top" "#00ff00" "mid" "#00aa00" "bottom" "#005500")
+        "blue" (ps:create "top" "#00ffff" "mid" "#0088ff" "bottom" "#0044aa")
+        "purple" (ps:create "top" "#ff00ff" "mid" "#aa00aa" "bottom" "#550055")
+        "red" (ps:create "top" "#ff0000" "mid" "#aa0000" "bottom" "#550000")
+        "amber" (ps:create "top" "#ffaa00" "mid" "#ff6600" "bottom" "#aa3300")
+        "rainbow" (ps:create "top" "#ff00ff" "mid" "#00ffff" "bottom" "#00ff00")))
+     
+     (defun get-mini-theme ()
+       "Get current theme from localStorage (shared with main analyzer)"
+       (let ((saved-theme (ps:chain local-storage (get-item "spectrum-theme"))))
+         (if (and saved-theme (ps:getprop *mini-themes* saved-theme))
+             saved-theme
+             "green")))
+     
+     (defun get-mini-style ()
+       "Get current style from localStorage (shared with main analyzer)"
+       (let ((saved-style (ps:chain local-storage (get-item "spectrum-style"))))
+         (if (and saved-style (or (= saved-style "bars") (= saved-style "wave") (= saved-style "dots")))
+             saved-style
+             "bars")))
+     
+     (defun init-mini-spectrum (audio-element)
+       "Initialize mini spectrum analyzer in player frame"
+       (let ((canvas (ps:chain document (get-element-by-id "mini-spectrum-canvas"))))
+         (when (and audio-element canvas (not *mini-audio-context*))
+           (ps:try
+            (progn
+              (setf *mini-audio-context* (ps:new (or (ps:@ window |AudioContext|)
+                                                      (ps:@ window |webkitAudioContext|))))
+              (setf *mini-analyser* (ps:chain *mini-audio-context* (create-analyser)))
+              (setf (ps:@ *mini-analyser* |fftSize|) 64)
+              (setf (ps:@ *mini-analyser* |smoothingTimeConstant|) 0.8)
+              (setf *mini-media-source* (ps:chain *mini-audio-context* (create-media-element-source audio-element)))
+              (ps:chain *mini-media-source* (connect *mini-analyser*))
+              (ps:chain *mini-analyser* (connect (ps:@ *mini-audio-context* destination)))
+              (setf *mini-canvas* canvas)
+              (setf *mini-canvas-ctx* (ps:chain canvas (get-context "2d")))
+              (ps:chain console (log "Mini spectrum analyzer initialized")))
+            (:catch (e)
+              (ps:chain console (log "Error initializing mini spectrum:" e)))))))
+     
+     (defun draw-mini-spectrum ()
+       "Draw mini spectrum visualization using theme and style from localStorage"
+       (setf *mini-animation-id* (request-animation-frame draw-mini-spectrum))
+       (when (and *mini-analyser* *mini-canvas* *mini-canvas-ctx*)
+         (let* ((buffer-length (ps:@ *mini-analyser* |frequencyBinCount|))
+                (data-array (ps:new (|Uint8Array| buffer-length)))
+                (width (ps:@ *mini-canvas* width))
+                (height (ps:@ *mini-canvas* height))
+                (bar-width (/ width buffer-length))
+                (theme-name (get-mini-theme))
+                (theme (ps:getprop *mini-themes* theme-name))
+                (style (get-mini-style)))
+           (ps:chain *mini-analyser* (get-byte-frequency-data data-array))
+           ;; Clear with fade effect
+           (setf (ps:@ *mini-canvas-ctx* fill-style) "rgba(0, 0, 0, 0.2)")
+           (ps:chain *mini-canvas-ctx* (fill-rect 0 0 width height))
+           
+           (cond
+            ;; Bar graph style
+            ((= style "bars")
+             (dotimes (i buffer-length)
+               (let* ((value (ps:getprop data-array i))
+                      (bar-height (* (/ value 255) height))
+                      (x (* i bar-width)))
+                 (when (> bar-height 0)
+                   (let ((gradient (ps:chain *mini-canvas-ctx* 
+                                             (create-linear-gradient 0 (- height bar-height) 0 height))))
+                     (ps:chain gradient (add-color-stop 0 (ps:@ theme top)))
+                     (ps:chain gradient (add-color-stop 0.5 (ps:@ theme mid)))
+                     (ps:chain gradient (add-color-stop 1 (ps:@ theme bottom)))
+                     (setf (ps:@ *mini-canvas-ctx* fill-style) gradient)
+                     (ps:chain *mini-canvas-ctx* (fill-rect x (- height bar-height) bar-width bar-height)))))))
+            
+            ;; Wave/line style
+            ((= style "wave")
+             (ps:chain *mini-canvas-ctx* (begin-path))
+             (setf (ps:@ *mini-canvas-ctx* |lineWidth|) 2)
+             (setf (ps:@ *mini-canvas-ctx* |strokeStyle|) (ps:@ theme top))
+             (let ((x 0))
+               (dotimes (i buffer-length)
+                 (let* ((value (ps:getprop data-array i))
+                        (bar-height (* (/ value 255) height))
+                        (y (- height bar-height)))
+                   (if (= i 0)
+                       (ps:chain *mini-canvas-ctx* (move-to x y))
+                       (ps:chain *mini-canvas-ctx* (line-to x y)))
+                   (incf x bar-width))))
+             (ps:chain *mini-canvas-ctx* (stroke)))
+            
+            ;; Dots/particles style
+            ((= style "dots")
+             (setf (ps:@ *mini-canvas-ctx* |fillStyle|) (ps:@ theme top))
+             (let ((x 0))
+               (dotimes (i buffer-length)
+                 (let* ((value (ps:getprop data-array i))
+                        (bar-height (* (/ value 255) height))
+                        (y (- height bar-height))
+                        (dot-radius (ps:max 1 (/ bar-height 10))))
+                   (when (> value 0)
+                     (ps:chain *mini-canvas-ctx* (begin-path))
+                     (ps:chain *mini-canvas-ctx* (arc x y dot-radius 0 6.283185307179586))
+                     (ps:chain *mini-canvas-ctx* (fill)))
+                   (incf x bar-width)))))))))
+     
+     (defun start-mini-spectrum ()
+       "Start mini spectrum animation"
+       (when (and *mini-analyser* (not *mini-animation-id*))
+         (draw-mini-spectrum)))
+     
+     (defun stop-mini-spectrum ()
+       "Stop mini spectrum animation"
+       (when *mini-animation-id*
+         (cancel-animation-frame *mini-animation-id*)
+         (setf *mini-animation-id* nil))
+       ;; Clear canvas
+       (when (and *mini-canvas* *mini-canvas-ctx*)
+         (let ((width (ps:@ *mini-canvas* width))
+               (height (ps:@ *mini-canvas* height)))
+           (setf (ps:@ *mini-canvas-ctx* fill-style) "#000000")
+           (ps:chain *mini-canvas-ctx* (fill-rect 0 0 width height)))))
+     
+     ;; ========================================
      ;; Stream Configuration
      ;; ========================================
      
@@ -288,7 +425,16 @@
                           (cond
                             ((= fav-count 0) (setf (ps:@ count-el text-content) ""))
                             ((= fav-count 1) (setf (ps:@ count-el text-content) "1 ❤️"))
-                            (t (setf (ps:@ count-el text-content) (+ fav-count " ❤️"))))))))))
+                            (t (setf (ps:@ count-el text-content) (+ fav-count " ❤️"))))))
+                      ;; Update MusicBrainz search link
+                      (let ((mb-link (ps:chain document (get-element-by-id "mini-musicbrainz-link")))
+                            (search-url (or (ps:@ data data search_url) (ps:@ data search_url))))
+                        (when mb-link
+                          (if search-url
+                              (progn
+                                (setf (ps:@ mb-link href) search-url)
+                                (setf (ps:@ mb-link style display) "inline"))
+                              (setf (ps:@ mb-link style display) "none"))))))))
           (catch (lambda (error)
                    (ps:chain console (log "Could not fetch now playing:" error)))))))
      
@@ -529,6 +675,9 @@
                  (add-event-listener "playing"
                                      (lambda ()
                                        (ps:chain console (log "Audio playing"))
+                                       ;; Initialize and start mini spectrum on first play
+                                       (init-mini-spectrum audio-element)
+                                       (start-mini-spectrum)
                                        (hide-status)
                                        (setf *stream-error-count* 0)
                                        (setf *is-reconnecting* false)
@@ -577,6 +726,8 @@
        (ps:chain audio-element
                  (add-event-listener "pause"
                                      (lambda ()
+                                       ;; Stop mini spectrum when paused
+                                       (stop-mini-spectrum)
                                        ;; If paused while muted and we didn't initiate it, browser may have throttled
                                        (when (and (ps:@ audio-element muted) (not *is-reconnecting*))
                                          (ps:chain console (log "Stream paused while muted (possible browser throttling), will reconnect in 3 seconds..."))

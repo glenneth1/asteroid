@@ -8,6 +8,9 @@
 </head>
 <body class="persistent-player-container">
   <div class="persistent-player">
+    <!-- Mini spectrum visualizer -->
+    <canvas id="mini-spectrum-canvas" width="100" height="28" style="vertical-align: middle; margin-right: 8px; border-radius: 3px; background: #000;"></canvas>
+    
     <span class="player-label">
       <span class="live-stream-indicator">🟢 </span>
       LIVE:
@@ -23,11 +26,10 @@
     </div>
     
     <div class="quality-selector">
-      <label for="stream-quality">Quality:</label>
-      <select id="stream-quality" onchange="changeStreamQuality()">
-        <option value="aac">AAC 96k</option>
-        <option value="mp3">MP3 128k</option>
-        <option value="low">MP3 64k</option>
+      <select id="stream-quality" onchange="changeStreamQuality()" title="Stream Quality">
+        <option value="aac">AAC</option>
+        <option value="mp3">MP3</option>
+        <option value="low">Low</option>
       </select>
     </div>
     
@@ -35,6 +37,7 @@
       <source id="audio-source" lquery="(attr :src default-stream-url :type default-stream-encoding)">
     </audio>
     
+    <a id="mini-musicbrainz-link" href="#" target="_blank" title="Search on MusicBrainz" style="display: none; margin-right: 4px; text-decoration: none;">🔗</a>
     <span class="now-playing-mini" id="mini-now-playing">Loading...</span>
     <span class="favorite-count-mini" id="favorite-count-mini"></span>
     

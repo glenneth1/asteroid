@@ -50,24 +50,18 @@
       (let ((audio-element nil)
             (canvas-element (ps:chain document (get-element-by-id "spectrum-canvas"))))
         
-        ;; Try to find audio element in current frame first
+        ;; Only use audio element from current frame
+        ;; Cross-frame MediaElementSource causes audio to break when content frame navigates
         (setf audio-element (or (ps:chain document (get-element-by-id "live-audio"))
                                 (ps:chain document (get-element-by-id "persistent-audio"))))
         
-        ;; If not found and we're in a frame, try to access from parent frameset
+        ;; In frameset mode, the audio is in the player frame - we cannot safely connect
+        ;; to it from the content frame because createMediaElementSource breaks audio
+        ;; routing when the content frame navigates away
         (when (and (not audio-element)
                    (ps:@ window parent)
                    (not (eq (ps:@ window parent) window)))
-          (ps:chain console (log "Trying to access audio from parent frame..."))
-          (ps:try
-           (progn
-             ;; Try accessing via parent.frames
-             (let ((player-frame (ps:getprop (ps:@ window parent) "player-frame")))
-               (when player-frame
-                 (setf audio-element (ps:chain player-frame document (get-element-by-id "persistent-audio")))
-                 (ps:chain console (log "Found audio in player-frame:" audio-element)))))
-           (:catch (e)
-             (ps:chain console (log "Cross-frame access error:" e)))))
+          (ps:chain console (log "Spectrum analyzer: In frameset mode, audio is in player frame - visualization disabled to prevent audio issues")))
         
         (when (and audio-element canvas-element)
           ;; Store current audio element
