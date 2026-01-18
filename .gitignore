@@ -65,3 +65,4 @@ playlists/stream-queue.m3u
 /radiance-bootstrap.lisp
 /test-postgres-db.lisp
 /userdump.csv
+.envrc
