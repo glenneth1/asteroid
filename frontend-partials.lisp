@@ -91,7 +91,7 @@
               (:listeners . ,total-listeners)
               (:track-id . ,(find-track-by-title title))))))))
 
-(define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 60 :timeout 60)
+(define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 180 :timeout 60)
   "Get Partial HTML with live status from Icecast server.
    Optional MOUNT parameter specifies which stream to get metadata from.
    Always polls both streams to keep recently played lists updated."
@@ -121,7 +121,7 @@
              :connection-error t
              :stats nil))))))
 
-(define-api-with-limit asteroid/partial/now-playing-inline (&optional mount) (:limit 60 :timeout 60)
+(define-api-with-limit asteroid/partial/now-playing-inline (&optional mount) (:limit 180 :timeout 60)
   "Get inline text with now playing info (for admin dashboard and widgets).
    Optional MOUNT parameter specifies which stream to get metadata from."
   (with-error-handling
@@ -135,7 +135,7 @@
             (setf (header "Content-Type") "text/plain")
             "Stream Offline")))))
 
-(define-api-with-limit asteroid/partial/now-playing-json (&optional mount) (:limit 60 :timeout 60)
+(define-api-with-limit asteroid/partial/now-playing-json (&optional mount) (:limit 180 :timeout 60)
   "Get JSON with now playing info including track ID for favorites.
    Optional MOUNT parameter specifies which stream to get metadata from."
   ;; Register web listener for geo stats (keeps listener active during playback)
@@ -160,7 +160,7 @@
                         ("title" . "Stream Offline")
                         ("track_id" . nil)))))))
 
-(define-api-with-limit asteroid/channel-name () (:limit 60 :timeout 60)
+(define-api-with-limit asteroid/channel-name () (:limit 180 :timeout 60)
   "Get the current curated channel name for live updates.
    Returns JSON with the channel name from the current playlist's PHASE header."
   (with-error-handling
