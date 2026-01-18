@@ -1403,10 +1403,11 @@
                                           ("avg_session_minutes" . ,(sixth row))))
                                       stats))))))
 
-(define-api asteroid/stats/geo (&optional (days "7")) ()
-  "Get geographic distribution of listeners (admin only)"
+(define-api asteroid/stats/geo (&optional (days "7") (sort-by "minutes")) ()
+  "Get geographic distribution of listeners (admin only).
+   SORT-BY can be 'minutes' (default) or 'listeners'."
   (require-role :admin)
-  (let ((stats (get-geo-stats (parse-integer days :junk-allowed t))))
+  (let ((stats (get-geo-stats (parse-integer days :junk-allowed t) sort-by)))
     (api-output `(("status" . "success")
                   ("geo" . ,(mapcar (lambda (row)
                                       `(("country_code" . ,(first row))
