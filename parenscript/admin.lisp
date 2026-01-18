@@ -970,8 +970,10 @@
     
     ;; Refresh geo stats from API
     (defun refresh-geo-stats ()
-      (ps:chain
-       (fetch "/api/asteroid/stats/geo?days=7")
+      (let* ((sort-select (ps:chain document (get-element-by-id "geo-sort-by")))
+             (sort-by (if sort-select (ps:@ sort-select value) "minutes")))
+        (ps:chain
+         (fetch (+ "/api/asteroid/stats/geo?days=7&sort-by=" sort-by))
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
                (let ((data (or (ps:@ result data) result))
@@ -1009,7 +1011,7 @@
                 (let ((tbody (ps:chain document (get-element-by-id "geo-stats-body"))))
                   (when tbody
                     (setf (ps:@ tbody inner-h-t-m-l)
-                          "<tr><td colspan=\"3\" style=\"color: #ff6666;\">Error loading geo data</td></tr>")))))))
+                          "<tr><td colspan=\"3\" style=\"color: #ff6666;\">Error loading geo data</td></tr>"))))))))
     
     ;; Toggle city display for a country
     (defun toggle-country-cities (country)

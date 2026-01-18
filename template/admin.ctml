@@ -86,6 +86,13 @@
       
       <!-- Geo Stats -->
       <h3 style="margin-top: 20px;">🌍 Listener Locations (Last 7 Days)</h3>
+      <div style="margin-bottom: 10px;">
+        <label for="geo-sort-by">Sort by: </label>
+        <select id="geo-sort-by" class="sort-select" onchange="refreshGeoStats()">
+          <option value="minutes" selected>Minutes Listened</option>
+          <option value="listeners">Unique Listeners</option>
+        </select>
+      </div>
       <div id="geo-stats-container">
         <table class="listener-stats-table" id="geo-stats-table">
           <thead>

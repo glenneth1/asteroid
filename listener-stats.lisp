@@ -369,17 +369,21 @@
       (log:error "Failed to get daily stats: ~a" e)
       nil)))
 
-(defun get-geo-stats (&optional (days 7))
-  "Get geographic distribution for the last N days"
+(defun get-geo-stats (&optional (days 7) (order-by "minutes"))
+  "Get geographic distribution for the last N days.
+   ORDER-BY can be 'minutes' (default) or 'listeners'."
   (handler-case
       (with-db
-        (postmodern:query
-         (format nil "SELECT country_code, SUM(listener_count) as total_listeners, SUM(listen_minutes) as total_minutes
+        (let ((order-column (if (string= order-by "listeners")
+                                "total_listeners"
+                                "total_minutes")))
+          (postmodern:query
+           (format nil "SELECT country_code, SUM(listener_count) as total_listeners, SUM(listen_minutes) as total_minutes
           FROM listener_geo_stats
           WHERE date > NOW() - INTERVAL '~a days'
           GROUP BY country_code
-          ORDER BY total_minutes DESC
-          LIMIT 20" days)))
+          ORDER BY ~a DESC
+          LIMIT 20" days order-column))))
     (error (e)
       (log:error "Failed to get geo stats: ~a" e)
       nil)))
