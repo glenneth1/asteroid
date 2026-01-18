@@ -423,7 +423,7 @@
         (ps:try
          (let ((notification (ps:new (-notification title
                                        (ps:create :body body
-                                                  :icon "/asteroid/static/asteroid-icon.png"
+                                                  :icon "/asteroid/static/asteroid.png"
                                                   :tag "asteroid-track-change"
                                                   :renotify true
                                                   :silent false)))))
