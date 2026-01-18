@@ -378,7 +378,7 @@
           FROM listener_geo_stats
           WHERE date > NOW() - INTERVAL '~a days'
           GROUP BY country_code
-          ORDER BY total_listeners DESC
+          ORDER BY total_minutes DESC
           LIMIT 20" days)))
     (error (e)
       (log:error "Failed to get geo stats: ~a" e)
