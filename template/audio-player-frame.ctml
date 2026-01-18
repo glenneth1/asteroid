@@ -46,6 +46,8 @@
     </button>
     <input type="hidden" id="current-track-id-mini" value="">
     
+    <button id="notification-toggle" onclick="toggleNotifications()" class="persistent-notification-btn" title="Track notifications OFF - click to enable">🔕</button>
+    
     <button id="reconnect-btn" onclick="reconnectStream()" class="persistent-reconnect-btn" title="Reconnect if audio stops working">
       <img src="/asteroid/static/icons/sync.png" alt="Reconnect" style="width: 18px; height: 18px; vertical-align: middle; filter: invert(48%) sepia(79%) saturate(2476%) hue-rotate(86deg) brightness(118%) contrast(119%);">
     </button>

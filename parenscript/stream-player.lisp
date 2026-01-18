@@ -337,9 +337,117 @@
      
      ;; Track the last recorded title to avoid duplicate history entries
      (defvar *last-recorded-title* nil)
-     
-     ;; Cache of user's favorite track titles for quick lookup (mini player)
-     (defvar *user-favorites-cache-mini* (array))
+    
+    ;; Track last notified title to avoid duplicate notifications
+    (defvar *last-notified-title* nil)
+    
+    ;; Check if notifications are enabled in localStorage
+    (defun notifications-enabled-p ()
+      (= (ps:chain local-storage (get-item "notifications-enabled")) "true"))
+    
+    ;; Check if browser supports notifications
+    (defun notifications-supported-p ()
+      (not (= (typeof (ps:@ window -notification)) "undefined")))
+    
+    ;; Get notification permission status
+    (defun get-notification-permission ()
+      (if (notifications-supported-p)
+          (ps:@ -notification permission)
+          "denied"))
+    
+    ;; Request notification permission from user
+    (defun request-notification-permission ()
+      (when (notifications-supported-p)
+        (ps:chain -notification (request-permission)
+                  (then (lambda (permission)
+                          (if (= permission "granted")
+                              (progn
+                                (ps:chain local-storage (set-item "notifications-enabled" "true"))
+                                (update-notification-toggle-ui)
+                                (show-track-notification "Notifications Enabled" "You'll now receive track change notifications"))
+                              (progn
+                                (ps:chain local-storage (set-item "notifications-enabled" "false"))
+                                (update-notification-toggle-ui))))))))
+    
+    ;; Toggle notifications on/off
+    (defun toggle-notifications ()
+      (let ((permission (get-notification-permission)))
+        (cond
+          ;; Not supported
+          ((not (notifications-supported-p))
+           (alert "Your browser does not support notifications"))
+          ;; Permission denied - can't do anything
+          ((= permission "denied")
+           (alert "Notifications are blocked. Please enable them in your browser settings."))
+          ;; Permission not yet requested
+          ((= permission "default")
+           (request-notification-permission))
+          ;; Permission granted - toggle the setting
+          ((= permission "granted")
+           (if (notifications-enabled-p)
+               (progn
+                 (ps:chain local-storage (set-item "notifications-enabled" "false"))
+                 (update-notification-toggle-ui))
+               (progn
+                 (ps:chain local-storage (set-item "notifications-enabled" "true"))
+                 (update-notification-toggle-ui)
+                 (show-track-notification "Notifications Enabled" "You'll now receive track change notifications")))))))
+    
+    ;; Update the notification toggle button UI
+    (defun update-notification-toggle-ui ()
+      (let ((btn (ps:chain document (get-element-by-id "notification-toggle"))))
+        (when btn
+          (let ((permission (get-notification-permission))
+                (enabled (notifications-enabled-p)))
+            (cond
+              ((not (notifications-supported-p))
+               (setf (ps:@ btn text-content) "🔕")
+               (setf (ps:@ btn title) "Notifications not supported"))
+              ((= permission "denied")
+               (setf (ps:@ btn text-content) "🔕")
+               (setf (ps:@ btn title) "Notifications blocked - enable in browser settings"))
+              ((and (= permission "granted") enabled)
+               (setf (ps:@ btn text-content) "🔔")
+               (setf (ps:@ btn title) "Track notifications ON - click to disable"))
+              (t
+               (setf (ps:@ btn text-content) "🔕")
+               (setf (ps:@ btn title) "Track notifications OFF - click to enable")))))))
+    
+    ;; Show a system notification for track change
+    (defun show-track-notification (title body)
+      (when (and (notifications-supported-p)
+                 (= (get-notification-permission) "granted")
+                 (notifications-enabled-p)
+                 (not (= title *last-notified-title*)))
+        (setf *last-notified-title* title)
+        (ps:try
+         (let ((notification (ps:new (-notification title
+                                       (ps:create :body body
+                                                  :icon "/asteroid/static/asteroid-icon.png"
+                                                  :tag "asteroid-track-change"
+                                                  :renotify true
+                                                  :silent false)))))
+           ;; Auto-close after 5 seconds
+           (set-timeout (lambda () (ps:chain notification (close))) 5000)
+           ;; Click to focus the window
+           (setf (ps:@ notification onclick)
+                 (lambda ()
+                   (ps:chain window (focus))
+                   (ps:chain notification (close)))))
+         (:catch (e)
+           (ps:chain console (log "Notification error:" e))))))
+    
+    ;; Notify track change (called from update-mini-now-playing)
+    (defun notify-track-change (title)
+      (when (and title 
+                 (not (= title ""))
+                 (not (= title "Loading..."))
+                 (not (= title *last-notified-title*)))
+        ;; Show full "Artist - Track" in title, "Now Playing" as body
+        (show-track-notification title "Now Playing on Asteroid Radio")))
+    
+    ;; Cache of user's favorite track titles for quick lookup (mini player)
+    (defvar *user-favorites-cache-mini* (array))
      
      ;; Load user's favorites into cache (mini player - only if logged in)
      (defun load-favorites-cache-mini ()
@@ -409,9 +517,10 @@
                           (track-id-el (ps:chain document (get-element-by-id "current-track-id-mini")))
                           (title (or (ps:@ data data title) (ps:@ data title) "Loading...")))
                       (when el
-                        ;; Check if track changed and record to history
+                        ;; Check if track changed and record to history + notify
                         (when (not (= (ps:@ el text-content) title))
-                          (record-track-listen title))
+                          (record-track-listen title)
+                          (notify-track-change title))
                         (setf (ps:@ el text-content) title)
                         ;; Check if this track is in user's favorites
                         (check-favorite-status-mini))
@@ -856,6 +965,9 @@
            ;; Update quality selector state based on channel
            (update-quality-selector-state)
            
+           ;; Initialize notification toggle UI
+           (update-notification-toggle-ui)
+           
            ;; Poll server for channel name changes (works across all listeners)
            (let ((last-channel-name nil))
              (set-interval
@@ -931,17 +1043,21 @@
            (ps:chain window (add-event-listener "beforeunload" notify-popout-closing)))))
      
      ;; Make functions globally accessible
-     (setf (ps:@ window get-stream-config) get-stream-config)
-     (setf (ps:@ window change-channel) change-channel)
-     (setf (ps:@ window sync-channel-from-storage) sync-channel-from-storage)
-     (setf (ps:@ window change-stream-quality) change-stream-quality)
-     (setf (ps:@ window reconnect-stream) reconnect-stream)
-     (setf (ps:@ window disable-frameset-mode) disable-frameset-mode)
-     (setf (ps:@ window init-persistent-player) init-persistent-player)
-     (setf (ps:@ window init-popout-player) init-popout-player)
-     (setf (ps:@ window update-mini-now-playing) update-mini-now-playing)
-     (setf (ps:@ window update-popout-now-playing) update-popout-now-playing)
-     (setf (ps:@ window toggle-favorite-mini) toggle-favorite-mini)
+    (setf (ps:@ window get-stream-config) get-stream-config)
+    (setf (ps:@ window change-channel) change-channel)
+    (setf (ps:@ window sync-channel-from-storage) sync-channel-from-storage)
+    (setf (ps:@ window change-stream-quality) change-stream-quality)
+    (setf (ps:@ window reconnect-stream) reconnect-stream)
+    (setf (ps:@ window disable-frameset-mode) disable-frameset-mode)
+    (setf (ps:@ window init-persistent-player) init-persistent-player)
+    (setf (ps:@ window init-popout-player) init-popout-player)
+    (setf (ps:@ window update-mini-now-playing) update-mini-now-playing)
+    (setf (ps:@ window update-popout-now-playing) update-popout-now-playing)
+    (setf (ps:@ window toggle-favorite-mini) toggle-favorite-mini)
+    (setf (ps:@ window toggle-notifications) toggle-notifications)
+    (setf (ps:@ window update-notification-toggle-ui) update-notification-toggle-ui)
+    (setf (ps:@ window notify-popout-opened) notify-popout-opened)
+    (setf (ps:@ window notify-popout-closing) notify-popout-closing)
      
      ;; Auto-initialize on DOMContentLoaded based on which elements exist
      (ps:chain document
