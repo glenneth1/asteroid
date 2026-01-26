@@ -1,6 +1,6 @@
 #+TITLE: Spectrum Analyzer Implementation
 #+AUTHOR: Asteroid Radio
-#+DATE: 2025-12-02
+#+DATE: 2026-01-26
 
 * Overview
 Real-time audio spectrum analyzer for Asteroid Radio, implemented using Parenscript (Lisp-to-JavaScript compiler).

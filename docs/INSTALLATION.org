@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Installation Guide
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Installation Overview
 

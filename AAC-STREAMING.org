@@ -1,6 +1,6 @@
 #+TITLE: AAC Streaming Support
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-01
+#+DATE: 2026-01-26
 #+STARTUP: overview
 
 * Overview

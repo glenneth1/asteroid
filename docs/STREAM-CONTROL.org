@@ -1,6 +1,6 @@
 #+TITLE: Stream Queue Control System
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Overview
 
@@ -140,7 +140,7 @@ If you're working directly in the Lisp REPL:
 
 * File Locations
 
-- *Stream Queue File*: =stream-queue.m3u= (in project root)
+- *Stream Queue File*: =playlists/stream-queue.m3u=
 - *Docker Mount*: =/app/stream-queue.m3u= (inside Liquidsoap container)
 - *Liquidsoap Config*: =docker/asteroid-radio-docker.liq=
 
@@ -184,7 +184,7 @@ The system also tracks recently played tracks:
 ** Queue changes not taking effect
 
 - Wait up to 60 seconds for Liquidsoap to reload
-- Check that =stream-queue.m3u= was generated correctly
+- Check that =playlists/stream-queue.m3u= was generated correctly
 - Verify Docker volume mount is working: =docker exec asteroid-liquidsoap ls -la /app/stream-queue.m3u=
 - Check Liquidsoap logs: =docker logs asteroid-liquidsoap=
 
@@ -196,7 +196,7 @@ This is expected behavior. The system will play random tracks from the music lib
 
 - Ensure Asteroid server has write permissions to the project directory
 - Check that =regenerate-stream-playlist= is being called after queue modifications
-- Verify the file exists: =ls -la stream-queue.m3u=
+- Verify the file exists: =ls -la playlists/stream-queue.m3u=
 
 * Integration with Admin Interface
 

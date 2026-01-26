@@ -1,6 +1,6 @@
 #+TITLE: Listener Statistics Feature Design
-#+AUTHOR: Glenn / Cascade
-#+DATE: 2025-12-08
+#+AUTHOR: Glenn Thompson / Cascade
+#+DATE: 2026-01-26
 #+OPTIONS: toc:2 num:t
 
 * Overview
@@ -273,10 +273,9 @@ New admin page showing:
 | Endpoint                        | Method | Description                    |
 |---------------------------------+--------+--------------------------------|
 | /api/asteroid/stats/current     | GET    | Current listener count         |
-| /api/asteroid/stats/daily       | GET    | Daily stats (date range)       |
-| /api/asteroid/stats/hourly      | GET    | Hourly breakdown               |
-| /api/asteroid/stats/geo         | GET    | Geographic distribution        |
-| /api/asteroid/stats/export      | GET    | Export as CSV/JSON             |
+| /api/asteroid/stats/daily       | GET    | Daily stats (admin only)       |
+| /api/asteroid/stats/geo         | GET    | Geographic distribution (admin only) |
+| /api/asteroid/stats/geo/cities  | GET    | City breakdown for a country (admin only) |
 
 * Implementation Phases
 

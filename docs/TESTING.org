@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio Testing Guide
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Overview
 
@@ -83,15 +83,15 @@ VERBOSE=1 ./test-server.sh
 - =/api/asteroid/admin/scan-library= - Library scan
 
 *** 7. HTML Pages
-- =/asteroid/= - Front page
-- =/asteroid/admin= - Admin dashboard
-- =/asteroid/player= - Web player
-- =/asteroid/profile= - User profile
-- =/asteroid/register= - Registration page
+- =/= - Front page
+- =/admin= - Admin dashboard
+- =/player= - Web player
+- =/profile= - User profile
+- =/register= - Registration page
 
 *** 8. Static Files
-- CSS files (=/asteroid/static/*.css=)
-- JavaScript files (=/asteroid/static/js/*.js=)
+- CSS files (=/static/*.css=)
+- JavaScript files (=/static/js/*.js=)
 
 ** Example Output
 
