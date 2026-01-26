@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Development Guide
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Development Setup
 
@@ -118,10 +118,10 @@ sbcl --eval "(ql:quickload :asteroid)" --eval "(asteroid:start-server)"
 #+END_SRC
 
 *** Development URLs
-- *Web Interface*: http://localhost:8080/asteroid/
-- *Admin Panel*: http://localhost:8080/asteroid/admin
-- *User Management*: http://localhost:8080/asteroid/admin/users
-- *Web Player*: http://localhost:8080/asteroid/player
+- *Web Interface*: http://localhost:8080/
+- *Admin Panel*: http://localhost:8080/admin
+- *User Management*: http://localhost:8080/admin/user
+- *Web Player*: http://localhost:8080/player
 - *API Base*: http://localhost:8080/api/asteroid/
 - *Live Stream*: http://localhost:8000/asteroid.mp3
 - *Icecast Admin*: http://localhost:8000/admin/ (admin/asteroid_admin_2024)
@@ -228,7 +228,7 @@ We define a custom CLIP attribute processor in =template-utils.lisp= for dynamic
 
 **** Using =data-text= in Templates
 
-In your HTML templates (=.chtml= files):
+In your HTML templates (=.ctml= files):
 
 #+BEGIN_SRC html
 <!-- The data-text attribute gets replaced with the value from the plist -->
@@ -341,7 +341,7 @@ See [[file:API-ENDPOINTS.org][API Endpoints Reference]] for complete API documen
 - Check Docker container status: =docker compose ps=
 - Check Liquidsoap container logs: =docker compose logs liquidsoap=
 - Check Icecast2 container logs: =docker compose logs icecast=
-- Verify music files exist in =docker/music/library/=
+- Verify music files exist in =music/library/=
 - Restart containers: =docker compose restart=
 
 **** Database Errors
@@ -418,11 +418,10 @@ docker compose logs -f icecast
 ** Performance Considerations
 
 *** Development vs Production
-- Use smaller music libraries in =docker/music/= for faster testing
+- Use smaller music libraries in =music/library/= for faster testing
 - Enable debug logging in Docker containers only when needed
 - Consider memory usage with large track collections in containers
 - Test with realistic concurrent user loads using Docker scaling
-- Use =docker compose.dev.yml= for development-specific settings
 
 *** Optimization Tips
 - Cache database queries where appropriate
@@ -475,17 +474,17 @@ docker compose down
 - Check port binding: =docker compose port icecast 8000=
 
 *** File Permission Issues
-- Ensure =docker/music/= directory is accessible
-- Check ownership: =ls -la docker/music/=
-- Fix permissions: =sudo chown -R $USER:$USER docker/music/=
+- Ensure =music/library/= directory is accessible
+- Check ownership: =ls -la music/library/=
+- Fix permissions: =sudo chown -R $USER:$USER music/library/=
 - Verify container volume mounts in =docker-compose.yml=
 - For remote mounts: ensure network storage is accessible
 
 *** Music Library Issues
-- Check if music files exist: =find docker/music/ -name "*.mp3" -o -name "*.flac"=
+- Check if music files exist: =find music/library/ -name "*.mp3" -o -name "*.flac"=
 - Verify supported formats: MP3, FLAC, OGG, WAV
-- Test recursive scanning: =curl -X POST http://localhost:8080/asteroid/api/scan-library=
-- Check database for tracks: =curl http://localhost:8080/asteroid/api/tracks=
+- Test recursive scanning: =curl -X POST http://localhost:8080/api/asteroid/admin/scan-library=
+- Check database for tracks: =curl http://localhost:8080/api/asteroid/tracks=
 - For large collections: avoid network mounts, use local storage (see memory about 175+ files causing timeouts)
 
 ** Getting Help

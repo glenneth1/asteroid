@@ -1,6 +1,6 @@
 #+TITLE: ParenScript Conversion Experiment
-#+AUTHOR: Glenn
-#+DATE: 2025-11-06
+#+AUTHOR: Glenn Thompson
+#+DATE: 2026-01-26
 
 * Overview
 

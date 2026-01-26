@@ -156,5 +156,5 @@ The =attr= function of the =lquery= s-expression allows customization of any val
 - =target= which only has a value when the variable =framesetp= is true
 
 #+begin_src html
-<a lquery='(attr :href (eval (format nil "/asteroid/~a" status-href)) :target (when framesetp "_self"))'>
+<a lquery='(attr :href (eval (format nil "/~a" status-href)) :target (when framesetp "_self"))'>
 #+end_src

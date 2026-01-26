@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - API Reference
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Current Interfaces
 
@@ -37,7 +37,7 @@ curl -I http://localhost:8000/asteroid-low.mp3 # 64kbps MP3
 #+END_SRC
 
 *** Playing Streams
-#+BEGIN_SRC bashfutu
+#+BEGIN_SRC bash
 # With VLC
 vlc http://localhost:8000/asteroid.mp3
 
@@ -146,8 +146,8 @@ docker compose restart
 ** Music Library Management
 #+BEGIN_SRC bash
 # Add music files (container will detect automatically)
-cp ~/path/to/music/*.mp3 docker/music/
-cp ~/path/to/music/*.flac docker/music/
+cp ~/path/to/music/*.mp3 music/library/
+cp ~/path/to/music/*.flac music/library/
 
 # Check what Liquidsoap is seeing
 echo "request.queue" | nc localhost 1234

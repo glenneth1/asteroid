@@ -1,12 +1,12 @@
 #+TITLE: Asteroid Radio - Project Overview
 #+AUTHOR: Glenn Thompson & Brian O'Reilly (Fade)
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
-* 🎯 Mission
+* Mission
 
 Asteroid Radio is a modern, web-based music streaming platform designed for hackers and music enthusiasts. Built with Common Lisp and the Radiance web framework, it combines the power of functional programming with contemporary web technologies.
 
-* 🏗️ Architecture
+* Architecture
 
 ** Core Components
 
@@ -30,9 +30,9 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 │  ├── User Accounts & Profiles                             │
 │  └── Music Metadata                                       │
 └─────────────────────────────────────────────────────────────┘
-```
+#+END_EXAMPLE
 
-### Technology Stack
+* Technology Stack
 
 **Backend:**
 - **Common Lisp** (SBCL) - Core application language
@@ -58,24 +58,29 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 - **Python** - Performance analysis tools
 - **Bash** - Testing and deployment scripts
 
-## 🎨 Design Philosophy
 
-### Visual Theme
+* 🎨 Design Philosophy
+
+
+** Visual Theme
 - **Dark terminal aesthetic** - Black background with colored text
 - **Hacker-friendly** - Monospace fonts and terminal-inspired UI
 - **Color scheme** - Black → Blue-grey → Cyan → Blue progression
 - **Minimalist** - Clean, functional interface without clutter
 
-### Technical Principles
+
+** Technical Principles
 - **Functional programming** - Leveraging Lisp's strengths
 - **Modular architecture** - Radiance's interface system
 - **Performance first** - Sub-1% CPU usage for web app
 - **Self-contained** - Minimal external dependencies
 - **Docker-ready** - Containerized streaming infrastructure
 
-## 🚀 Features
 
-### Current Features
+* 🚀 Features
+
+
+** Current Features
 - ✅ **User Authentication** - Registration, login, profiles, role-based access (Admin/DJ/Listener)
 - ✅ **User Management** - Admin interface for user administration
 - ✅ **Music Library** - Track management with pagination, search, and filtering
@@ -93,7 +98,8 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 - ✅ **Responsive Design** - Works on desktop and mobile
 - ✅ **Automated Testing** - Comprehensive test suite
 
-### Planned Features
+
+** Planned Features
 - 🔄 **PostgreSQL Migration** - Full migration from Radiance DB to PostgreSQL
 - 🔄 **Enhanced Playlist Management** - Full CRUD operations with PostgreSQL
 - 🔄 **Social Features** - Playlist sharing and discovery
@@ -104,7 +110,8 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 - 🔄 **Scheduled Programming** - Time-based queue switching
 
 
-## 🔮 Vision
+
+* 🔮 Vision
 
 Asteroid Radio is the premier streaming platform for **Asteroid Music** - the perfect soundtrack for developers, hackers, and anyone who spends hours deep in code. Our mission is to curate and deliver music that enhances focus, creativity, and the flow state that every programmer knows.
 

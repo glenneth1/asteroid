@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Project Development History
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 #+DESCRIPTION: Comprehensive history of the Asteroid Radio project from inception to present
 
 * Project Overview
@@ -231,76 +231,178 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Synchronized with upstream/main
 - Prepared comprehensive documentation PR
 
+** Phase 9: Production Launch & Feature Expansion (November - December 2025)
+
+*** Early November: Template & Deployment Stabilization
+- *Lead*: Glenn Thompson, Brian O'Reilly
+- Changed template extension to match CLIP documentation (.ctml)
+- Updated all template paths in calling code
+- Refactored for Lispy improvements (templates, strings, error handling)
+- Deployment and post-deployment fixes
+- Fixed redirection when navigating between frameset views
+- Stream quality persistence in local storage
+- Security: Removed hardcoded admin credentials from login page
+- Stream service containers locked to localhost access
+
+*** Mid-November: Password Management & Data Model Refactoring
+- *Lead*: Glenn Thompson, Luis Pereira
+- Password management and listener count fixes
+- Database schema bug fixes from upstream merge
+- User database methods moved to data-model
+- Admin button visibility restricted to admin accounts
+- Profile password change fixes
+- Playlist creation fixes on frontend
+
+*** Late November: Recently Played & MusicBrainz Integration
+- *Lead*: Glenn Thompson
+- Recently played tracks feature with MusicBrainz integration
+- Favicon and asteroid.png graphics added to front page
+- User activate/deactivate routes
+- User role update routes
+- Track name clickable with external link icon
+- Audio player color matched to app panels
+- Blinking live cursor added
+
+*** Late November: Spectrum Analyzer & Parenscript Conversion
+- *Lead*: Glenn Thompson
+- Real-time spectrum analyzer using Web Audio API
+- Parenscript (Lisp-to-JavaScript) implementation
+- Spectrum analyzer theming and visualization styles
+- Monotone theme and dynamic border color
+- HTML entity decoding fixes in now playing titles
+- JavaScript converted to Parenscript with stream fixes
+
+*** Early December: PostgreSQL Integration & Database Work
+- *Lead*: Brian O'Reilly, Glenn Thompson
+- PostgreSQL interface integration (i-postmodern)
+- Users table case sensitivity fixes
+- Database credentials sourced from environment
+- M3U files moved to dedicated playlists directory
+- Database creation script corrections
+- User dump/restore to CSV functionality
+
+*** Mid-December: Player Improvements & Listener Statistics
+- *Lead*: Glenn Thompson / Cascade
+- Wedged player fix with reconnect button and volume preservation
+- Status page for frameset mode with navigation fixes
+- Listener statistics feature with geo stats collection
+- City-level tracking in geo stats
+- Expandable city breakdown in admin view
+- Liquidsoap/Icecast controls added
+- Library scan fixes
+
+*** Mid-December: Shuffle Mount & Channel Selector
+- *Lead*: Glenn Thompson
+- Shuffle stream mount with separate recently-played tracking
+- Channel/quality selector separation
+- Dynamic playlist phase names
+- Dynamic channel name updates
+- Playlist crossfade transitions
+- New playlists in support of variety
+
+*** Late December: Playlist Scheduler & User Features
+- *Lead*: Glenn Thompson
+- Automatic playlist scheduler with cl-cron
+- Admin UI for playlist scheduler with server time display
+- Database persistence for playlist schedule
+- Track favorites feature with star button
+- Listening history tracking
+- Listening activity chart on profile page
+- Avatar upload functionality
+- Track requests and profile enhancements
+
+*** Late December: Custom Playlists & Rate Limiting
+- *Lead*: Glenn Thompson, Luis Pereira
+- Custom user playlists with submission and admin review
+- YP directory listings for internet-radio.com and xiph.org
+- Rate limiting macros for define-page and define-api
+- Bigger rate limits for now-playing API routes
+- Favorites sync between front page and frame player via postMessage
+- Listening history refactored to data-model
+- Timestamp normalization for PostgreSQL compatibility
+
+*** December 31: Version 1.0 & Operations
+- *Lead*: Brian O'Reilly
+- Declared "Version 1.0" milestone
+- TODO.org updated to reflect production launch
+- Operations procedures instituted
+- Repository cleanup of interstitial files
+
 * Development Statistics
 
 ** Contributors (by commit count)
-1. Glenn Thompson (glenneth/Glenneth) - 135+ commits
-2. Brian O'Reilly (Fade) - 55+ commits
-3. Luis Pereira (easilok) - 23+ commits
+1. Glenn Thompson (glenneth/Glenneth) - 354 commits
+2. Brian O'Reilly (Fade) - 148 commits
+3. Luis Pereira (easilok) - 109 commits
 
-** Total Commits: 213+ commits
+** Total Commits: 614 commits
+
+** Pull Requests Merged: 88
+1. Glenn Thompson (glenneth1) - 59 PRs
+2. Luis Pereira (easilok) - 26 PRs
+3. Brian O'Reilly (fade) - 3 PRs
 
 ** Active Development Period
 - Start: August 12, 2025
-- Current: November 1, 2025
-- Duration: ~2.75 months of active development
+- Current: January 26, 2026
+- Duration: ~5.5 months of active development
 
 * Major Features Implemented
 
 ** Core Functionality
-- ✅ Music library scanning and metadata extraction
-- ✅ PostgreSQL database integration (configured, ready for migration)
-- ✅ Track search and filtering
-- ✅ Playlist management
-- ✅ Stream queue control
-- ✅ Live streaming via Icecast/Liquidsoap
+- Music library scanning and metadata extraction
+- PostgreSQL database integration (configured, ready for migration)
+- Track search and filtering
+- Playlist management
+- Stream queue control
+- Live streaming via Icecast/Liquidsoap
 
 ** User Management
-- ✅ User registration and authentication
-- ✅ Role-based access control (Admin, DJ, Listener)
-- ✅ User profiles with edit functionality
-- ✅ Session management
-- ✅ Role-based page flow
+- User registration and authentication
+- Role-based access control (Admin, DJ, Listener)
+- User profiles with edit functionality
+- Session management
+- Role-based page flow
 
 ** Streaming Features
-- ✅ Multiple quality options (AAC 96k, MP3 128k, MP3 64k)
-- ✅ ReplayGain volume normalization
-- ✅ Live now-playing information
-- ✅ Icecast integration
-- ✅ Liquidsoap DJ controls
-- ✅ Stream queue management
+- Multiple quality options (AAC 96k, MP3 128k, MP3 64k)
+- ReplayGain volume normalization
+- Live now-playing information
+- Icecast integration
+- Liquidsoap DJ controls
+- Stream queue management
 
 ** Player Options
-- ✅ Inline web player
-- ✅ Pop-out player window
-- ✅ Persistent frameset player
-- ✅ Hybrid player system
-- ✅ Quality selector
-- ✅ Auto-reconnect on errors
+- Inline web player
+- Pop-out player window
+- Persistent frameset player
+- Hybrid player system
+- Quality selector
+- Auto-reconnect on errors
 
 ** API & Integration
-- ✅ RESTful JSON API
-- ✅ API-aware authentication
-- ✅ Comprehensive test suite
-- ✅ Telnet integration with Liquidsoap
-- ✅ Real-time status updates
+- RESTful JSON API
+- API-aware authentication
+- Comprehensive test suite
+- Telnet integration with Liquidsoap
+- Real-time status updates
 
 ** UI/UX
-- ✅ Retro terminal aesthetic (VT323 font)
-- ✅ Responsive design
-- ✅ CLIP templating system
-- ✅ LASS CSS preprocessing
-- ✅ Consistent navigation
-- ✅ HTML partial hydration
+- Retro terminal aesthetic (VT323 font)
+- Responsive design
+- CLIP templating system
+- LASS CSS preprocessing
+- Consistent navigation
+- HTML partial hydration
 
 ** Infrastructure
-- ✅ Docker containerization (streams and application)
-- ✅ Docker Compose orchestration
-- ✅ Dockerfile for Asteroid application
-- ✅ Environment variable configuration
-- ✅ PostgreSQL database (configured)
-- ✅ Multi-environment support
-- ✅ Dynamic URL detection
+- Docker containerization (streams and application)
+- Docker Compose orchestration
+- Dockerfile for Asteroid application
+- Environment variable configuration
+- PostgreSQL database (configured)
+- Multi-environment support
+- Dynamic URL detection
 
 * Technical Milestones
 
@@ -325,7 +427,22 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Parallel music scanning
 - Client-side caching
 
-* Current State (November 2025)
+** Phase 10: Documentation Overhaul (January 2026)
+
+*** 2026-01-26: Comprehensive Documentation Update
+- *Lead*: Glenn Thompson / Cascade
+- Major documentation alignment with current codebase
+- Standardized all API endpoint references to `/api/asteroid/` base path
+- Updated UI route documentation to reflect root `/` mounting
+- Corrected template file extensions from `.chtml` to `.ctml`
+- Fixed Docker music library paths (`music/library/` standardization)
+- Updated stream queue file location to `playlists/stream-queue.m3u`
+- Expanded API-ENDPOINTS.org with playlist management, stream control, and admin APIs
+- Updated all metadata dates to 2026-01-26
+- Bumped documentation version to 3.1
+- Author metadata standardization (Glenn → Glenn Thompson where applicable)
+
+* Current State (January 2026)
 
 ** Production Ready Features
 - Full music streaming platform
@@ -344,12 +461,12 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Performance optimization
 - Feature expansion based on user feedback
 
-** Recent Achievements
-- ✅ Complete Docker containerization
-- ✅ Environment variable configuration
-- ✅ Comprehensive documentation overhaul
-- ✅ Cross-distribution package manager support
-- ✅ Streamlined deployment process
+** Recent Achievements (January 2026)
+- Complete documentation overhaul aligning docs with codebase
+- API endpoint standardization (`/api/asteroid/` base path)
+- Docker deployment fully documented
+- Documentation version 3.1 released
+- All metadata updated and consistent
 
 ** Known Issues & Future Work
 - PostgreSQL migration (configured, pending data migration)
@@ -392,7 +509,7 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 
 * Conclusion
 
-Asteroid Radio has evolved from a simple concept into a full-featured internet radio platform in just 2.75 months of active development. The project demonstrates the power of Common Lisp for web development and the collaborative nature of open-source development.
+Asteroid Radio has evolved from a simple concept into a full-featured internet radio platform over 5+ months of active development. The project demonstrates the power of Common Lisp for web development and the collaborative nature of open-source development.
 
 With complete Docker deployment, comprehensive documentation, and a growing feature set, Asteroid Radio is ready for production use while continuing to evolve with regular improvements, bug fixes, and new features based on user needs and technical requirements.
 
@@ -403,4 +520,4 @@ With complete Docker deployment, comprehensive documentation, and a growing feat
 
 ---
 
-*Last Updated: 2025-11-01*
+*Last Updated: 2026-01-26*

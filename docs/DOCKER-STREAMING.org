@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Docker Streaming Setup
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Docker Streaming Overview
 
@@ -141,7 +141,7 @@ networks:
         <max-listeners>50</max-listeners>
         <public>1</public>
         <stream-name>Asteroid Radio - High Quality</stream-name>
-        <stream-url>http://localhost:8080/asteroid/</stream-url>
+        <stream-url>http://localhost:8080/</stream-url>
         <genre>Electronic/Alternative</genre>
         <bitrate>128</bitrate>
     </mount>
@@ -155,7 +155,7 @@ networks:
         <public>1</public>
         <stream-name>Asteroid Radio - AAC</stream-name>
         <stream-description>Music for Hackers - 96kbps AAC</stream-description>
-        <stream-url>http://localhost:8080/asteroid/</stream-url>
+        <stream-url>http://localhost:8080/</stream-url>
         <genre>Electronic/Alternative</genre>
         <bitrate>96</bitrate>
     </mount>
@@ -169,7 +169,7 @@ networks:
         <public>1</public>
         <stream-name>Asteroid Radio - Low Quality</stream-name>
         <stream-description>Music for Hackers - 64kbps</stream-description>
-        <stream-url>http://localhost:8080/asteroid/</stream-url>
+        <stream-url>http://localhost:8080/</stream-url>
         <genre>Electronic/Alternative</genre>
         <bitrate>64</bitrate>
     </mount>
@@ -250,7 +250,7 @@ output.icecast(
   name="Asteroid Radio",
   description="Music for Hackers - Streaming from the Asteroid",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url="http://localhost:8080/",
   public=true,
   radio
 )
@@ -265,7 +265,7 @@ output.icecast(
   name="Asteroid Radio (AAC)",
   description="Music for Hackers - High efficiency AAC stream",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url="http://localhost:8080/",
   public=true,
   radio
 )
@@ -280,7 +280,7 @@ output.icecast(
   name="Asteroid Radio (Low Quality)",
   description="Music for Hackers - Low bandwidth stream",
   genre="Electronic/Alternative",
-  url="http://localhost:8080/asteroid/",
+  url="http://localhost:8080/",
   public=true,
   radio
 )
@@ -447,11 +447,11 @@ docker compose logs --tail=10 liquidsoap
 #+BEGIN_SRC bash
 # Music directory already exists in repository
 # Copy sample music directly to the music directory
-cp ~/path/to/music/*.mp3 docker/music/
+cp ~/path/to/music/*.mp3 music/library/
 
 # Set permissions
-chmod 755 docker/music/
-sudo chown -R $USER:$USER docker/music/
+chmod 755 music/library/
+sudo chown -R $USER:$USER music/library/
 #+END_SRC
 
 ** Persistent Data
@@ -586,8 +586,8 @@ echo "request.queue" | nc localhost 1234
 *** Permission Issues
 #+BEGIN_SRC bash
 # Fix music directory permissions
-sudo chown -R $USER:$USER docker/music/
-chmod 755 docker/music/
+sudo chown -R $USER:$USER music/library/
+chmod 755 music/library/
 #+END_SRC
 
 ** Performance Tuning

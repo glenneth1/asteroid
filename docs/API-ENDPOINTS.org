@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - API Endpoints Reference
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Overview
 
@@ -340,6 +340,43 @@ curl -X POST http://localhost:8080/api/asteroid/playlists/add-track \
 }
 #+END_SRC
 
+** POST /api/asteroid/playlists/remove-track
+
+Remove a track from a playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =playlist-id= (required) - ID of the playlist
+- =track-id= (required) - ID of the track to remove
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Track removed from playlist"
+}
+#+END_SRC
+
+** POST /api/asteroid/playlists/delete
+
+Delete a playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =playlist-id= (required) - ID of the playlist
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Playlist deleted"
+}
+#+END_SRC
+
 * Admin Endpoints
 
 ** POST /api/asteroid/admin/scan-library
@@ -353,10 +390,167 @@ Required (Admin role)
 #+BEGIN_SRC json
 {
   "status": "success",
-  "message": "Library scan initiated",
-  "tracksFound": 42
+  "message": "Library scan completed",
+  "tracks-added": 42
 }
 #+END_SRC
+
+** GET /api/asteroid/users
+
+Get all users.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+Returns a JSON object with a =users= array.
+
+** POST /api/asteroid/users/create
+
+Create a new user.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =username= (required)
+- =email= (required)
+- =password= (required)
+- =role= (required)
+
+*** Response
+Returns a JSON object indicating success or failure.
+
+* Stream Playlist File Endpoints (Admin Only)
+
+These endpoints manage playlist files in the =playlists/= directory, and control the currently active =playlists/stream-queue.m3u=.
+
+** GET /api/asteroid/stream/playlists
+
+List available playlist files in =playlists/= (excluding =stream-queue.m3u=).
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+Returns a JSON object with a =playlists= array of filenames.
+
+** POST /api/asteroid/stream/playlists/load
+
+Load a playlist file into =playlists/stream-queue.m3u= and return its paths.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =name= (required) - Playlist filename to load
+
+** POST /api/asteroid/stream/playlists/save
+
+Save the in-memory stream queue to =playlists/stream-queue.m3u=.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/stream/playlists/save-as
+
+Save the current stream queue to a new playlist file.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =name= (required) - New playlist filename (=.m3u= suffix is optional)
+
+** POST /api/asteroid/stream/playlists/clear
+
+Clear =playlists/stream-queue.m3u= and empty the in-memory stream queue.
+
+*** Authentication
+Required (Admin role)
+
+** GET /api/asteroid/stream/playlists/current
+
+Return the current =playlists/stream-queue.m3u= contents with best-effort track info.
+
+*** Authentication
+Required (Admin role)
+
+* Liquidsoap Control Endpoints (Admin Only)
+
+** GET /api/asteroid/liquidsoap/status
+
+Get Liquidsoap status including uptime, current metadata, and remaining time.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/liquidsoap/skip
+
+Skip the current track in the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/liquidsoap/reload
+
+Force Liquidsoap to reload the playlist.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/liquidsoap/restart
+
+Restart the Liquidsoap Docker container.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/icecast/restart
+
+Restart the Icecast Docker container.
+
+*** Authentication
+Required (Admin role)
+
+* Listener Statistics Endpoints
+
+** GET /api/asteroid/stats/current
+
+Get the current listener statistics.
+
+*** Authentication
+Not required
+
+** GET /api/asteroid/stats/daily
+
+Get the daily listener statistics.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+Returns a JSON object containing daily listener statistics.
+
+** GET /api/asteroid/stats/geo
+
+Get the geographical listener statistics.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+Returns a JSON object containing geographical listener statistics.
+
+** GET /api/asteroid/stats/geo/cities
+
+Get the listener statistics by city.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+Returns a JSON object containing the country and a =cities= array with per-city aggregates.
 
 * Error Responses
 

@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Documentation Index
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Welcome to Asteroid Radio Documentation
 
@@ -147,5 +147,5 @@ For detailed technical information, see the **[[file:PROJECT-OVERVIEW.org][Proje
 
 ---
 
-*Last Updated: 2025-10-26*
-*Documentation Version: 3.0*
+*Last Updated: 2026-01-26*
+*Documentation Version: 3.1*

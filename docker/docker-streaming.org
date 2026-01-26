@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Docker Streaming Setup
 #+AUTHOR: Asteroid Radio Team
-#+DATE: 2025-09-30
+#+DATE: 2026-01-26
 
 This setup provides a complete streaming solution using Docker with Liquidsoap and Icecast2.
 

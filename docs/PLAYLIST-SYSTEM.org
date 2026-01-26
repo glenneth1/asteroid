@@ -1,6 +1,6 @@
 #+TITLE: Playlist System - Complete (MVP)
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Overview
 
@@ -52,7 +52,7 @@ Implemented user playlist system with creation, storage, and playback functional
 
 ** API Endpoints
 
-*** GET /api/playlists
+*** GET /api/asteroid/playlists
 Get all playlists for current user
 #+BEGIN_SRC json
 {
@@ -69,16 +69,16 @@ Get all playlists for current user
 }
 #+END_SRC
 
-*** POST /api/playlists/create
+*** POST /api/asteroid/playlists/create
 Create a new playlist
 #+BEGIN_SRC
-POST /asteroid/api/playlists/create
+POST /api/asteroid/playlists/create
 Content-Type: application/x-www-form-urlencoded
 
 name=My Playlist&description=Optional description
 #+END_SRC
 
-*** GET /api/playlists/:id
+*** GET /api/asteroid/playlists/get
 Get playlist details with tracks
 #+BEGIN_SRC json
 {
@@ -98,10 +98,10 @@ Get playlist details with tracks
 }
 #+END_SRC
 
-*** POST /api/playlists/add-track
+*** POST /api/asteroid/playlists/add-track
 Add track to playlist (limited by database backend)
 #+BEGIN_SRC
-POST /asteroid/api/playlists/add-track
+POST /api/asteroid/playlists/add-track
 Content-Type: application/x-www-form-urlencoded
 
 playlist-id=12&track-id=1298
@@ -179,7 +179,7 @@ async function saveQueueAsPlaylist() {
   formData.append('name', name);
   formData.append('description', `Created from queue with ${playQueue.length} tracks`);
   
-  const response = await fetch('/asteroid/api/playlists/create', {
+  const response = await fetch('/api/asteroid/playlists/create', {
     method: 'POST',
     body: formData
   });
@@ -190,7 +190,7 @@ async function saveQueueAsPlaylist() {
     addFormData.append('playlist-id', newPlaylist.id);
     addFormData.append('track-id', track.id);
     
-    await fetch('/asteroid/api/playlists/add-track', {
+    await fetch('/api/asteroid/playlists/add-track', {
       method: 'POST',
       body: addFormData
     });
@@ -204,7 +204,7 @@ async function saveQueueAsPlaylist() {
 *** Load Playlist
 #+BEGIN_SRC javascript
 async function loadPlaylist(playlistId) {
-  const response = await fetch(`/asteroid/api/playlists/${playlistId}`);
+  const response = await fetch(`/api/asteroid/playlists/get?playlist-id=${playlistId}`);
   const result = await response.json();
   
   if (result.status === 'success' && result.playlist) {
@@ -301,7 +301,7 @@ Database stores some values as lists when they should be scalars:
 ** Modified Files
 - =asteroid.asd= - Added playlist-management.lisp
 - =asteroid.lisp= - Added playlist API endpoints
-- =template/player.chtml= - Added playlist UI and functions
+- =template/player.ctml= - Added playlist UI and functions
 - =database.lisp= - Playlists collection schema
 
 * Future Enhancements (Post-PostgreSQL)

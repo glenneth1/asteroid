@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Internet Radio Streaming Platform
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2025-10-26
+#+DATE: 2026-01-26
 
 * Overview
 
@@ -71,10 +71,10 @@ asteroid/
 │   ├── icecast.xml            # Icecast configuration
 │   └── music/                 # Music library mount
 ├── template/                  # CLIP HTML templates
-│   ├── front-page.chtml       # Main page with live stream
-│   ├── admin.chtml            # Admin dashboard
-│   ├── player.chtml           # Web player interface
-│   └── users.chtml            # User management
+│   ├── front-page.ctml        # Main page with live stream
+│   ├── admin.ctml             # Admin dashboard
+│   ├── player.ctml            # Web player interface
+│   └── users.ctml             # User management
 ├── static/                    # CSS and assets
 │   └── asteroid.lass          # LASS stylesheet
 ├── docs/                      # Comprehensive documentation
@@ -104,8 +104,8 @@ curl -I http://localhost:8000/asteroid-low.mp3
 #+END_SRC
 
 ** Access Points
-- *Web Interface*: http://localhost:8080/asteroid/
-- *Admin Panel*: http://localhost:8080/asteroid/admin
+- *Web Interface*: http://localhost:8080/
+- *Admin Panel*: http://localhost:8080/admin
 - *High Quality MP3*: http://localhost:8000/asteroid.mp3 (128kbps)
 - *High Quality AAC*: http://localhost:8000/asteroid.aac (96kbps)
 - *Low Quality MP3*: http://localhost:8000/asteroid-low.mp3 (64kbps)
@@ -115,7 +115,7 @@ curl -I http://localhost:8000/asteroid-low.mp3
 
 ** Adding Music
 1. *Copy files*: Place MP3/FLAC files in =docker/music/= directory
-2. *Access admin panel*: Navigate to =http://localhost:8080/asteroid/admin=
+2. *Access admin panel*: Navigate to =http://localhost:8080/admin=
 3. *Scan library*: Click "Scan Library" to index new tracks
 4. *Metadata extraction*: Track information automatically extracted
 5. *Stream queue*: Optionally add tracks to broadcast queue
@@ -396,4 +396,4 @@ Special thanks to all contributors and the Common Lisp community.
 
 ---
 
-*Last Updated: 2025-10-26*
+*Last Updated: 2026-01-26*
