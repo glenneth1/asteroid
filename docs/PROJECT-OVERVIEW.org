@@ -14,21 +14,21 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 ┌─────────────────────────────────────────────────────────────┐
 │                    Asteroid Radio Platform                  │
 ├─────────────────────────────────────────────────────────────┤
-│  Web Application Layer (Common Lisp + Radiance)            │
+│  Web Application Layer (Common Lisp + Radiance)             │
 │  ├── Authentication & User Management                       │
-│  ├── Music Library Management                              │
-│  ├── Web Player Interface                                  │
-│  └── API Endpoints                                         │
+│  ├── Music Library Management                               │
+│  ├── Web Player Interface                                   │
+│  └── API Endpoints                                          │
 ├─────────────────────────────────────────────────────────────┤
-│  Streaming Infrastructure (Docker)                         │
-│  ├── Icecast2 (Streaming Server)                          │
-│  ├── Liquidsoap (Audio Processing)                        │
-│  └── Multiple Format Support (AAC, MP3)                   │
+│  Streaming Infrastructure (Docker)                          │
+│  ├── Icecast2 (Streaming Server)                            │
+│  ├── Liquidsoap (Audio Processing)                          │
+│  └── Multiple Format Support (AAC, MP3)                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Data Layer                                                │
-│  ├── PostgreSQL Database (via Radiance)                   │
-│  ├── User Accounts & Profiles                             │
-│  └── Music Metadata                                       │
+│  Data Layer                                                 │
+│  ├── PostgreSQL Database (via Radiance)                     │
+│  ├── User Accounts & Profiles                               │
+│  └── Music Metadata                                         │
 └─────────────────────────────────────────────────────────────┘
 #+END_EXAMPLE
 
