@@ -513,6 +513,701 @@ Restart the Icecast Docker container.
 *** Authentication
 Required (Admin role)
 
+* Stream Queue Endpoints
+
+** GET /api/asteroid/stream/queue
+
+Get the current stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "queue": [
+    {
+      "id": "track-id-123",
+      "title": "Track Name",
+      "artist": "Artist Name",
+      "path": "/path/to/file.mp3"
+    }
+  ]
+}
+#+END_SRC
+
+** POST /api/asteroid/stream/queue/add
+
+Add a track to the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =track-id= (required) - ID of the track to add
+- =position= (optional) - Position in queue ("end" or index, default "end")
+
+** POST /api/asteroid/stream/queue/remove
+
+Remove a track from the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =track-id= (required) - ID of the track to remove
+
+** POST /api/asteroid/stream/queue/clear
+
+Clear the entire stream queue.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/stream/queue/add-playlist
+
+Add all tracks from a playlist to the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =playlist-id= (required) - ID of the playlist to add
+
+** POST /api/asteroid/stream/queue/reorder
+
+Reorder tracks in the stream queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =track-ids= (required) - Ordered list of track IDs
+
+** POST /api/asteroid/stream/queue/load-m3u
+
+Load the stream queue from =playlists/stream-queue.m3u=.
+
+*** Authentication
+Required (Admin role)
+
+* Recently Played Endpoints
+
+** GET /api/asteroid/recently-played
+
+Get recently played tracks.
+
+*** Authentication
+Not required
+
+*** Parameters
+- =mount= (optional) - Stream mount point (default: main stream)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "tracks": [
+    {
+      "title": "Artist - Track Name",
+      "played_at": "2026-01-26T12:00:00Z"
+    }
+  ]
+}
+#+END_SRC
+
+* Playlist Scheduler Endpoints (Admin Only)
+
+** GET /api/asteroid/scheduler/status
+
+Get the current scheduler status.
+
+*** Authentication
+Required (Admin role)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "enabled": true,
+  "current_playlist": "Asteroid-Low-Orbit.m3u",
+  "current_hour": 14,
+  "schedule": [
+    {"hour": 0, "playlist": "Late-Night.m3u"},
+    {"hour": 6, "playlist": "Morning.m3u"}
+  ],
+  "available_playlists": ["Asteroid-Low-Orbit.m3u", "Late-Night.m3u"]
+}
+#+END_SRC
+
+** POST /api/asteroid/scheduler/enable
+
+Enable the playlist scheduler.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/scheduler/disable
+
+Disable the playlist scheduler (stops automatic playlist changes).
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/scheduler/load-current
+
+Load the playlist for the current hour.
+
+*** Authentication
+Required (Admin role)
+
+** GET /api/asteroid/scheduler/schedule
+
+Get the full schedule.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/scheduler/update
+
+Update a schedule entry.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =hour= (required) - Hour (0-23)
+- =playlist= (required) - Playlist filename
+
+** POST /api/asteroid/scheduler/remove
+
+Remove a schedule entry.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =hour= (required) - Hour to remove from schedule
+
+* Track Request Endpoints
+
+** POST /api/asteroid/requests/submit
+
+Submit a track request.
+
+*** Authentication
+Required
+
+*** Parameters
+- =title= (required) - Track title to request
+- =message= (optional) - Message with the request
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "message": "Request submitted"
+}
+#+END_SRC
+
+** GET /api/asteroid/requests/my
+
+Get current user's requests.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "requests": [
+    {
+      "id": 1,
+      "title": "Artist - Track",
+      "status": "pending",
+      "created_at": "2026-01-26T12:00:00Z"
+    }
+  ]
+}
+#+END_SRC
+
+** GET /api/asteroid/requests/recent
+
+Get recently played requests (public).
+
+*** Authentication
+Not required
+
+** GET /api/asteroid/admin/requests/pending
+
+Get pending requests for admin review.
+
+*** Authentication
+Required (Admin role)
+
+** GET /api/asteroid/admin/requests/list
+
+Get requests by status.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =status= (optional) - Filter by status: "pending", "approved", "rejected", "played" (default: "pending")
+
+** GET /api/asteroid/admin/requests/approved
+
+Get approved requests ready to queue.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/admin/requests/approve
+
+Approve a track request.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =id= (required) - Request ID
+
+** POST /api/asteroid/admin/requests/reject
+
+Reject a track request.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =id= (required) - Request ID
+
+** POST /api/asteroid/admin/requests/play
+
+Mark a request as played and add to queue.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =id= (required) - Request ID
+
+* User Custom Playlist Endpoints
+
+** GET /api/asteroid/library/browse
+
+Browse the music library.
+
+*** Authentication
+Required
+
+*** Parameters
+- =search= (optional) - Search term
+- =artist= (optional) - Filter by artist
+- =album= (optional) - Filter by album
+- =page= (optional) - Page number for pagination
+
+** GET /api/asteroid/user/playlists
+
+Get current user's custom playlists.
+
+*** Authentication
+Required
+
+** GET /api/asteroid/user/playlists/get
+
+Get a specific user playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =id= (required) - Playlist ID
+
+** POST /api/asteroid/user/playlists/create
+
+Create a new user playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =name= (required) - Playlist name
+- =description= (optional) - Playlist description
+
+** POST /api/asteroid/user/playlists/update
+
+Update a user playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =id= (required) - Playlist ID
+- =name= (optional) - New name
+- =description= (optional) - New description
+- =tracks= (optional) - Updated track list
+
+** POST /api/asteroid/user/playlists/submit
+
+Submit a playlist for admin review.
+
+*** Authentication
+Required
+
+*** Parameters
+- =id= (required) - Playlist ID
+
+** POST /api/asteroid/user/playlists/delete
+
+Delete a user playlist.
+
+*** Authentication
+Required
+
+*** Parameters
+- =id= (required) - Playlist ID
+
+** GET /api/asteroid/admin/user-playlists
+
+Get all submitted user playlists for review.
+
+*** Authentication
+Required (Admin role)
+
+** POST /api/asteroid/admin/user-playlists/review
+
+Review a submitted playlist.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =id= (required) - Playlist ID
+- =action= (required) - "approve" or "reject"
+- =notes= (optional) - Review notes
+
+** GET /api/asteroid/admin/user-playlists/preview
+
+Preview a submitted playlist.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =id= (required) - Playlist ID
+
+* User Favorites Endpoints
+
+** GET /api/asteroid/user/favorites
+
+Get current user's favorite tracks.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "favorites": [
+    {
+      "track_id": 123,
+      "title": "Artist - Track",
+      "rating": 5,
+      "added_at": "2026-01-26T12:00:00Z"
+    }
+  ]
+}
+#+END_SRC
+
+** POST /api/asteroid/user/favorites/add
+
+Add a track to favorites.
+
+*** Authentication
+Required
+
+*** Parameters
+- =track-id= (optional) - Track ID
+- =title= (optional) - Track title (if track-id not provided)
+- =rating= (optional) - Rating 1-5
+
+** POST /api/asteroid/user/favorites/remove
+
+Remove a track from favorites.
+
+*** Authentication
+Required
+
+*** Parameters
+- =track-id= (optional) - Track ID
+- =title= (optional) - Track title (if track-id not provided)
+
+** POST /api/asteroid/user/favorites/rate
+
+Rate a favorite track.
+
+*** Authentication
+Required
+
+*** Parameters
+- =track-id= (required) - Track ID
+- =rating= (required) - Rating 1-5
+
+** GET /api/asteroid/user/favorites/check
+
+Check if a track is in favorites.
+
+*** Authentication
+Required
+
+*** Parameters
+- =track-id= (required) - Track ID
+
+*** Response
+#+BEGIN_SRC json
+{
+  "is_favorite": true,
+  "rating": 5
+}
+#+END_SRC
+
+* User Listening History Endpoints
+
+** GET /api/asteroid/user/history
+
+Get current user's listening history.
+
+*** Authentication
+Required
+
+** POST /api/asteroid/user/history/record
+
+Record a track listen.
+
+*** Authentication
+Required
+
+*** Parameters
+- =track-id= (optional) - Track ID
+- =title= (optional) - Track title
+- =duration= (optional) - Listen duration in seconds
+- =completed= (optional) - Whether track was completed (0 or 1)
+
+** POST /api/asteroid/user/history/clear
+
+Clear listening history.
+
+*** Authentication
+Required
+
+** GET /api/asteroid/user/activity
+
+Get listening activity data for charts.
+
+*** Authentication
+Required
+
+*** Parameters
+- =days= (optional) - Number of days to include (default: 30)
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "activity": [
+    {"date": "2026-01-26", "minutes": 120, "tracks": 25}
+  ]
+}
+#+END_SRC
+
+* User Profile Endpoints
+
+** GET /api/asteroid/user/profile
+
+Get current user's profile data.
+
+*** Authentication
+Required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "status": "success",
+  "user": {
+    "username": "user123",
+    "email": "user@example.com",
+    "role": "listener",
+    "avatar": "/avatars/user123.png",
+    "created_at": "2025-10-01T12:00:00Z"
+  }
+}
+#+END_SRC
+
+** GET /api/asteroid/user/listening-stats
+
+Get user's listening statistics.
+
+*** Authentication
+Required
+
+** GET /api/asteroid/user/recent-tracks
+
+Get user's recently listened tracks.
+
+*** Authentication
+Required
+
+*** Parameters
+- =limit= (optional) - Number of tracks (default: 3)
+- =offset= (optional) - Offset for pagination (default: 0)
+
+** GET /api/asteroid/user/top-artists
+
+Get user's top artists.
+
+*** Authentication
+Required
+
+*** Parameters
+- =limit= (optional) - Number of artists (default: 5)
+
+** POST /api/asteroid/user/avatar/upload
+
+Upload a user avatar.
+
+*** Authentication
+Required
+
+*** Request
+Multipart form data with image file.
+
+** GET /api/asteroid/user/avatar
+
+Get current user's avatar URL.
+
+*** Authentication
+Required
+
+* User Account Endpoints
+
+** POST /api/asteroid/user/change-password
+
+Change current user's password.
+
+*** Authentication
+Required
+
+*** Parameters
+- =current-password= (required) - Current password
+- =new-password= (required) - New password
+
+** POST /api/asteroid/admin/reset-password
+
+Reset any user's password (admin only).
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =username= (required) - Username
+- =new-password= (required) - New password
+
+** POST /api/asteroid/user/activate
+
+Activate or deactivate a user account.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =user-id= (required) - User ID
+- =active= (required) - "true" or "false"
+
+** POST /api/asteroid/user/role
+
+Change a user's role.
+
+*** Authentication
+Required (Admin role)
+
+*** Parameters
+- =user-id= (required) - User ID
+- =role= (required) - New role ("admin", "dj", "listener")
+
+** GET /api/asteroid/user-stats
+
+Get user statistics (counts by role, active users, etc.).
+
+*** Authentication
+Required (Admin role)
+
+* Frontend Partial Endpoints
+
+These endpoints return HTML partials or JSON for frontend updates.
+
+** GET /api/asteroid/partial/now-playing
+
+Get HTML partial with current now-playing information.
+
+*** Authentication
+Not required
+
+*** Parameters
+- =mount= (optional) - Stream mount point
+
+*** Response
+HTML fragment for embedding in page.
+
+** GET /api/asteroid/partial/now-playing-inline
+
+Get inline text with now-playing info (for admin dashboard and widgets).
+
+*** Authentication
+Not required
+
+*** Parameters
+- =mount= (optional) - Stream mount point
+
+*** Response
+Plain text: "Artist - Track Title"
+
+** GET /api/asteroid/partial/now-playing-json
+
+Get JSON with now-playing info including track ID for favorites.
+
+*** Authentication
+Not required
+
+*** Parameters
+- =mount= (optional) - Stream mount point
+
+*** Response
+#+BEGIN_SRC json
+{
+  "title": "Artist - Track Name",
+  "track_id": 123,
+  "listeners": 5
+}
+#+END_SRC
+
+** GET /api/asteroid/channel-name
+
+Get the current curated channel name.
+
+*** Authentication
+Not required
+
+*** Response
+#+BEGIN_SRC json
+{
+  "channel": "Asteroid Low Orbit"
+}
+#+END_SRC
+
 * Listener Statistics Endpoints
 
 ** GET /api/asteroid/stats/current
@@ -551,6 +1246,18 @@ Required (Admin role)
 
 *** Response
 Returns a JSON object containing the country and a =cities= array with per-city aggregates.
+
+* Utility Endpoints
+
+** GET /api/asteroid/spectrum-analyzer.js
+
+Get the dynamically generated JavaScript for the spectrum analyzer.
+
+*** Authentication
+Not required
+
+*** Response
+JavaScript code for the spectrum analyzer visualization.
 
 * Error Responses
 
