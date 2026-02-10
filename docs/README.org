@@ -60,7 +60,7 @@ Pagination system for efficient browsing of large music libraries.
 
 ** What's Working Now
 - **Web Application**: Full-featured web interface with authentication
-- **REST API**: JSON API with 15+ endpoints for programmatic access
+- **REST API**: JSON API with 90+ endpoints for programmatic access
 - **User Management**: Registration, login, roles (Admin/DJ/Listener), and profiles
 - **Music Library**: Track management with pagination, search, and filtering
 - **Playlists**: User playlists with creation and playback

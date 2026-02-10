@@ -1,6 +1,6 @@
 #+TITLE: Templating System
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2026-01-17
+#+DATE: 2026-01-26
 
 * Introduction
 

@@ -170,14 +170,50 @@ The system also tracks recently played tracks:
 (add-to-stream-history 42)
 #+END_SRC
 
+* Playlist Scheduler
+
+The playlist scheduler automatically switches playlists based on a time-of-day schedule (UTC). It uses =cl-cron= to trigger playlist changes at configured hours.
+
+** How It Works
+
+1. Schedule entries map UTC hours to playlist filenames (stored in database)
+2. At each scheduled hour, the scheduler:
+   - Copies the target playlist to =playlists/stream-queue.m3u=
+   - Loads the queue into memory
+   - Sends =reload= and =skip= commands to Liquidsoap (with retries)
+3. Liquidsoap crossfades to the new playlist
+
+** Scheduler API Endpoints (Admin Only)
+
+- =GET /api/asteroid/scheduler/status= - Current status, schedule, and server time
+- =POST /api/asteroid/scheduler/enable= / =disable= - Toggle scheduler
+- =POST /api/asteroid/scheduler/load-current= - Force-load the current scheduled playlist
+- =POST /api/asteroid/scheduler/update= - Add/update a schedule entry (hour + playlist)
+- =POST /api/asteroid/scheduler/remove= - Remove a schedule entry
+- =GET /api/asteroid/scheduler/schedule= - View the full schedule
+
+** Retry Mechanism
+
+The scheduler uses =liquidsoap-reload-and-skip= which:
+- Sends =stream-queue_m3u.reload= up to 3 times with 2-second delays
+- Then sends =stream-queue_m3u.skip= up to 3 times to trigger crossfade
+- Validates each response with =liquidsoap-command-succeeded-p=
+- Logs each attempt for diagnostics
+
+** Troubleshooting
+
+- Check scheduler status: =curl -b cookies.txt https://asteroid.radio/api/asteroid/scheduler/status=
+- Force reload current playlist: =curl -b cookies.txt -X POST https://asteroid.radio/api/asteroid/scheduler/load-current=
+- Check Liquidsoap status: =curl -b cookies.txt https://asteroid.radio/api/asteroid/liquidsoap/status=
+
 * Future Enhancements
 
 - [ ] Web UI for queue management (drag-and-drop reordering)
-- [ ] Telnet integration for real-time skip/next commands
-- [ ] Scheduled programming (time-based queue switching)
+- [X] Telnet integration for real-time skip/next commands
+- [X] Scheduled programming (time-based queue switching)
 - [ ] Auto-queue filling (automatically add tracks when queue runs low)
 - [ ] Genre-based smart queues
-- [ ] Listener request system
+- [X] Listener request system
 
 * Troubleshooting
 
