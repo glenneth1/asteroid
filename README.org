@@ -229,7 +229,7 @@ echo "request.skip" | nc localhost 1234
 
 * API Endpoints
 
-Asteroid Radio provides a comprehensive REST API with 15+ endpoints.
+Asteroid Radio provides a comprehensive REST API with 90+ endpoints.
 
 ** Status & Authentication
 - =GET /api/asteroid/status= - Server status

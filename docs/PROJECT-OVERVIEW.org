@@ -87,7 +87,7 @@ Asteroid Radio is a modern, web-based music streaming platform designed for hack
 - ✅ **User Playlists** - Create, manage, and play personal music collections
 - ✅ **Multiple Player Modes** - Inline, pop-out, and persistent frameset players
 - ✅ **Stream Queue Control** - Admin control over broadcast stream queue (M3U-based)
-- ✅ **REST API** - Comprehensive JSON API with 15+ endpoints
+- ✅ **REST API** - Comprehensive JSON API with 90+ endpoints
 - ✅ **Music Streaming** - Multiple quality formats (128k MP3, 96k AAC, 64k MP3)
 - ✅ **Rate Limiting** - Anti-abuse protection
 - ✅ **Docker Integration** - Icecast2/Liquidsoap streaming infrastructure

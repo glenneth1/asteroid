@@ -184,7 +184,7 @@ curl http://localhost:8080/api/asteroid/icecast-status
 curl -b cookies.txt http://localhost:8080/api/asteroid/tracks
 #+END_SRC
 
-See **[[file:API-ENDPOINTS.org][API Endpoints Reference]]** for complete documentation of all 15+ endpoints.
+See **[[file:API-ENDPOINTS.org][API Endpoints Reference]]** for complete documentation of all 90+ endpoints.
 
 * Getting Help
 

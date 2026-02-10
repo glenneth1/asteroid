@@ -33,6 +33,44 @@
   (let ((current-hour (local-time:timestamp-hour (local-time:now) :timezone local-time:+utc-zone+)))
     (get-scheduled-playlist-for-hour current-hour)))
 
+(defun liquidsoap-command-succeeded-p (result)
+  "Check if a liquidsoap-command result indicates success.
+   Returns NIL if the result is empty, an error string, or otherwise invalid."
+  (and result
+       (stringp result)
+       (> (length (string-trim '(#\Space #\Newline #\Return) result)) 0)
+       (not (search "Error:" result :test #'char-equal))))
+
+(defun liquidsoap-reload-and-skip (&key (max-retries 3) (retry-delay 2))
+  "Reload the playlist and skip the current track in Liquidsoap with retries.
+   First reloads the playlist file, then skips to trigger crossfade.
+   Retries up to MAX-RETRIES times with RETRY-DELAY seconds between attempts."
+  (let ((reload-ok nil)
+        (skip-ok nil))
+    ;; Step 1: Reload the playlist file in Liquidsoap
+    (dotimes (attempt max-retries)
+      (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
+        (format t "~&[SCHEDULER] Reload attempt ~a/~a: ~a~%" 
+                (1+ attempt) max-retries (string-trim '(#\Space #\Newline #\Return) result))
+        (when (liquidsoap-command-succeeded-p result)
+          (setf reload-ok t)
+          (return)))
+      (when (< attempt (1- max-retries))
+        (sleep retry-delay)))
+    ;; Step 2: Skip current track to trigger crossfade to new playlist
+    (when reload-ok
+      (sleep 1)) ; Brief pause after reload before skipping
+    (dotimes (attempt max-retries)
+      (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
+        (format t "~&[SCHEDULER] Skip attempt ~a/~a: ~a~%" 
+                (1+ attempt) max-retries (string-trim '(#\Space #\Newline #\Return) result))
+        (when (liquidsoap-command-succeeded-p result)
+          (setf skip-ok t)
+          (return)))
+      (when (< attempt (1- max-retries))
+        (sleep retry-delay)))
+    (values skip-ok reload-ok)))
+
 (defun load-scheduled-playlist (playlist-name)
   "Load a playlist by name, copying it to stream-queue.m3u and triggering playback."
   (let ((playlist-path (merge-pathnames playlist-name (get-playlists-directory))))
@@ -41,12 +79,17 @@
           (format t "~&[SCHEDULER] Loading playlist: ~a~%" playlist-name)
           (copy-playlist-to-stream-queue playlist-path)
           (load-queue-from-m3u-file)
-          (handler-case
-              (progn
-                (liquidsoap-command "stream-queue_m3u.skip")
-                (format t "~&[SCHEDULER] Playlist ~a loaded and crossfade triggered~%" playlist-name))
-            (error (e)
-              (format t "~&[SCHEDULER] Warning: Could not skip track: ~a~%" e)))
+          (multiple-value-bind (skip-ok reload-ok)
+              (liquidsoap-reload-and-skip)
+            (cond
+              ((and reload-ok skip-ok)
+               (format t "~&[SCHEDULER] Playlist ~a loaded and crossfade triggered successfully~%" playlist-name))
+              (skip-ok
+               (format t "~&[SCHEDULER] WARNING: Reload failed but skip succeeded for ~a~%" playlist-name))
+              (reload-ok
+               (format t "~&[SCHEDULER] WARNING: Reload OK but skip failed for ~a - track may not change immediately~%" playlist-name))
+              (t
+               (format t "~&[SCHEDULER] ERROR: Both reload and skip failed for ~a - Liquidsoap may be unresponsive~%" playlist-name))))
           t)
         (progn
           (format t "~&[SCHEDULER] Error: Playlist not found: ~a~%" playlist-name)

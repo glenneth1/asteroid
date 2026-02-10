@@ -1,6 +1,6 @@
 #+TITLE: Asteroid Radio - Project Development History
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2026-01-26
+#+DATE: 2026-02-10
 #+DESCRIPTION: Comprehensive history of the Asteroid Radio project from inception to present
 
 * Project Overview
@@ -344,8 +344,8 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 
 ** Active Development Period
 - Start: August 12, 2025
-- Current: January 26, 2026
-- Duration: ~5.5 months of active development
+- Current: February 10, 2026
+- Duration: ~6 months of active development
 
 * Major Features Implemented
 
@@ -427,9 +427,9 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Parallel music scanning
 - Client-side caching
 
-** Phase 10: Documentation Overhaul (January 2026)
+* Phase 10: Documentation Overhaul (January 2026)
 
-*** 2026-01-26: Comprehensive Documentation Update
+** 2026-01-26: Comprehensive Documentation Update
 - *Lead*: Glenn Thompson / Cascade
 - Major documentation alignment with current codebase
 - Standardized all API endpoint references to `/api/asteroid/` base path
@@ -442,7 +442,39 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Bumped documentation version to 3.1
 - Author metadata standardization (Glenn → Glenn Thompson where applicable)
 
-* Current State (January 2026)
+** 2026-01-27: Complete API Documentation
+- *Lead*: Glenn Thompson / Cascade
+- Audited all =define-api= endpoints in codebase (90+ total)
+- Added complete documentation for all previously undocumented APIs:
+  - Stream Queue endpoints (7 endpoints)
+  - Playlist Scheduler endpoints (7 endpoints)
+  - Track Request endpoints (9 endpoints)
+  - User Custom Playlist endpoints (10 endpoints)
+  - User Favorites endpoints (5 endpoints)
+  - User Listening History endpoints (4 endpoints)
+  - User Profile endpoints (6 endpoints)
+  - User Account endpoints (5 endpoints)
+  - Frontend Partial endpoints (4 endpoints)
+  - Utility endpoints (spectrum-analyzer.js)
+- API-ENDPOINTS.org now covers 100% of define-api endpoints in codebase
+
+* Phase 11: Scheduler Reliability Fix (February 2026)
+
+** 2026-02-10: Playlist Scheduler Retry Logic
+- *Lead*: Glenn Thompson / Cascade
+- Diagnosed intermittent playlist scheduler failures on production
+- Root cause: Liquidsoap telnet commands via =nc -q1= silently failing
+  - =liquidsoap-command= catches all errors and returns error strings
+  - Scheduler =handler-case= never triggered because no CL error was raised
+  - Playlist file updated correctly but Liquidsoap never switched playback
+- Fix: Added =liquidsoap-reload-and-skip= with robust retry mechanism
+  - Sends =stream-queue_m3u.reload= before skip (belt-and-suspenders)
+  - Retries both reload and skip up to 3 times with 2-second delays
+  - =liquidsoap-command-succeeded-p= validates command responses
+  - Clear logging of each attempt for diagnostics
+- New playlists added: =solar-flare.m3u=, =ceres-rising.m3u=
+
+* Current State (February 2026)
 
 ** Production Ready Features
 - Full music streaming platform
@@ -453,6 +485,7 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Complete Docker deployment (streams + application)
 - Multi-environment support with dynamic URLs
 - Comprehensive documentation
+- Automatic playlist scheduling with retry logic
 
 ** Active Development Areas
 - PostgreSQL migration (configured, ready for data migration)
@@ -461,11 +494,13 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 - Performance optimization
 - Feature expansion based on user feedback
 
-** Recent Achievements (January 2026)
+** Recent Achievements (January-February 2026)
 - Complete documentation overhaul aligning docs with codebase
 - API endpoint standardization (`/api/asteroid/` base path)
+- 100% API documentation coverage (90+ endpoints)
 - Docker deployment fully documented
 - Documentation version 3.1 released
+- Playlist scheduler reliability fix with retry logic
 - All metadata updated and consistent
 
 ** Known Issues & Future Work
@@ -509,7 +544,7 @@ Asteroid Radio is a web-based internet radio station built with Common Lisp, fea
 
 * Conclusion
 
-Asteroid Radio has evolved from a simple concept into a full-featured internet radio platform over 5+ months of active development. The project demonstrates the power of Common Lisp for web development and the collaborative nature of open-source development.
+Asteroid Radio has evolved from a simple concept into a full-featured internet radio platform over 6 months of active development. The project demonstrates the power of Common Lisp for web development and the collaborative nature of open-source development.
 
 With complete Docker deployment, comprehensive documentation, and a growing feature set, Asteroid Radio is ready for production use while continuing to evolve with regular improvements, bug fixes, and new features based on user needs and technical requirements.
 
@@ -520,4 +555,4 @@ With complete Docker deployment, comprehensive documentation, and a growing feat
 
 ---
 
-*Last Updated: 2026-01-26*
+*Last Updated: 2026-02-10*
