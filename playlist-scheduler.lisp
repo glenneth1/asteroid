@@ -50,8 +50,6 @@
     ;; Step 1: Reload the playlist file in Liquidsoap
     (dotimes (attempt max-retries)
       (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
-        (format t "~&[SCHEDULER] Reload attempt ~a/~a: ~a~%" 
-                (1+ attempt) max-retries (string-trim '(#\Space #\Newline #\Return) result))
         (when (liquidsoap-command-succeeded-p result)
           (setf reload-ok t)
           (return)))
@@ -62,8 +60,6 @@
       (sleep 1)) ; Brief pause after reload before skipping
     (dotimes (attempt max-retries)
       (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
-        (format t "~&[SCHEDULER] Skip attempt ~a/~a: ~a~%" 
-                (1+ attempt) max-retries (string-trim '(#\Space #\Newline #\Return) result))
         (when (liquidsoap-command-succeeded-p result)
           (setf skip-ok t)
           (return)))
@@ -76,30 +72,23 @@
   (let ((playlist-path (merge-pathnames playlist-name (get-playlists-directory))))
     (if (probe-file playlist-path)
         (progn
-          (format t "~&[SCHEDULER] Loading playlist: ~a~%" playlist-name)
           (copy-playlist-to-stream-queue playlist-path)
           (load-queue-from-m3u-file)
           (multiple-value-bind (skip-ok reload-ok)
               (liquidsoap-reload-and-skip)
-            (cond
-              ((and reload-ok skip-ok)
-               (format t "~&[SCHEDULER] Playlist ~a loaded and crossfade triggered successfully~%" playlist-name))
-              (skip-ok
-               (format t "~&[SCHEDULER] WARNING: Reload failed but skip succeeded for ~a~%" playlist-name))
-              (reload-ok
-               (format t "~&[SCHEDULER] WARNING: Reload OK but skip failed for ~a - track may not change immediately~%" playlist-name))
-              (t
-               (format t "~&[SCHEDULER] ERROR: Both reload and skip failed for ~a - Liquidsoap may be unresponsive~%" playlist-name))))
+            (if (and reload-ok skip-ok)
+                (log:info "Scheduler loaded ~a" playlist-name)
+                (log:error "Scheduler failed to switch to ~a (reload:~a skip:~a)" 
+                           playlist-name reload-ok skip-ok)))
           t)
         (progn
-          (format t "~&[SCHEDULER] Error: Playlist not found: ~a~%" playlist-name)
+          (log:error "Scheduler playlist not found: ~a" playlist-name)
           nil))))
 
 (defun scheduled-playlist-loader (hour playlist-name)
   "Create a function that loads a specific playlist. Used by cl-cron jobs."
   (lambda ()
     (when *scheduler-enabled*
-      (format t "~&[SCHEDULER] Triggered at hour ~a UTC - loading ~a~%" hour playlist-name)
       (load-scheduled-playlist playlist-name))))
 
 ;;; Cron Job Management
@@ -107,30 +96,25 @@
 (defun setup-playlist-cron-jobs ()
   "Set up cl-cron jobs for all scheduled playlists."
   (unless *scheduler-running*
-    (format t "~&[SCHEDULER] Setting up playlist schedule:~%")
     (dolist (entry *playlist-schedule*)
       (let ((hour (car entry))
             (playlist (cdr entry)))
-        (format t "~&[SCHEDULER]   ~2,'0d:00 UTC -> ~a~%" hour playlist)
         (cl-cron:make-cron-job 
          (scheduled-playlist-loader hour playlist)
          :minute 0 
          :hour hour)))
-    (setf *scheduler-running* t)
-    (format t "~&[SCHEDULER] Playlist schedule configured~%")))
+    (setf *scheduler-running* t)))
 
 (defun start-playlist-scheduler ()
   "Start the playlist scheduler. Sets up cron jobs and starts cl-cron."
   (setup-playlist-cron-jobs)
   (cl-cron:start-cron)
-  (format t "~&[SCHEDULER] Playlist scheduler started~%")
   t)
 
 (defun stop-playlist-scheduler ()
   "Stop the playlist scheduler."
   (cl-cron:stop-cron)
   (setf *scheduler-running* nil)
-  (format t "~&[SCHEDULER] Playlist scheduler stopped~%")
   t)
 
 (defun restart-playlist-scheduler ()
@@ -150,10 +134,9 @@
                   (mapcar (lambda (row)
                             (cons (first row) (second row)))
                           rows))
-            (format t "~&[SCHEDULER] Loaded ~a schedule entries from database~%" (length rows)))))
+            (log:info "Scheduler loaded ~a entries from database" (length rows)))))
     (error (e)
-      (format t "~&[SCHEDULER] Warning: Could not load schedule from DB: ~a~%" e)
-      (format t "~&[SCHEDULER] Using default schedule~%"))))
+      (log:warn "Scheduler DB load failed, using defaults: ~a" e))))
 
 (defun save-schedule-entry-to-db (hour playlist-name)
   "Save or update a schedule entry in the database."
@@ -172,7 +155,7 @@
              (format nil "INSERT INTO playlist_schedule (hour, playlist, updated_at) VALUES (~a, '~a', NOW()) ON CONFLICT (hour) DO UPDATE SET playlist = '~a', updated_at = NOW()"
                      hour playlist-name playlist-name)))
         (error (e2)
-          (format t "~&[SCHEDULER] Warning: Could not save schedule entry: ~a~%" e2))))))
+          (log:warn "Scheduler could not save schedule entry: ~a" e2))))))
 
 (defun delete-schedule-entry-from-db (hour)
   "Delete a schedule entry from the database."
@@ -180,7 +163,7 @@
       (with-db
         (postmodern:query (:delete-from 'playlist_schedule :where (:= 'hour hour))))
     (error (e)
-      (format t "~&[SCHEDULER] Warning: Could not delete schedule entry: ~a~%" e))))
+      (log:warn "Scheduler could not delete schedule entry: ~a" e))))
 
 (defun add-scheduled-playlist (hour playlist-name)
   "Add or update a playlist in the schedule (persists to database)."
@@ -352,17 +335,13 @@
 
 (define-trigger db:connected ()
   "Start the playlist scheduler after database connection is established"
-  (format t "~&[SCHEDULER] Database connected, starting playlist scheduler...~%")
   (handler-case
       (progn
-        ;; Load schedule from database first
         (load-schedule-from-db)
         (start-playlist-scheduler)
-        ;; Load the current scheduled playlist on startup
         (let ((current-playlist (get-current-scheduled-playlist)))
           (when current-playlist
-            (format t "~&[SCHEDULER] Loading current scheduled playlist: ~a~%" current-playlist)
             (load-scheduled-playlist current-playlist)))
-        (format t "~&[SCHEDULER] Scheduler auto-started successfully~%"))
+        (log:info "Playlist scheduler started"))
     (error (e)
-      (format t "~&[SCHEDULER] Warning: Could not auto-start scheduler: ~a~%" e))))
+      (log:error "Scheduler failed to start: ~a" e))))
