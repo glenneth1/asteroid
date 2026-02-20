@@ -34,6 +34,7 @@
       (error (e)
         (declare (ignore e))
         nil))))
+
 (defun icecast-now-playing (icecast-base-url &optional (mount "asteroid.mp3"))
   "Fetch now-playing information from Icecast server.
   
@@ -89,7 +90,8 @@
             `((:listenurl . ,(format nil "~a/~a" *stream-base-url* mount))
               (:title . ,title)
               (:listeners . ,total-listeners)
-              (:track-id . ,(find-track-by-title title))))))))
+              (:track-id . ,(find-track-by-title title))
+              (:favorite-count . ,(or (get-track-favorite-count title) 1))))))))
 
 (define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 10 :timeout 1)
   "Get Partial HTML with live status from Icecast server.
