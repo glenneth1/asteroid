@@ -825,22 +825,24 @@
   "Main front page"
   ;; Register this visitor for geo stats (captures real IP from X-Forwarded-For)
   (register-web-listener)
-  (clip:process-to-string 
-   (load-template "front-page")
-   :title "ASTEROID RADIO"
-   :station-name "ASTEROID RADIO"
-   :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
-   :listeners "0"
-   :stream-quality "128kbps MP3"
-   :stream-base-url *stream-base-url*
-   :curated-channel-name (get-curated-channel-name)
-   :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
-   :default-stream-encoding "audio/aac"
-   :default-stream-encoding-desc "AAC 96kbps Stereo"
-   :now-playing-artist "The Void"
-   :now-playing-track "Silence"
-   :now-playing-album "Startup Sounds"
-   :now-playing-duration "∞"))
+  (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+    (clip:process-to-string
+     (load-template "front-page")
+     :title "ASTEROID RADIO"
+     :station-name "ASTEROID RADIO"
+     :status-message "🟢 LIVE - Broadcasting asteroid music for hackers"
+     :listeners "0"
+     :connection-error (not now-playing-stats)
+     :stream-quality "128kbps MP3"
+     :stream-base-url *stream-base-url*
+     :curated-channel-name (get-curated-channel-name)
+     :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*)
+     :default-stream-encoding "audio/aac"
+     :default-stream-encoding-desc "AAC 96kbps Stereo"
+     :now-playing-artist "The Void"
+     :now-playing-track "Silence"
+     :now-playing-album "Startup Sounds"
+     :now-playing-duration "∞")))
 
 ;; Frameset wrapper for persistent player mode
 (define-page frameset-wrapper #@"/frameset" ()

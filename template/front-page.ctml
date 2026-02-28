@@ -117,7 +117,9 @@
         </c:if>
       </div>
       
-      <div id="now-playing" class="now-playing"></div>
+      <div id="now-playing" class="now-playing">
+        <c:h>(asteroid::load-template "partial/now-playing")</c:h>
+      </div>
       
       <!-- Recently Played Tracks -->
       <div id="recently-played-panel" class="recently-played-panel">

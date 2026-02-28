@@ -8,11 +8,11 @@
                     <span class="star-icon">☆</span>
                 </button>
             </div>
-            <p>Listeners: <span lquery="(text listeners)">1</span></p>
+            <p>Listeners: <span id="current-listeners" lquery="(text listeners)">1</span></p>
+            <input type="hidden" id="current-track-id" lquery="(val track-id)" value="">
+            <input type="hidden" id="favorite-count-value" lquery="(val favorite-count)" value="0">
+            <p class="favorite-count" id="favorite-count-display"></p>
         </c:using>
-        <input type="hidden" id="current-track-id" lquery="(val track-id)" value="">
-        <input type="hidden" id="favorite-count-value" lquery="(val favorite-count)" value="0">
-        <p class="favorite-count" id="favorite-count-display"></p>
     </c:then>
     <c:else>
         <c:if test="connection-error">
