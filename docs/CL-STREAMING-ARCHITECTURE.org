@@ -1,0 +1,198 @@
+#+TITLE: CL-Native Streaming Architecture
+#+AUTHOR: Glenn Thompson
+#+DATE: 2026-03-03
+#+OPTIONS: toc:2
+
+* Overview
+
+This document outlines the architecture for replacing Icecast and Liquidsoap
+with a pure Common Lisp streaming solution for Asteroid Radio.
+
+** Goals
+
+- Eliminate external dependencies on Icecast and Liquidsoap
+- Leverage existing CL audio ecosystem (Harmony, cl-mixed, playlisp)
+- Maintain compatibility with current Asteroid features
+- Enable tighter integration between web app and streaming engine
+
+** Current Architecture (Icecast/Liquidsoap)
+
+#+begin_example
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Asteroid      │────▶│   Liquidsoap    │────▶│    Icecast      │
+│   (Radiance)    │     │   (Source)      │     │   (Server)      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       │                       │
+        │ Telnet commands       │ Audio stream          │ HTTP streams
+        │ Playlist updates      │ (SOURCE protocol)     │ to listeners
+        ▼                       ▼                       ▼
+   playlists/            Decode/Encode           /asteroid.mp3
+   stream-queue.m3u      Crossfade               /asteroid.aac
+#+end_example
+
+** Proposed Architecture (CL-Native)
+
+#+begin_example
+┌─────────────────────────────────────────────────────────────────┐
+│                         ASTEROID                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    CL-STREAMER                            │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐   │  │
+│  │  │  Playlist   │  │   Audio     │  │  HTTP Stream    │   │  │
+│  │  │  Engine     │──▶│  Pipeline   │──▶│  Server         │   │  │
+│  │  │ (playlisp)  │  │ (Harmony)   │  │ (ICY protocol)  │   │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────────┘   │  │
+│  │        │                │                   │             │  │
+│  │        ▼                ▼                   ▼             │  │
+│  │   Parse M3U        Decode/Mix/         Multi-client      │  │
+│  │   Track queue      Encode              streaming         │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                                                  │
+│  Existing: Web UI, API, Scheduler, User features                │
+└─────────────────────────────────────────────────────────────────┘
+#+end_example
+
+* Components
+
+** 1. Playlist Engine (playlisp/parsector)
+
+Already implemented by Fade. Provides:
+
+- M3U parsing into CLOS objects
+- Track metadata (title, artist, duration, path)
+- Arithmetic expressions in duration fields
+- Playlist construction API
+
+Location: =~/SourceCode/playlisp=
+
+** 2. Audio Pipeline (Harmony + cl-mixed)
+
+Shinmera's audio system provides:
+
+*** Decoding (via cl-mixed extensions)
+- =cl-mixed-mpg123= - MP3 decoding
+- =cl-flac= - FLAC decoding  
+- =cl-vorbis= - OGG/Vorbis decoding
+- =cl-opus= - OGG/Opus decoding
+
+*** Mixing
+- Multiple mixers (music, sfx, etc.)
+- Voice management
+- Effects chain (filters, EQ, etc.)
+
+*** Crossfading
+- Environment system for horizontal mixing
+- Transition between segments with configurable fade times
+
+*** Output
+- Platform drains (PulseAudio, CoreAudio, WASAPI)
+- Need: Network/buffer output for streaming
+
+** 3. Audio Encoding (TO BE IMPLEMENTED)
+
+Need to encode PCM audio to streaming formats:
+
+*** Options
+- =cl-lame= - FFI bindings to LAME (MP3 encoding)
+- =cl-fdkaac= - FFI bindings to FDK-AAC (AAC encoding)
+- =cl-opus= - May support encoding (verify)
+
+*** Implementation Notes
+- Harmony outputs PCM samples
+- Need to capture these and encode in real-time
+- Ring buffer between mixer output and encoder input
+
+** 4. HTTP Stream Server (TO BE IMPLEMENTED)
+
+Replace Icecast with CL-native HTTP streaming:
+
+*** Requirements
+- HTTP/1.1 chunked transfer encoding
+- ICY metadata protocol (track titles in stream)
+- Multiple mount points (/asteroid.mp3, /asteroid.aac)
+- Concurrent client connections
+- Listener statistics
+
+*** ICY Protocol
+#+begin_example
+Client request:
+GET /stream HTTP/1.1
+Icy-MetaData: 1
+
+Server response:
+HTTP/1.1 200 OK
+Content-Type: audio/mpeg
+icy-metaint: 16000
+
+[audio data - 16000 bytes]
+[metadata block]
+[audio data - 16000 bytes]
+[metadata block]
+...
+#+end_example
+
+*** Implementation Options
+- Build on Hunchentoot (acceptor + handler)
+- Build on usocket directly (more control)
+- Use Chunga for chunked encoding
+
+* Dependencies
+
+** Existing (in Quicklisp/Shirakumo dist)
+- harmony
+- cl-mixed
+- cl-mixed-mpg123
+- cl-flac
+- chunga
+- usocket
+- bordeaux-threads
+
+** From Fade's repos
+- playlisp (~/SourceCode/playlisp)
+- parsector (~/SourceCode/parsector)
+
+** To Be Created/Found
+- MP3 encoder bindings (LAME)
+- AAC encoder bindings (FDK-AAC) - optional
+
+* Implementation Phases
+
+** Phase 1: Proof of Concept
+- [ ] Load Harmony and play audio files from playlist
+- [ ] Capture PCM output to buffer
+- [ ] Encode buffer to MP3 using LAME FFI
+- [ ] Serve single HTTP stream to one client
+
+** Phase 2: Core Streaming
+- [ ] Implement ICY metadata injection
+- [ ] Multi-client connection handling
+- [ ] Ring buffer for audio data
+- [ ] Mount point abstraction
+
+** Phase 3: Integration
+- [ ] Replace liquidsoap-command calls with direct CL calls
+- [ ] Integrate with existing playlist scheduler
+- [ ] Crossfading between tracks
+- [ ] Listener statistics
+
+** Phase 4: Feature Parity
+- [ ] Multiple stream formats (MP3, AAC)
+- [ ] Multiple bitrates
+- [ ] Admin controls (skip, reload)
+- [ ] YP directory registration
+
+* Open Questions
+
+1. Should cl-streamer be a separate ASDF system or part of asteroid?
+2. How to handle the transition period (run both systems)?
+3. Performance: Can CL handle 100+ concurrent listeners?
+4. Licensing: LAME is LGPL, FDK-AAC has patent issues
+
+* References
+
+- [[https://codeberg.org/shirakumo/harmony][Harmony - CL Sound System]]
+- [[https://codeberg.org/shirakumo/cl-mixed][cl-mixed - Audio Mixing Library]]
+- [[https://github.com/fade/playlisp][playlisp - M3U Parser]]
+- [[https://github.com/fade/parsector][parsector - Parser Combinators]]
+- [[https://cast.readme.io/docs/icy][ICY Protocol Documentation]]
+- [[https://www.icecast.org/docs/][Icecast Documentation]]

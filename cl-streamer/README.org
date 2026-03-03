@@ -1,0 +1,69 @@
+#+TITLE: CL-Streamer
+#+AUTHOR: Glenn Thompson
+#+DATE: 2026-03-03
+
+* Overview
+
+CL-Streamer is a Common Lisp audio streaming server designed to replace
+Icecast and Liquidsoap in the Asteroid Radio project.
+
+* Status
+
+*EXPERIMENTAL* - This is an early proof-of-concept.
+
+* Features
+
+- HTTP streaming with ICY metadata protocol
+- Multiple mount points
+- Thread-safe ring buffers for audio data
+- Listener statistics
+
+* Dependencies
+
+- alexandria
+- bordeaux-threads
+- usocket
+- flexi-streams
+- chunga
+- log4cl
+- split-sequence
+
+Optional (for audio backend):
+- harmony
+- cl-mixed
+- cl-mixed-mpg123
+
+* Quick Start
+
+#+begin_src common-lisp
+(ql:quickload :cl-streamer)
+
+;; Create and start server
+(cl-streamer:start :port 8000)
+
+;; Add a mount point
+(cl-streamer:add-mount cl-streamer:*server* "/stream.mp3"
+                       :content-type "audio/mpeg"
+                       :bitrate 128
+                       :name "Asteroid Radio")
+
+;; Update now-playing metadata
+(cl-streamer:set-now-playing "/stream.mp3" "Artist - Track Title")
+
+;; Write audio data (from encoder)
+(cl-streamer:write-audio-data "/stream.mp3" encoded-mp3-bytes)
+
+;; Check listeners
+(cl-streamer:get-listener-count)
+
+;; Stop server
+(cl-streamer:stop)
+#+end_src
+
+* Architecture
+
+See =docs/CL-STREAMING-ARCHITECTURE.org= for the full design document.
+
+* License
+
+AGPL-3.0
