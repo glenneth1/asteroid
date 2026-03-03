@@ -29,6 +29,11 @@
                :bordeaux-threads
                :drakma
                :cl-cron
+               ;; CL-Streamer (replaces Icecast + Liquidsoap)
+               :cl-streamer
+               :cl-streamer/encoder
+               :cl-streamer/aac-encoder
+               :cl-streamer/harmony
                ;; radiance interfaces
                :i-log4cl
                :i-postmodern
@@ -64,6 +69,7 @@
                (:file "user-management")
                (:file "playlist-management")
                (:file "stream-control")
+               (:file "stream-harmony")
                (:file "playlist-scheduler")
                (:file "listener-stats")
                (:file "user-profile")

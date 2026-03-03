@@ -442,11 +442,13 @@
             ;; Load into in-memory queue
             (let ((count (load-queue-from-m3u-file))
                   (channel-name (get-curated-channel-name)))
-              ;; Skip current track to trigger crossfade to new playlist
-              (handler-case
-                  (liquidsoap-command "stream-queue_m3u.skip")
-                (error (e) 
-                  (format *error-output* "Warning: Could not skip track: ~a~%" e)))
+              ;; Skip/switch to new playlist
+              (if *harmony-pipeline*
+                  (harmony-load-playlist playlist-path)
+                  (handler-case
+                      (liquidsoap-command "stream-queue_m3u.skip")
+                    (error (e) 
+                      (format *error-output* "Warning: Could not skip track: ~a~%" e))))
               (api-output `(("status" . "success")
                             ("message" . ,(format nil "Loaded playlist: ~a" name))
                             ("count" . ,count)
@@ -568,48 +570,74 @@
     (error () seconds-str)))
 
 (define-api asteroid/liquidsoap/status () ()
-  "Get Liquidsoap status including uptime and current track"
+  "Get stream status - uses Harmony pipeline when available, falls back to Liquidsoap"
   (require-role :admin)
   (with-error-handling
-    (let ((uptime (liquidsoap-command "uptime"))
-          (metadata-raw (liquidsoap-command "output.icecast.1.metadata"))
-          (remaining-raw (liquidsoap-command "output.icecast.1.remaining")))
-      (api-output `(("status" . "success")
-                    ("uptime" . ,(string-trim '(#\Space #\Newline #\Return) uptime))
-                    ("metadata" . ,(parse-liquidsoap-metadata metadata-raw))
-                    ("remaining" . ,(format-remaining-time 
-                                     (string-trim '(#\Space #\Newline #\Return) remaining-raw))))))))
+    (if *harmony-pipeline*
+        (let ((status (harmony-get-status)))
+          (api-output `(("status" . "success")
+                        ("backend" . "harmony")
+                        ("uptime" . "n/a")
+                        ("metadata" . ,(getf status :current-track))
+                        ("remaining" . "n/a")
+                        ("listeners" . ,(getf status :listeners))
+                        ("queue_length" . ,(getf status :queue-length)))))
+        (let ((uptime (liquidsoap-command "uptime"))
+              (metadata-raw (liquidsoap-command "output.icecast.1.metadata"))
+              (remaining-raw (liquidsoap-command "output.icecast.1.remaining")))
+          (api-output `(("status" . "success")
+                        ("backend" . "liquidsoap")
+                        ("uptime" . ,(string-trim '(#\Space #\Newline #\Return) uptime))
+                        ("metadata" . ,(parse-liquidsoap-metadata metadata-raw))
+                        ("remaining" . ,(format-remaining-time 
+                                         (string-trim '(#\Space #\Newline #\Return) remaining-raw)))))))))
 
 (define-api asteroid/liquidsoap/skip () ()
-  "Skip the current track in Liquidsoap"
+  "Skip the current track"
   (require-role :admin)
   (with-error-handling
-    (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
-      (api-output `(("status" . "success")
-                    ("message" . "Track skipped")
-                    ("result" . ,(string-trim '(#\Space #\Newline #\Return) result)))))))
+    (if *harmony-pipeline*
+        (progn
+          (harmony-skip-track)
+          (api-output `(("status" . "success")
+                        ("message" . "Track skipped (Harmony)"))))
+        (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
+          (api-output `(("status" . "success")
+                        ("message" . "Track skipped")
+                        ("result" . ,(string-trim '(#\Space #\Newline #\Return) result))))))))
 
 (define-api asteroid/liquidsoap/reload () ()
-  "Force Liquidsoap to reload the playlist"
+  "Force playlist reload"
   (require-role :admin)
   (with-error-handling
-    (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
-      (api-output `(("status" . "success")
-                    ("message" . "Playlist reloaded")
-                    ("result" . ,(string-trim '(#\Space #\Newline #\Return) result)))))))
+    (if *harmony-pipeline*
+        (let* ((playlist-path (get-stream-queue-path))
+               (count (harmony-load-playlist playlist-path)))
+          (api-output `(("status" . "success")
+                        ("message" . ,(format nil "Playlist reloaded (~A tracks via Harmony)" count)))))
+        (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
+          (api-output `(("status" . "success")
+                        ("message" . "Playlist reloaded")
+                        ("result" . ,(string-trim '(#\Space #\Newline #\Return) result))))))))
 
 (define-api asteroid/liquidsoap/restart () ()
-  "Restart the Liquidsoap Docker container"
+  "Restart the streaming backend"
   (require-role :admin)
   (with-error-handling
-    (let ((result (uiop:run-program 
-                   "docker restart asteroid-liquidsoap"
-                   :output :string
-                   :error-output :string
-                   :ignore-error-status t)))
-      (api-output `(("status" . "success")
-                    ("message" . "Liquidsoap container restarting")
-                    ("result" . ,result))))))
+    (if *harmony-pipeline*
+        (progn
+          (stop-harmony-streaming)
+          (start-harmony-streaming)
+          (api-output `(("status" . "success")
+                        ("message" . "Harmony pipeline restarted"))))
+        (let ((result (uiop:run-program 
+                       "docker restart asteroid-liquidsoap"
+                       :output :string
+                       :error-output :string
+                       :ignore-error-status t)))
+          (api-output `(("status" . "success")
+                        ("message" . "Liquidsoap container restarting")
+                        ("result" . ,result)))))))
 
 (define-api asteroid/icecast/restart () ()
   "Restart the Icecast Docker container"

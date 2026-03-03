@@ -93,23 +93,23 @@
               (:track-id . ,(find-track-by-title title))
               (:favorite-count . ,(or (get-track-favorite-count title) 1))))))))
 
+(defun get-now-playing-stats (&optional (mount "stream.mp3"))
+  "Get now-playing stats from Harmony pipeline, falling back to Icecast.
+   Returns an alist with :listenurl, :title, :listeners, :track-id, :favorite-count."
+  (or (harmony-now-playing mount)
+      (icecast-now-playing *stream-base-url*
+                           (if (string= mount "stream.mp3") "asteroid.mp3" mount))))
+
 (define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 10 :timeout 1)
-  "Get Partial HTML with live status from Icecast server.
+  "Get Partial HTML with live now-playing status.
    Optional MOUNT parameter specifies which stream to get metadata from.
-   Always polls both streams to keep recently played lists updated."
+   Uses Harmony pipeline when available, falls back to Icecast."
   (with-error-handling
-    (let* ((mount-name (or mount "asteroid.mp3"))
-           ;; Always poll both streams to keep recently played lists updated
-           (dummy-curated (when (not (string= mount-name "asteroid.mp3"))
-                            (icecast-now-playing *stream-base-url* "asteroid.mp3")))
-           (dummy-shuffle (when (not (string= mount-name "asteroid-shuffle.mp3"))
-                            (icecast-now-playing *stream-base-url* "asteroid-shuffle.mp3")))
-           (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
+    (let* ((mount-name (or mount "stream.mp3"))
+           (now-playing-stats (get-now-playing-stats mount-name)))
       (if now-playing-stats
           (let* ((title (cdr (assoc :title now-playing-stats)))
                  (favorite-count (or (get-track-favorite-count title) 0)))
-            ;; TODO: it should be able to define a custom api-output for this
-            ;; (api-output <clip-parser> :format "html"))
             (setf (header "Content-Type") "text/html")
             (clip:process-to-string
              (load-template "partial/now-playing")
@@ -127,8 +127,8 @@
   "Get inline text with now playing info (for admin dashboard and widgets).
    Optional MOUNT parameter specifies which stream to get metadata from."
   (with-error-handling
-    (let* ((mount-name (or mount "asteroid.mp3"))
-           (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
+    (let* ((mount-name (or mount "stream.mp3"))
+           (now-playing-stats (get-now-playing-stats mount-name)))
       (if now-playing-stats
           (progn
             (setf (header "Content-Type") "text/plain")
@@ -143,8 +143,8 @@
   ;; Register web listener for geo stats (keeps listener active during playback)
   (register-web-listener)
   (with-error-handling
-    (let* ((mount-name (or mount "asteroid.mp3"))
-           (now-playing-stats (icecast-now-playing *stream-base-url* mount-name)))
+    (let* ((mount-name (or mount "stream.mp3"))
+           (now-playing-stats (get-now-playing-stats mount-name)))
       (if now-playing-stats
           (let* ((title (cdr (assoc :title now-playing-stats)))
                  (favorite-count (or (get-track-favorite-count title) 0))

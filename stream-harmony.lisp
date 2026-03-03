@@ -1,0 +1,203 @@
+;;;; stream-harmony.lisp - CL-Streamer / Harmony integration for Asteroid Radio
+;;;; Replaces the Icecast + Liquidsoap stack with in-process audio streaming.
+;;;; Provides the same data interface to frontend-partials and admin APIs.
+
+(in-package :asteroid)
+
+;;; ---- Configuration ----
+
+(defvar *harmony-pipeline* nil
+  "The active cl-streamer/harmony audio pipeline.")
+
+(defvar *harmony-stream-port* 8000
+  "Port for the cl-streamer HTTP stream server.")
+
+(defvar *harmony-mp3-encoder* nil
+  "MP3 encoder instance.")
+
+(defvar *harmony-aac-encoder* nil
+  "AAC encoder instance.")
+
+;;; ---- M3U Playlist Loading ----
+
+(defun m3u-to-file-list (m3u-path)
+  "Parse an M3U playlist file and return a list of host file paths.
+   Converts Docker paths (/app/music/...) back to host paths.
+   Skips comment lines and blank lines."
+  (when (probe-file m3u-path)
+    (with-open-file (stream m3u-path :direction :input)
+      (loop for line = (read-line stream nil)
+            while line
+            for trimmed = (string-trim '(#\Space #\Tab #\Return #\Newline) line)
+            unless (or (string= trimmed "")
+                       (and (> (length trimmed) 0) (char= (char trimmed 0) #\#)))
+              collect (convert-from-docker-path trimmed)))))
+
+;;; ---- Track Change Callback ----
+
+(defun on-harmony-track-change (pipeline track-info)
+  "Called by cl-streamer when a track changes.
+   Updates recently-played lists and finds the track in the database."
+  (declare (ignore pipeline))
+  (let* ((display-title (getf track-info :display-title))
+         (artist (getf track-info :artist))
+         (title (getf track-info :title))
+         (file-path (getf track-info :file))
+         (track-id (or (find-track-by-title display-title)
+                       (find-track-by-file-path file-path))))
+    (when (and display-title
+               (not (string= display-title "Unknown")))
+      ;; Update recently played (curated stream)
+      (add-recently-played (list :title display-title
+                                 :artist artist
+                                 :song title
+                                 :timestamp (get-universal-time)
+                                 :track-id track-id)
+                           :curated)
+      (setf *last-known-track-curated* display-title))
+    (log:info "Track change: ~A (track-id: ~A)" display-title track-id)))
+
+(defun find-track-by-file-path (file-path)
+  "Find a track in the database by file path. Returns track ID or nil."
+  (when file-path
+    (handler-case
+        (with-db
+          (postmodern:query
+           (:limit
+            (:select '_id :from 'tracks
+             :where (:= 'file-path file-path))
+            1)
+           :single))
+      (error () nil))))
+
+;;; ---- Now-Playing Data Source ----
+;;; These functions provide the same data that icecast-now-playing returned,
+;;; but sourced directly from cl-streamer's pipeline state.
+
+(defun harmony-now-playing (&optional (mount "stream.mp3"))
+  "Get now-playing information from cl-streamer pipeline.
+   Returns an alist compatible with the icecast-now-playing format,
+   or NIL if the pipeline is not running."
+  (when (and *harmony-pipeline*
+             (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
+    (let* ((track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
+           (display-title (or (getf track-info :display-title) "Unknown"))
+           (listeners (cl-streamer:get-listener-count
+                       (format nil "/~A" mount)))
+           (track-id (or (find-track-by-title display-title)
+                         (find-track-by-file-path (getf track-info :file)))))
+      `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
+        (:title . ,display-title)
+        (:listeners . ,(or listeners 0))
+        (:track-id . ,track-id)
+        (:favorite-count . ,(or (get-track-favorite-count display-title) 0))))))
+
+;;; ---- Pipeline Lifecycle ----
+
+(defun start-harmony-streaming (&key (port *harmony-stream-port*)
+                                     (mp3-bitrate 128000)
+                                     (aac-bitrate 128000))
+  "Start the cl-streamer pipeline with MP3 and AAC outputs.
+   Should be called once during application startup."
+  (when *harmony-pipeline*
+    (log:warn "Harmony streaming already running")
+    (return-from start-harmony-streaming *harmony-pipeline*))
+
+  ;; Start the stream server
+  (cl-streamer:start :port port)
+
+  ;; Add mount points
+  (cl-streamer:add-mount cl-streamer:*server* "/stream.mp3"
+                         :content-type "audio/mpeg"
+                         :bitrate 128
+                         :name "Asteroid Radio MP3")
+  (cl-streamer:add-mount cl-streamer:*server* "/stream.aac"
+                         :content-type "audio/aac"
+                         :bitrate 128
+                         :name "Asteroid Radio AAC")
+
+  ;; Create encoders
+  (setf *harmony-mp3-encoder*
+        (cl-streamer:make-mp3-encoder :bitrate (floor mp3-bitrate 1000)
+                                      :sample-rate 44100
+                                      :channels 2))
+  (setf *harmony-aac-encoder*
+        (cl-streamer:make-aac-encoder :bitrate aac-bitrate
+                                      :sample-rate 44100
+                                      :channels 2))
+
+  ;; Create pipeline with track-change callback
+  (setf *harmony-pipeline*
+        (cl-streamer/harmony:make-audio-pipeline
+         :encoder *harmony-mp3-encoder*
+         :stream-server cl-streamer:*server*
+         :mount-path "/stream.mp3"))
+
+  ;; Add AAC output
+  (cl-streamer/harmony:add-pipeline-output *harmony-pipeline*
+                                           *harmony-aac-encoder*
+                                           "/stream.aac")
+
+  ;; Set the track-change callback
+  (setf (cl-streamer/harmony:pipeline-on-track-change *harmony-pipeline*)
+        #'on-harmony-track-change)
+
+  ;; Start the audio pipeline
+  (cl-streamer/harmony:start-pipeline *harmony-pipeline*)
+
+  (log:info "Harmony streaming started on port ~A (MP3 + AAC)" port)
+  *harmony-pipeline*)
+
+(defun stop-harmony-streaming ()
+  "Stop the cl-streamer pipeline and stream server."
+  (when *harmony-pipeline*
+    (cl-streamer/harmony:stop-pipeline *harmony-pipeline*)
+    (setf *harmony-pipeline* nil))
+  (when *harmony-mp3-encoder*
+    (cl-streamer:close-encoder *harmony-mp3-encoder*)
+    (setf *harmony-mp3-encoder* nil))
+  (when *harmony-aac-encoder*
+    (cl-streamer:close-aac-encoder *harmony-aac-encoder*)
+    (setf *harmony-aac-encoder* nil))
+  (cl-streamer:stop)
+  (log:info "Harmony streaming stopped"))
+
+;;; ---- Playlist Control (replaces Liquidsoap commands) ----
+
+(defun harmony-load-playlist (m3u-path)
+  "Load and start playing an M3U playlist through the Harmony pipeline.
+   Converts Docker paths to host paths and feeds them to play-list."
+  (when *harmony-pipeline*
+    (let ((file-list (m3u-to-file-list m3u-path)))
+      (when file-list
+        ;; Clear any existing queue and load new files
+        (cl-streamer/harmony:pipeline-clear-queue *harmony-pipeline*)
+        (cl-streamer/harmony:pipeline-queue-files *harmony-pipeline*
+                                                  (mapcar (lambda (path)
+                                                            (list :file path))
+                                                          file-list))
+        ;; Skip current track to trigger crossfade into new playlist
+        (cl-streamer/harmony:pipeline-skip *harmony-pipeline*)
+        (log:info "Loaded playlist ~A (~A tracks)" m3u-path (length file-list))
+        (length file-list)))))
+
+(defun harmony-skip-track ()
+  "Skip the current track (crossfades to next)."
+  (when *harmony-pipeline*
+    (cl-streamer/harmony:pipeline-skip *harmony-pipeline*)
+    t))
+
+(defun harmony-get-status ()
+  "Get current pipeline status (replaces liquidsoap status)."
+  (if *harmony-pipeline*
+      (let ((track (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
+            (listeners (cl-streamer:get-listener-count)))
+        (list :running t
+              :current-track (getf track :display-title)
+              :artist (getf track :artist)
+              :title (getf track :title)
+              :album (getf track :album)
+              :listeners listeners
+              :queue-length (length (cl-streamer/harmony:pipeline-get-queue
+                                    *harmony-pipeline*))))
+      (list :running nil)))

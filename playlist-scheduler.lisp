@@ -68,18 +68,26 @@
     (values skip-ok reload-ok)))
 
 (defun load-scheduled-playlist (playlist-name)
-  "Load a playlist by name, copying it to stream-queue.m3u and triggering playback."
+  "Load a playlist by name and trigger playback.
+   Uses Harmony pipeline when available, falls back to Liquidsoap."
   (let ((playlist-path (merge-pathnames playlist-name (get-playlists-directory))))
     (if (probe-file playlist-path)
         (progn
           (copy-playlist-to-stream-queue playlist-path)
           (load-queue-from-m3u-file)
-          (multiple-value-bind (skip-ok reload-ok)
-              (liquidsoap-reload-and-skip)
-            (if (and reload-ok skip-ok)
-                (log:info "Scheduler loaded ~a" playlist-name)
-                (log:error "Scheduler failed to switch to ~a (reload:~a skip:~a)" 
-                           playlist-name reload-ok skip-ok)))
+          (if *harmony-pipeline*
+              ;; Use cl-streamer directly
+              (let ((count (harmony-load-playlist playlist-path)))
+                (if count
+                    (log:info "Scheduler loaded ~a (~a tracks via Harmony)" playlist-name count)
+                    (log:error "Scheduler failed to load ~a via Harmony" playlist-name)))
+              ;; Fallback to Liquidsoap
+              (multiple-value-bind (skip-ok reload-ok)
+                  (liquidsoap-reload-and-skip)
+                (if (and reload-ok skip-ok)
+                    (log:info "Scheduler loaded ~a" playlist-name)
+                    (log:error "Scheduler failed to switch to ~a (reload:~a skip:~a)" 
+                               playlist-name reload-ok skip-ok))))
           t)
         (progn
           (log:error "Scheduler playlist not found: ~a" playlist-name)

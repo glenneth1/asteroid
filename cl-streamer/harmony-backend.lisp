@@ -10,7 +10,17 @@
            #:play-file
            #:play-list
            #:pipeline-server
-           #:make-streaming-server))
+           #:make-streaming-server
+           ;; Track state & control
+           #:pipeline-current-track
+           #:pipeline-on-track-change
+           #:pipeline-skip
+           #:pipeline-queue-files
+           #:pipeline-get-queue
+           #:pipeline-clear-queue
+           ;; Metadata helpers
+           #:read-audio-metadata
+           #:format-display-title))
 
 (in-package #:cl-streamer/harmony)
 
@@ -94,7 +104,20 @@
    (mount-path :initarg :mount-path :accessor pipeline-mount-path :initform "/stream.mp3")
    (sample-rate :initarg :sample-rate :accessor pipeline-sample-rate :initform 44100)
    (channels :initarg :channels :accessor pipeline-channels :initform 2)
-   (running :initform nil :accessor pipeline-running-p)))
+   (running :initform nil :accessor pipeline-running-p)
+   ;; Track state
+   (current-track :initform nil :accessor pipeline-current-track
+                  :documentation "Plist of current track: (:title :artist :album :file :display-title)")
+   (on-track-change :initarg :on-track-change :initform nil
+                    :accessor pipeline-on-track-change
+                    :documentation "Callback (lambda (pipeline track-info)) called on track change")
+   ;; Playlist queue & skip control
+   (file-queue :initform nil :accessor pipeline-file-queue
+               :documentation "List of file entries to play after current playlist")
+   (queue-lock :initform (bt:make-lock "pipeline-queue-lock")
+               :reader pipeline-queue-lock)
+   (skip-flag :initform nil :accessor pipeline-skip-flag
+              :documentation "Set to T to skip the current track")))
 
 (defun make-audio-pipeline (&key encoder stream-server (mount-path "/stream.mp3")
                                  (sample-rate 44100) (channels 2))
@@ -156,6 +179,43 @@
   (log:info "Audio pipeline stopped")
   pipeline)
 
+;;; ---- Pipeline Control ----
+
+(defun pipeline-skip (pipeline)
+  "Skip the current track. The play-list loop will detect this and advance."
+  (setf (pipeline-skip-flag pipeline) t)
+  (log:info "Skip requested"))
+
+(defun pipeline-queue-files (pipeline file-entries &key (position :end))
+  "Add file entries to the pipeline queue.
+   Each entry is a string (path) or plist (:file path :title title).
+   POSITION is :end (append) or :next (prepend)."
+  (bt:with-lock-held ((pipeline-queue-lock pipeline))
+    (case position
+      (:next (setf (pipeline-file-queue pipeline)
+                   (append file-entries (pipeline-file-queue pipeline))))
+      (t (setf (pipeline-file-queue pipeline)
+               (append (pipeline-file-queue pipeline) file-entries)))))
+  (log:info "Queued ~A files (~A)" (length file-entries) position))
+
+(defun pipeline-get-queue (pipeline)
+  "Get the current file queue (copy)."
+  (bt:with-lock-held ((pipeline-queue-lock pipeline))
+    (copy-list (pipeline-file-queue pipeline))))
+
+(defun pipeline-clear-queue (pipeline)
+  "Clear the file queue."
+  (bt:with-lock-held ((pipeline-queue-lock pipeline))
+    (setf (pipeline-file-queue pipeline) nil))
+  (log:info "Queue cleared"))
+
+(defun pipeline-pop-queue (pipeline)
+  "Pop the next entry from the file queue (internal use)."
+  (bt:with-lock-held ((pipeline-queue-lock pipeline))
+    (pop (pipeline-file-queue pipeline))))
+
+;;; ---- Metadata ----
+
 (defun read-audio-metadata (file-path)
   "Read metadata (artist, title, album) from an audio file using taglib.
    Returns a plist (:artist ... :title ... :album ...) or NIL on failure."
@@ -190,6 +250,15 @@
   (dolist (output (drain-outputs (pipeline-drain pipeline)))
     (cl-streamer:set-now-playing (cdr output) display-title)))
 
+(defun notify-track-change (pipeline track-info)
+  "Update pipeline state and fire the on-track-change callback."
+  (setf (pipeline-current-track pipeline) track-info)
+  (when (pipeline-on-track-change pipeline)
+    (handler-case
+        (funcall (pipeline-on-track-change pipeline) pipeline track-info)
+      (error (e)
+        (log:warn "Track change callback error: ~A" e)))))
+
 (defun play-file (pipeline file-path &key (mixer :music) title (on-end :free)
                                           (update-metadata t))
   "Play an audio file through the pipeline.
@@ -202,12 +271,19 @@
   (let* ((path (pathname file-path))
          (server (pipeline-harmony-server pipeline))
          (harmony:*server* server)
-         (display-title (format-display-title path title)))
+         (tags (read-audio-metadata path))
+         (display-title (format-display-title path title))
+         (track-info (list :file (namestring path)
+                           :display-title display-title
+                           :artist (getf tags :artist)
+                           :title (getf tags :title)
+                           :album (getf tags :album))))
     (when update-metadata
-      (update-all-mounts-metadata pipeline display-title))
+      (update-all-mounts-metadata pipeline display-title)
+      (notify-track-change pipeline track-info))
     (let ((voice (harmony:play path :mixer mixer :on-end on-end)))
       (log:info "Now playing: ~A" display-title)
-      (values voice display-title))))
+      (values voice display-title track-info))))
 
 (defun voice-remaining-seconds (voice)
   "Return estimated seconds remaining for a voice, or NIL if unknown."
@@ -231,64 +307,91 @@
           do (setf (mixed:volume voice) (max 0.0 (min 1.0 (float vol))))
              (sleep step-time))))
 
+(defun next-entry (pipeline file-list-ref)
+  "Get the next entry to play: from file-list first, then from the queue.
+   FILE-LIST-REF is a cons cell whose car is the remaining file list.
+   Returns an entry or NIL if nothing to play."
+  (or (pop (car file-list-ref))
+      (pipeline-pop-queue pipeline)))
+
 (defun play-list (pipeline file-list &key (crossfade-duration 3.0)
                                           (fade-in 2.0)
-                                          (fade-out 2.0))
+                                          (fade-out 2.0)
+                                          (loop-queue nil))
   "Play a list of file paths sequentially through the pipeline.
    Each entry can be a string (path) or a plist (:file path :title title).
    CROSSFADE-DURATION is how early to start the next track (seconds).
    FADE-IN/FADE-OUT control the volume ramp durations.
-   Both voices play simultaneously through the mixer during crossfade."
+   Both voices play simultaneously through the mixer during crossfade.
+   When LOOP-QUEUE is T, waits for new queue entries instead of stopping."
   (bt:make-thread
    (lambda ()
-     (let ((prev-voice nil))
-       (loop for entry in file-list
-             for idx from 0
-             while (pipeline-running-p pipeline)
-             do (multiple-value-bind (path title)
-                    (if (listp entry)
-                        (values (getf entry :file) (getf entry :title))
-                        (values entry nil))
-                  (handler-case
-                      (let* ((server (pipeline-harmony-server pipeline))
-                             (harmony:*server* server))
-                        (multiple-value-bind (voice display-title)
-                            (play-file pipeline path :title title
-                                       :on-end :disconnect
-                                       :update-metadata (null prev-voice))
-                          (when voice
-                            ;; If this isn't the first track, crossfade
-                            (when (and prev-voice (> idx 0))
-                              (setf (mixed:volume voice) 0.0)
-                              ;; Fade in new voice and fade out old voice in parallel
-                              (let ((fade-thread
-                                      (bt:make-thread
-                                       (lambda ()
-                                         (volume-ramp prev-voice 0.0 fade-out)
-                                         (harmony:stop prev-voice))
-                                       :name "cl-streamer-fadeout")))
-                                (volume-ramp voice 1.0 fade-in)
-                                (bt:join-thread fade-thread))
-                              ;; Now the crossfade is done, update metadata
-                              (update-all-mounts-metadata pipeline display-title))
-                            ;; Wait for track to approach its end
-                            (sleep 0.5)
-                            (loop while (and (pipeline-running-p pipeline)
-                                             (not (mixed:done-p voice)))
-                                  for remaining = (voice-remaining-seconds voice)
-                                  when (and remaining
-                                            (<= remaining crossfade-duration)
-                                            (not (mixed:done-p voice)))
-                                    do (setf prev-voice voice)
-                                       (return)
-                                  do (sleep 0.1))
-                            ;; If track ended naturally (no crossfade), clean up
-                            (when (mixed:done-p voice)
-                              (harmony:stop voice)
-                              (setf prev-voice nil)))))
-                    (error (e)
-                      (log:warn "Error playing ~A: ~A" path e)
-                      (sleep 1)))))
+     (let ((prev-voice nil)
+           (idx 0)
+           (remaining-list (list (copy-list file-list))))
+       (loop while (pipeline-running-p pipeline)
+             for entry = (next-entry pipeline remaining-list)
+             do (cond
+                  ;; No entry and loop mode: wait for queue
+                  ((and (null entry) loop-queue)
+                   (sleep 1))
+                  ;; No entry: done
+                  ((null entry)
+                   (return))
+                  ;; Play the entry
+                  (t
+                   (multiple-value-bind (path title)
+                       (if (listp entry)
+                           (values (getf entry :file) (getf entry :title))
+                           (values entry nil))
+                     (handler-case
+                         (let* ((server (pipeline-harmony-server pipeline))
+                                (harmony:*server* server))
+                           (multiple-value-bind (voice display-title track-info)
+                               (play-file pipeline path :title title
+                                          :on-end :disconnect
+                                          :update-metadata (null prev-voice))
+                             (when voice
+                               ;; If this isn't the first track, crossfade
+                               (when (and prev-voice (> idx 0))
+                                 (setf (mixed:volume voice) 0.0)
+                                 (let ((fade-thread
+                                         (bt:make-thread
+                                          (lambda ()
+                                            (volume-ramp prev-voice 0.0 fade-out)
+                                            (harmony:stop prev-voice))
+                                          :name "cl-streamer-fadeout")))
+                                   (volume-ramp voice 1.0 fade-in)
+                                   (bt:join-thread fade-thread))
+                                 ;; Crossfade done — now update metadata & notify
+                                 (update-all-mounts-metadata pipeline display-title)
+                                 (notify-track-change pipeline track-info))
+                               ;; Wait for track to approach its end (or skip)
+                               (setf (pipeline-skip-flag pipeline) nil)
+                               (sleep 0.5)
+                               (loop while (and (pipeline-running-p pipeline)
+                                                (not (mixed:done-p voice))
+                                                (not (pipeline-skip-flag pipeline)))
+                                     for remaining = (voice-remaining-seconds voice)
+                                     when (and remaining
+                                               (<= remaining crossfade-duration)
+                                               (not (mixed:done-p voice)))
+                                       do (setf prev-voice voice)
+                                          (return)
+                                     do (sleep 0.1))
+                               ;; Handle skip
+                               (when (pipeline-skip-flag pipeline)
+                                 (setf (pipeline-skip-flag pipeline) nil)
+                                 (setf prev-voice voice)
+                                 (log:info "Skipping current track"))
+                               ;; If track ended naturally (no crossfade), clean up
+                               (when (mixed:done-p voice)
+                                 (harmony:stop voice)
+                                 (setf prev-voice nil))
+                               (incf idx))))
+                       (error (e)
+                         (log:warn "Error playing ~A: ~A" path e)
+                         (sleep 1)))))))
        ;; Clean up last voice
        (when prev-voice
          (let ((harmony:*server* (pipeline-harmony-server pipeline)))

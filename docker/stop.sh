@@ -5,8 +5,9 @@
 
 echo "🛑 Stopping Asteroid Radio Docker Services..."
 
-# Stop services
-docker compose down
+# Stop services (postgres only - cl-streamer replaces Icecast + Liquidsoap)
+docker compose down postgres
+# docker compose down  # Uncomment to stop all services
 
 # if we really need to clean everything and start fresh, run the
 # following commands:
