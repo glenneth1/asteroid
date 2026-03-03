@@ -34,5 +34,23 @@
    #:listener-count
    
    ;; Main API
+   #:*server*
    #:*default-port*
-   #:*default-metaint*))
+   #:*default-metaint*
+   #:start
+   #:stop
+   #:write-audio-data
+   #:set-now-playing
+   #:get-listener-count
+   
+   ;; Encoder
+   #:make-mp3-encoder
+   #:close-encoder
+   #:encode-pcm-interleaved
+   #:encode-flush
+   #:lame-version
+   
+   ;; AAC Encoder
+   #:make-aac-encoder
+   #:close-aac-encoder
+   #:encode-aac-pcm))

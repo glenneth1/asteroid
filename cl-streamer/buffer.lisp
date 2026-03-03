@@ -17,32 +17,42 @@
                  :data (make-array size :element-type '(unsigned-byte 8))
                  :size size))
 
+(defun %buffer-available (buffer)
+  "Internal: bytes available to read. Caller must hold lock."
+  (let ((write (buffer-write-pos buffer))
+        (read (buffer-read-pos buffer))
+        (size (buffer-size buffer)))
+    (mod (- write read) size)))
+
 (defun buffer-available (buffer)
   "Return the number of bytes available to read."
   (bt:with-lock-held ((buffer-lock buffer))
-    (let ((write (buffer-write-pos buffer))
-          (read (buffer-read-pos buffer))
-          (size (buffer-size buffer)))
-      (mod (- write read) size))))
+    (%buffer-available buffer)))
+
+(defun %buffer-free-space (buffer)
+  "Internal: bytes available to write. Caller must hold lock."
+  (- (buffer-size buffer) (%buffer-available buffer) 1))
 
 (defun buffer-free-space (buffer)
   "Return the number of bytes available to write."
-  (- (buffer-size buffer) (buffer-available buffer) 1))
+  (bt:with-lock-held ((buffer-lock buffer))
+    (%buffer-free-space buffer)))
 
 (defun buffer-write (buffer data &key (start 0) (end (length data)))
   "Write bytes from DATA to BUFFER. Blocks if buffer is full."
   (let ((len (- end start)))
     (bt:with-lock-held ((buffer-lock buffer))
-      (loop while (< (buffer-free-space buffer) len)
-            do (bt:condition-wait (buffer-not-full buffer) (buffer-lock buffer)))
-      (let ((write-pos (buffer-write-pos buffer))
-            (size (buffer-size buffer))
-            (buf-data (buffer-data buffer)))
-        (loop for i from start below end
-              for j = write-pos then (mod (1+ j) size)
-              do (setf (aref buf-data j) (aref data i))
-              finally (setf (buffer-write-pos buffer) (mod (1+ j) size))))
-      (bt:condition-notify (buffer-not-empty buffer)))
+      (when (> len 0)
+        (loop while (< (%buffer-free-space buffer) len)
+              do (bt:condition-wait (buffer-not-full buffer) (buffer-lock buffer)))
+        (let ((write-pos (buffer-write-pos buffer))
+              (size (buffer-size buffer))
+              (buf-data (buffer-data buffer)))
+          (loop for i from start below end
+                for j = write-pos then (mod (1+ j) size)
+                do (setf (aref buf-data j) (aref data i))
+                finally (setf (buffer-write-pos buffer) (mod (1+ j) size))))
+        (bt:condition-notify (buffer-not-empty buffer))))
     len))
 
 (defun buffer-read (buffer output &key (start 0) (end (length output)) (blocking t))
@@ -51,18 +61,19 @@
   (let ((requested (- end start)))
     (bt:with-lock-held ((buffer-lock buffer))
       (when blocking
-        (loop while (zerop (buffer-available buffer))
+        (loop while (zerop (%buffer-available buffer))
               do (bt:condition-wait (buffer-not-empty buffer) (buffer-lock buffer))))
-      (let* ((available (buffer-available buffer))
+      (let* ((available (%buffer-available buffer))
              (to-read (min requested available))
              (read-pos (buffer-read-pos buffer))
              (size (buffer-size buffer))
              (buf-data (buffer-data buffer)))
-        (loop for i from start below (+ start to-read)
-              for j = read-pos then (mod (1+ j) size)
-              do (setf (aref output i) (aref buf-data j))
-              finally (setf (buffer-read-pos buffer) (mod (1+ j) size)))
-        (bt:condition-notify (buffer-not-full buffer))
+        (when (> to-read 0)
+          (loop for i from start below (+ start to-read)
+                for j = read-pos then (mod (1+ j) size)
+                do (setf (aref output i) (aref buf-data j))
+                finally (setf (buffer-read-pos buffer) (mod (1+ j) size)))
+          (bt:condition-notify (buffer-not-full buffer)))
         to-read))))
 
 (defun buffer-clear (buffer)

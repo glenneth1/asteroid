@@ -115,7 +115,9 @@
 
 (defun handle-client (server client-socket)
   "Handle a single client connection."
-  (let ((stream (usocket:socket-stream client-socket)))
+  (let ((stream (flexi-streams:make-flexi-stream
+                 (usocket:socket-stream client-socket)
+                 :external-format :latin-1)))
     (handler-case
         (let* ((request-line (read-line stream))
                (headers (read-http-headers stream)))
