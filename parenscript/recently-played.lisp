@@ -27,12 +27,10 @@
     (defun get-current-mount-for-recently-played ()
       (let ((channel (get-current-channel))
             (quality (get-current-quality)))
-        (if (= channel "shuffle")
-            "asteroid-shuffle.mp3"
-            (cond
-              ((= quality "low") "asteroid-low.mp3")
-              ((= quality "mp3") "asteroid.mp3")
-              (t "asteroid.aac")))))
+        (cond
+          ((= quality "low") "asteroid.mp3")
+          ((= quality "mp3") "asteroid.mp3")
+          (t "asteroid.aac"))))
     
     ;; Update recently played tracks display
     (defun update-recently-played ()
@@ -43,7 +41,7 @@
          (then (lambda (result)
                  ;; Radiance wraps API responses in a data envelope
                  (let ((data (or (ps:@ result data) result)))
-                   (if (and (equal (ps:@ data status) "success")
+                   (if (and (= (ps:@ data status) "success")
                             (ps:@ data tracks)
                             (> (ps:@ data tracks length) 0))
                        (let ((list-el (ps:chain document (get-element-by-id "recently-played-list"))))

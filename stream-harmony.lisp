@@ -82,8 +82,7 @@
              (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
     (let* ((track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
            (display-title (or (getf track-info :display-title) "Unknown"))
-           (listeners (cl-streamer:get-listener-count
-                       (format nil "/~A" mount)))
+           (listeners (cl-streamer:get-listener-count))
            (track-id (or (find-track-by-title display-title)
                          (find-track-by-file-path (getf track-info :file)))))
       `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))

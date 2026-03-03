@@ -1390,7 +1390,7 @@
         ;; Return status from cl-streamer directly
         (let* ((now-playing (get-now-playing-stats "asteroid.mp3"))
                (title (if now-playing (cdr (assoc :title now-playing)) "Unknown"))
-               (listeners (if now-playing (cdr (assoc :listeners now-playing)) 0)))
+               (listeners (or (cl-streamer:get-listener-count) 0)))
           (api-output
            `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
                                           ("title" . ,title)
