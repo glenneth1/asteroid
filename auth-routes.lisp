@@ -14,27 +14,21 @@
           (if user
               (progn
                 ;; Login successful - store user ID in session
-                (format t "Login successful for user: ~a~%" (dm:field user "username"))
+                (log:info "Login successful for user: ~a" (dm:field user "username"))
                 (handler-case
-                    (progn
-                      (let* ((user-id (dm:id user))
-                             (user-role (dm:field user "role"))
-                             (redirect-path (cond
-                                              ;; Admin users go to admin dashboard
-                                              ((string-equal user-role "admin") "/admin")
-                                              ;; All other users go to their profile
-                                              (t "/profile"))))
-                        (format t "User ID from DB: ~a~%" user-id)
-                        (format t "User role: ~a, redirecting to: ~a~%" user-role redirect-path)
-                        (setf (session:field "user-id") user-id)
-                        (format t "User ID #~a persisted in session.~%" (session:field "user-id"))
-                        (radiance:redirect redirect-path)))
+                    (let* ((user-id (dm:id user))
+                           (user-role (dm:field user "role"))
+                           (redirect-path (cond
+                                            ((string-equal user-role "admin") "/admin")
+                                            (t "/profile"))))
+                      (setf (session:field "user-id") user-id)
+                      (radiance:redirect redirect-path))
                   (error (e)
-                    (format t "Session error: ~a~%" e)
+                    (log:warn "Session error during login: ~a" e)
                     "Login successful but session error occurred")))
               ;; Login failed - show form with error
               (progn
-                (format t "Login unsuccessful for user: ~a~%" username)
+                (log:info "Login failed for user: ~a" username)
                 (clip:process-to-string
                  (load-template "login")
                  :title "Asteroid Radio - Login"
@@ -168,7 +162,7 @@
 
 (define-api asteroid/user/activate (user-id active) ()
   "API endpoint for setting the active state of an user account"
-  (format t "Activation of user: #~a set to ~a~%" user-id active)
+  (log:info "Activation of user: #~a set to ~a" user-id active)
   (require-role :admin)
   (with-error-handling
     (let ((user (when user-id
@@ -200,7 +194,7 @@
 
 (define-api asteroid/user/role (user-id role) ()
   "API endpoint for setting the access role of an user account"
-  (format t "Role of user: #~a set to ~a~%" user-id role)
+  (log:info "Role of user: #~a set to ~a" user-id role)
   (require-role :admin)
   (with-error-handling
     (let ((user (when user-id

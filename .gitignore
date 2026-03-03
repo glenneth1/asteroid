@@ -66,3 +66,4 @@ playlists/stream-queue.m3u
 /test-postgres-db.lisp
 /userdump.csv
 .envrc
+.playback-state.lisp

@@ -18,6 +18,60 @@
 (defvar *harmony-aac-encoder* nil
   "AAC encoder instance.")
 
+(defvar *harmony-state-file*
+  (merge-pathnames ".playback-state.lisp" (asdf:system-source-directory :asteroid))
+  "File to persist current playback position across restarts.")
+
+;;; ---- Playback State Persistence ----
+
+(defun save-playback-state (track-file-path)
+  "Save the current track file path to the state file.
+   Called on each track change so we can resume after restart."
+  (handler-case
+      (with-open-file (s *harmony-state-file*
+                       :direction :output
+                       :if-exists :supersede
+                       :if-does-not-exist :create)
+        (prin1 (list :track-file track-file-path
+                     :timestamp (get-universal-time))
+               s))
+    (error (e)
+      (log:warn "Could not save playback state: ~A" e))))
+
+(defun load-playback-state ()
+  "Load the saved playback state. Returns plist or NIL."
+  (handler-case
+      (when (probe-file *harmony-state-file*)
+        (with-open-file (s *harmony-state-file* :direction :input)
+          (read s nil nil)))
+    (error (e)
+      (log:warn "Could not load playback state: ~A" e)
+      nil)))
+
+(defun resume-from-saved-state (file-list)
+  "Given a playlist FILE-LIST, find the saved track and return the list
+   starting from the NEXT track after it. Returns the full list if no
+   saved state or track not found."
+  (let ((state (load-playback-state)))
+    (if state
+        (let* ((saved-file (getf state :track-file))
+               (pos (position saved-file file-list :test #'string=)))
+          (if pos
+              (let ((remaining (nthcdr (1+ pos) file-list)))
+                (if remaining
+                    (progn
+                      (log:info "Resuming after track ~A (~A of ~A)"
+                                (file-namestring saved-file) (1+ pos) (length file-list))
+                      remaining)
+                    ;; Was the last track — start from beginning
+                    (progn
+                      (log:info "Last saved track was final in playlist, starting from beginning")
+                      file-list)))
+              (progn
+                (log:info "Saved track not found in current playlist, starting from beginning")
+                file-list)))
+        file-list)))
+
 ;;; ---- M3U Playlist Loading ----
 
 (defun m3u-to-file-list (m3u-path)
@@ -55,6 +109,9 @@
                                  :track-id track-id)
                            :curated)
       (setf *last-known-track-curated* display-title))
+    ;; Persist current track for resume-on-restart
+    (when file-path
+      (save-playback-state file-path))
     (log:info "Track change: ~A (track-id: ~A)" display-title track-id)))
 
 (defun find-track-by-file-path (file-path)
@@ -163,9 +220,11 @@
 
 ;;; ---- Playlist Control (replaces Liquidsoap commands) ----
 
-(defun harmony-load-playlist (m3u-path)
+(defun harmony-load-playlist (m3u-path &key (skip nil))
   "Load and start playing an M3U playlist through the Harmony pipeline.
-   Converts Docker paths to host paths and feeds them to play-list."
+   Converts Docker paths to host paths and feeds them to play-list.
+   When SKIP is T, immediately crossfade to the new playlist.
+   When SKIP is NIL (default), queue tracks to play after the current track."
   (when *harmony-pipeline*
     (let ((file-list (m3u-to-file-list m3u-path)))
       (when file-list
@@ -175,9 +234,11 @@
                                                   (mapcar (lambda (path)
                                                             (list :file path))
                                                           file-list))
-        ;; Skip current track to trigger crossfade into new playlist
-        (cl-streamer/harmony:pipeline-skip *harmony-pipeline*)
-        (log:info "Loaded playlist ~A (~A tracks)" m3u-path (length file-list))
+        ;; Only skip if explicitly requested
+        (when skip
+          (cl-streamer/harmony:pipeline-skip *harmony-pipeline*))
+        (log:info "Loaded playlist ~A (~A tracks~A)" m3u-path (length file-list)
+                  (if skip ", skipping to start" ""))
         (length file-list)))))
 
 (defun harmony-skip-track ()

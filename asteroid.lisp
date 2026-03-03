@@ -1572,14 +1572,16 @@
   (handler-case
       (progn
         (start-harmony-streaming)
-        ;; Load the current playlist and start playing
+        ;; Load the current playlist and start playing (resume from saved position)
         (let ((playlist-path (get-stream-queue-path)))
           (when (probe-file playlist-path)
-            (let ((file-list (m3u-to-file-list playlist-path)))
-              (when file-list
-                (cl-streamer/harmony:play-list *harmony-pipeline* file-list
+            (let* ((file-list (m3u-to-file-list playlist-path))
+                   (resumed-list (when file-list (resume-from-saved-state file-list))))
+              (when resumed-list
+                (cl-streamer/harmony:play-list *harmony-pipeline* resumed-list
                                                :crossfade-duration 3.0)
-                (format t "~A tracks loaded from stream-queue.m3u~%" (length file-list))))))
+                (format t "~A tracks loaded from stream-queue.m3u (~A remaining after resume)~%"
+                        (length file-list) (length resumed-list))))))
         (format t "📡 Stream: ~a/asteroid.mp3~%" *stream-base-url*)
         (format t "📡 Stream: ~a/asteroid.aac~%" *stream-base-url*))
     (error (e)

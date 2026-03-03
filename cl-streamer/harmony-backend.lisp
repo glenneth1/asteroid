@@ -282,7 +282,9 @@
       (update-all-mounts-metadata pipeline display-title)
       (notify-track-change pipeline track-info))
     (let ((voice (harmony:play path :mixer mixer :on-end on-end)))
-      (log:info "Now playing: ~A" display-title)
+      (if update-metadata
+          (log:info "Now playing: ~A" display-title)
+          (log:info "Loading next: ~A" display-title))
       (values voice display-title track-info))))
 
 (defun voice-remaining-seconds (voice)
@@ -363,12 +365,21 @@
                                           :name "cl-streamer-fadeout")))
                                    (volume-ramp voice 1.0 fade-in)
                                    (bt:join-thread fade-thread))
-                                 ;; Crossfade done — now update metadata & notify
+                                 ;; Crossfade done — brief pause so listeners perceive
+                                 ;; the new track before UI updates
+                                 (sleep 1.0)
                                  (update-all-mounts-metadata pipeline display-title)
                                  (notify-track-change pipeline track-info))
                                ;; Wait for track to approach its end (or skip)
                                (setf (pipeline-skip-flag pipeline) nil)
                                (sleep 0.5)
+                               ;; Log initial track duration info
+                               (let ((initial-remaining (voice-remaining-seconds voice)))
+                                 (log:info "Track duration check: remaining=~A pos=~A total=~A sr=~A"
+                                           initial-remaining
+                                           (ignore-errors (mixed:frame-position voice))
+                                           (ignore-errors (mixed:frame-count voice))
+                                           (ignore-errors (mixed:samplerate voice))))
                                (loop while (and (pipeline-running-p pipeline)
                                                 (not (mixed:done-p voice))
                                                 (not (pipeline-skip-flag pipeline)))
@@ -376,7 +387,8 @@
                                      when (and remaining
                                                (<= remaining crossfade-duration)
                                                (not (mixed:done-p voice)))
-                                       do (setf prev-voice voice)
+                                       do (log:info "Crossfade trigger: ~,1Fs remaining" remaining)
+                                          (setf prev-voice voice)
                                           (return)
                                      do (sleep 0.1))
                                ;; Handle skip
