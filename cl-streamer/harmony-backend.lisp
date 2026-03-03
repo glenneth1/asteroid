@@ -7,6 +7,7 @@
            #:start-pipeline
            #:stop-pipeline
            #:play-file
+           #:play-list
            #:pipeline-encoder
            #:pipeline-server
            #:make-streaming-server))
@@ -123,14 +124,57 @@
   (log:info "Audio pipeline stopped")
   pipeline)
 
-(defun play-file (pipeline file-path &key (mixer :music))
+(defun play-file (pipeline file-path &key (mixer :music) title (on-end :free))
   "Play an audio file through the pipeline.
-   The file will be decoded by Harmony and encoded for streaming."
-  (let* ((server (pipeline-harmony-server pipeline))
-         (harmony:*server* server))
-    (let ((voice (harmony:play file-path :mixer mixer)))
-      (log:info "Playing: ~A" file-path)
+   The file will be decoded by Harmony and encoded for streaming.
+   If TITLE is given, update ICY metadata with it.
+   FILE-PATH can be a string or pathname.
+   ON-END is passed to harmony:play (default :free)."
+  (let* ((path (pathname file-path))
+         (server (pipeline-harmony-server pipeline))
+         (harmony:*server* server)
+         (display-title (or title (pathname-name path))))
+    ;; Update ICY metadata so listeners see the track name
+    (cl-streamer:set-now-playing (pipeline-mount-path pipeline) display-title)
+    (let ((voice (harmony:play path :mixer mixer :on-end on-end)))
+      (log:info "Now playing: ~A" display-title)
       voice)))
+
+(defun play-list (pipeline file-list &key (gap 0.5))
+  "Play a list of file paths sequentially through the pipeline.
+   Each entry can be a string (path) or a plist (:file path :title title).
+   GAP is seconds of silence between tracks."
+  (bt:make-thread
+   (lambda ()
+     (loop for entry in file-list
+           while (pipeline-running-p pipeline)
+           do (multiple-value-bind (path title)
+                  (if (listp entry)
+                      (values (getf entry :file) (getf entry :title))
+                      (values entry nil))
+                (handler-case
+                    (let* ((done-lock (bt:make-lock "track-done"))
+                           (done-cv (bt:make-condition-variable :name "track-done"))
+                           (done-p nil)
+                           (server (pipeline-harmony-server pipeline))
+                           (harmony:*server* server)
+                           (voice (play-file pipeline path
+                                             :title title
+                                             :on-end (lambda (voice)
+                                                       (declare (ignore voice))
+                                                       (bt:with-lock-held (done-lock)
+                                                         (setf done-p t)
+                                                         (bt:condition-notify done-cv))))))
+                      (declare (ignore voice))
+                      ;; Wait for the track to finish via callback
+                      (bt:with-lock-held (done-lock)
+                        (loop until (or done-p (not (pipeline-running-p pipeline)))
+                              do (bt:condition-wait done-cv done-lock)))
+                      (when (> gap 0) (sleep gap)))
+                  (error (e)
+                    (log:warn "Error playing ~A: ~A" path e)
+                    (sleep 1))))))
+   :name "cl-streamer-playlist"))
 
 (declaim (inline float-to-s16))
 (defun float-to-s16 (sample)

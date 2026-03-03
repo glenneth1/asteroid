@@ -1,14 +1,15 @@
-;;; End-to-end streaming test
+;;; End-to-end streaming test with playlist
 ;;; Usage: sbcl --load test-stream.lisp
 ;;;
 ;;; Then open http://localhost:8000/stream.mp3 in VLC or browser
+;;; ICY metadata will show track names as they change.
 
 (push #p"/home/glenn/SourceCode/harmony/" asdf:*central-registry*)
 (push #p"/home/glenn/SourceCode/asteroid/cl-streamer/" asdf:*central-registry*)
 
 (ql:quickload '(:cl-streamer :cl-streamer/encoder :cl-streamer/harmony))
 
-(format t "~%=== CL-Streamer End-to-End Test ===~%")
+(format t "~%=== CL-Streamer Playlist Test ===~%")
 (format t "LAME version: ~A~%" (cl-streamer::lame-version))
 
 ;; 1. Create and start stream server
@@ -39,17 +40,33 @@
 
 (cl-streamer/harmony:start-pipeline *pipeline*)
 
-;; 5. Play a test file
-(format t "[5] Playing test file...~%")
-(defvar *test-file*
-  #p"/home/glenn/SourceCode/asteroid/music/library/Amon_Tobin - Dark Jovian/01 Dark Jovian.flac")
+;; 5. Build a playlist from the music library
+(format t "[5] Building playlist from music library...~%")
+(defvar *music-dir* #p"/home/glenn/SourceCode/asteroid/music/library/")
 
-(cl-streamer/harmony:play-file *pipeline* *test-file*)
-(cl-streamer:set-now-playing "/stream.mp3" "Amon Tobin - Dark Jovian")
+(defvar *playlist*
+  (let ((files nil))
+    (dolist (dir (directory (merge-pathnames "*/" *music-dir*)))
+      (dolist (flac (directory (merge-pathnames "**/*.flac" dir)))
+        (push (list :file (namestring flac)
+                    :title (format nil "~A - ~A"
+                                   (car (last (pathname-directory flac)))
+                                   (pathname-name flac)))
+              files)))
+    ;; Shuffle and take first 10 tracks
+    (subseq (alexandria:shuffle (copy-list files))
+            0 (min 10 (length files)))))
+
+(format t "Queued ~A tracks:~%" (length *playlist*))
+(dolist (entry *playlist*)
+  (format t "  ~A~%" (getf entry :title)))
+
+;; 6. Start playlist playback
+(format t "~%[6] Starting playlist...~%")
+(cl-streamer/harmony:play-list *pipeline* *playlist*)
 
 (format t "~%=== Stream is live! ===~%")
 (format t "Listen at: http://localhost:8000/stream.mp3~%")
-(format t "Listeners: ~A~%" (cl-streamer:get-listener-count))
 (format t "~%Press Enter to stop...~%")
 
 (read-line)

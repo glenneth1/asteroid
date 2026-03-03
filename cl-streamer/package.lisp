@@ -7,11 +7,13 @@
    #:encoding-error
    
    ;; Buffer
-   #:ring-buffer
+   #:broadcast-buffer
    #:make-ring-buffer
    #:buffer-write
-   #:buffer-read
-   #:buffer-available
+   #:buffer-read-from
+   #:buffer-wait-for-data
+   #:buffer-current-pos
+   #:buffer-burst-start
    #:buffer-clear
    
    ;; ICY Protocol

@@ -29,6 +29,8 @@
    (mount :initarg :mount :accessor client-mount)
    (wants-metadata :initarg :wants-metadata :accessor client-wants-metadata-p)
    (bytes-since-meta :initform 0 :accessor client-bytes-since-meta)
+   (read-pos :initform 0 :accessor client-read-pos
+             :documentation "Client's absolute position in the broadcast buffer")
    (thread :initform nil :accessor client-thread)
    (active :initform t :accessor client-active-p)))
 
@@ -126,7 +128,9 @@
             (let ((mount (gethash path (server-mounts server))))
               (if mount
                   (serve-stream server client-socket stream mount wants-meta)
-                  (send-404 stream path)))))
+                  (progn
+                    (log:debug "404 for path: ~A" path)
+                    (send-404 stream path))))))
       (error (e)
         (log:debug "Client error: ~A" e)
         (ignore-errors (usocket:socket-close client-socket))))))
@@ -167,25 +171,33 @@
       (log:info "Client disconnected from ~A" (mount-path mount)))))
 
 (defun stream-to-client (client)
-  "Stream audio data to a client, inserting metadata as needed."
+  "Stream audio data to a client from the broadcast buffer.
+   Starts with a burst of recent data for fast playback start."
   (let* ((mount (client-mount client))
          (buffer (mount-buffer mount))
          (stream (client-stream client))
          (chunk-size 4096)
          (chunk (make-array chunk-size :element-type '(unsigned-byte 8))))
+    ;; Start from burst position for fast playback
+    (setf (client-read-pos client) (buffer-burst-start buffer))
     (loop while (client-active-p client)
-          do (let ((bytes-read (buffer-read buffer chunk :blocking t)))
-               (when (zerop bytes-read)
-                 (sleep 0.01)
-                 (return))
-               (handler-case
-                   (if (client-wants-metadata-p client)
-                       (write-with-metadata client chunk bytes-read)
-                       (write-sequence chunk stream :end bytes-read))
-                 (error ()
-                   (setf (client-active-p client) nil)
-                   (return)))
-               (force-output stream)))))
+          do (multiple-value-bind (bytes-read new-pos)
+                 (buffer-read-from buffer (client-read-pos client) chunk)
+               (if (zerop bytes-read)
+                   ;; No data yet — wait for producer
+                   (buffer-wait-for-data buffer (client-read-pos client))
+                   (progn
+                     (setf (client-read-pos client) new-pos)
+                     (handler-case
+                         (progn
+                           (if (client-wants-metadata-p client)
+                               (write-with-metadata client chunk bytes-read)
+                               (write-sequence chunk stream :end bytes-read))
+                           (force-output stream))
+                       (error (e)
+                         (log:debug "Client stream error: ~A" e)
+                         (setf (client-active-p client) nil)
+                         (return)))))))))
 
 (defun write-with-metadata (client data length)
   "Write audio data with ICY metadata injection."

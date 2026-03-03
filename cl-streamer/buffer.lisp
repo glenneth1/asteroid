@@ -1,84 +1,87 @@
 (in-package #:cl-streamer)
 
-(defclass ring-buffer ()
+;;; ---- Broadcast Ring Buffer ----
+;;; Single-producer, multi-consumer circular buffer.
+;;; The writer advances write-pos; each client has its own read cursor.
+;;; Old data is overwritten when the buffer wraps — slow clients lose data
+;;; rather than blocking the producer (appropriate for live streaming).
+
+(defclass broadcast-buffer ()
   ((data :initarg :data :accessor buffer-data)
    (size :initarg :size :reader buffer-size)
-   (read-pos :initform 0 :accessor buffer-read-pos)
    (write-pos :initform 0 :accessor buffer-write-pos)
-   (lock :initform (bt:make-lock "ring-buffer-lock") :reader buffer-lock)
+   (lock :initform (bt:make-lock "broadcast-buffer-lock") :reader buffer-lock)
    (not-empty :initform (bt:make-condition-variable :name "buffer-not-empty")
               :reader buffer-not-empty)
-   (not-full :initform (bt:make-condition-variable :name "buffer-not-full")
-             :reader buffer-not-full)))
+   (burst-size :initarg :burst-size :reader buffer-burst-size
+               :initform (* 32 1024)
+               :documentation "Bytes of recent data to send on new client connect")))
 
 (defun make-ring-buffer (size)
-  "Create a ring buffer with SIZE bytes capacity."
-  (make-instance 'ring-buffer
+  "Create a broadcast ring buffer with SIZE bytes capacity."
+  (make-instance 'broadcast-buffer
                  :data (make-array size :element-type '(unsigned-byte 8))
                  :size size))
 
-(defun %buffer-available (buffer)
-  "Internal: bytes available to read. Caller must hold lock."
-  (let ((write (buffer-write-pos buffer))
-        (read (buffer-read-pos buffer))
-        (size (buffer-size buffer)))
-    (mod (- write read) size)))
-
-(defun buffer-available (buffer)
-  "Return the number of bytes available to read."
-  (bt:with-lock-held ((buffer-lock buffer))
-    (%buffer-available buffer)))
-
-(defun %buffer-free-space (buffer)
-  "Internal: bytes available to write. Caller must hold lock."
-  (- (buffer-size buffer) (%buffer-available buffer) 1))
-
-(defun buffer-free-space (buffer)
-  "Return the number of bytes available to write."
-  (bt:with-lock-held ((buffer-lock buffer))
-    (%buffer-free-space buffer)))
-
 (defun buffer-write (buffer data &key (start 0) (end (length data)))
-  "Write bytes from DATA to BUFFER. Blocks if buffer is full."
+  "Write bytes into the broadcast buffer. Never blocks; overwrites old data."
   (let ((len (- end start)))
-    (bt:with-lock-held ((buffer-lock buffer))
-      (when (> len 0)
-        (loop while (< (%buffer-free-space buffer) len)
-              do (bt:condition-wait (buffer-not-full buffer) (buffer-lock buffer)))
+    (when (> len 0)
+      (bt:with-lock-held ((buffer-lock buffer))
         (let ((write-pos (buffer-write-pos buffer))
               (size (buffer-size buffer))
               (buf-data (buffer-data buffer)))
           (loop for i from start below end
-                for j = write-pos then (mod (1+ j) size)
+                for j = (mod write-pos size) then (mod (1+ j) size)
                 do (setf (aref buf-data j) (aref data i))
-                finally (setf (buffer-write-pos buffer) (mod (1+ j) size))))
+                finally (setf (buffer-write-pos buffer) (+ write-pos len))))
         (bt:condition-notify (buffer-not-empty buffer))))
     len))
 
-(defun buffer-read (buffer output &key (start 0) (end (length output)) (blocking t))
-  "Read bytes from BUFFER into OUTPUT. Returns number of bytes read.
-   If BLOCKING is T, waits for data. Otherwise returns 0 if empty."
+(defun buffer-read-from (buffer read-pos output &key (start 0) (end (length output)))
+  "Read bytes from BUFFER starting at READ-POS into OUTPUT.
+   Returns (values bytes-read new-read-pos).
+   READ-POS is the client's absolute position in the stream."
   (let ((requested (- end start)))
     (bt:with-lock-held ((buffer-lock buffer))
-      (when blocking
-        (loop while (zerop (%buffer-available buffer))
-              do (bt:condition-wait (buffer-not-empty buffer) (buffer-lock buffer))))
-      (let* ((available (%buffer-available buffer))
-             (to-read (min requested available))
-             (read-pos (buffer-read-pos buffer))
+      (let* ((write-pos (buffer-write-pos buffer))
              (size (buffer-size buffer))
-             (buf-data (buffer-data buffer)))
-        (when (> to-read 0)
-          (loop for i from start below (+ start to-read)
-                for j = read-pos then (mod (1+ j) size)
-                do (setf (aref output i) (aref buf-data j))
-                finally (setf (buffer-read-pos buffer) (mod (1+ j) size)))
-          (bt:condition-notify (buffer-not-full buffer)))
-        to-read))))
+             (buf-data (buffer-data buffer))
+             ;; Clamp read-pos: if client is too far behind, skip ahead
+             (oldest-available (max 0 (- write-pos size)))
+             (effective-read (max read-pos oldest-available))
+             (available (- write-pos effective-read))
+             (to-read (min requested available)))
+        (if (> to-read 0)
+            (progn
+              (loop for i from start below (+ start to-read)
+                    for j = (mod effective-read size) then (mod (1+ j) size)
+                    do (setf (aref output i) (aref buf-data j)))
+              (values to-read (+ effective-read to-read)))
+            (values 0 effective-read))))))
+
+(defun buffer-wait-for-data (buffer read-pos)
+  "Block until new data is available past READ-POS."
+  (bt:with-lock-held ((buffer-lock buffer))
+    (loop while (<= (buffer-write-pos buffer) read-pos)
+          do (bt:condition-wait (buffer-not-empty buffer) (buffer-lock buffer)))))
+
+(defun buffer-current-pos (buffer)
+  "Return the current write position (for new client burst start)."
+  (bt:with-lock-held ((buffer-lock buffer))
+    (buffer-write-pos buffer)))
+
+(defun buffer-burst-start (buffer)
+  "Return a read position that gives BURST-SIZE bytes of recent data.
+   This lets new clients start playing immediately."
+  (bt:with-lock-held ((buffer-lock buffer))
+    (let* ((write-pos (buffer-write-pos buffer))
+           (size (buffer-size buffer))
+           (oldest (max 0 (- write-pos size)))
+           (burst-start (max oldest (- write-pos (buffer-burst-size buffer)))))
+      burst-start)))
 
 (defun buffer-clear (buffer)
-  "Clear all data from the buffer."
+  "Clear the buffer."
   (bt:with-lock-held ((buffer-lock buffer))
-    (setf (buffer-read-pos buffer) 0
-          (buffer-write-pos buffer) 0)
-    (bt:condition-notify (buffer-not-full buffer))))
+    (setf (buffer-write-pos buffer) 0)))
