@@ -60,18 +60,14 @@
   (let ((files nil))
     (dolist (dir (directory (merge-pathnames "*/" *music-dir*)))
       (dolist (flac (directory (merge-pathnames "**/*.flac" dir)))
-        (push (list :file (namestring flac)
-                    :title (format nil "~A - ~A"
-                                   (car (last (pathname-directory flac)))
-                                   (pathname-name flac)))
-              files)))
+        (push (list :file (namestring flac)) files)))
     ;; Shuffle and take first 10 tracks
     (subseq (alexandria:shuffle (copy-list files))
             0 (min 10 (length files)))))
 
 (format t "Queued ~A tracks:~%" (length *playlist*))
 (dolist (entry *playlist*)
-  (format t "  ~A~%" (getf entry :title)))
+  (format t "  ~A~%" (getf entry :file)))
 
 ;; 6. Start playlist playback
 (format t "~%[6] Starting playlist...~%")

@@ -25,7 +25,8 @@
                #:harmony
                #:cl-mixed
                #:cl-mixed-mpg123
-               #:cl-mixed-flac)
+               #:cl-mixed-flac
+               #:taglib)
   :components ((:file "harmony-backend")))
 
 (asdf:defsystem #:cl-streamer/encoder

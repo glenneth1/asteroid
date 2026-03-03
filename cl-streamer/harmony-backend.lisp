@@ -156,21 +156,58 @@
   (log:info "Audio pipeline stopped")
   pipeline)
 
-(defun play-file (pipeline file-path &key (mixer :music) title (on-end :free))
+(defun read-audio-metadata (file-path)
+  "Read metadata (artist, title, album) from an audio file using taglib.
+   Returns a plist (:artist ... :title ... :album ...) or NIL on failure."
+  (handler-case
+      (let ((audio-file (audio-streams:open-audio-file (namestring file-path))))
+        (list :artist (or (abstract-tag:artist audio-file) nil)
+              :title (or (abstract-tag:title audio-file) nil)
+              :album (or (abstract-tag:album audio-file) nil)))
+    (error (e)
+      (log:debug "Could not read tags from ~A: ~A" file-path e)
+      nil)))
+
+(defun format-display-title (file-path &optional explicit-title)
+  "Build a display title for ICY metadata.
+   If EXPLICIT-TITLE is given, use it.
+   Otherwise read tags from the file: 'Artist - Title' or fall back to filename."
+  (or explicit-title
+      (let ((tags (read-audio-metadata file-path)))
+        (if tags
+            (let ((artist (getf tags :artist))
+                  (title (getf tags :title)))
+              (cond ((and artist title (not (string= artist ""))
+                          (not (string= title "")))
+                     (format nil "~A - ~A" artist title))
+                    (title title)
+                    (artist artist)
+                    (t (pathname-name (pathname file-path)))))
+            (pathname-name (pathname file-path))))))
+
+(defun update-all-mounts-metadata (pipeline display-title)
+  "Update ICY metadata on all mount points."
+  (dolist (output (drain-outputs (pipeline-drain pipeline)))
+    (cl-streamer:set-now-playing (cdr output) display-title)))
+
+(defun play-file (pipeline file-path &key (mixer :music) title (on-end :free)
+                                          (update-metadata t))
   "Play an audio file through the pipeline.
    The file will be decoded by Harmony and encoded for streaming.
    If TITLE is given, update ICY metadata with it.
+   Otherwise reads tags from the file via taglib.
    FILE-PATH can be a string or pathname.
-   ON-END is passed to harmony:play (default :free)."
+   ON-END is passed to harmony:play (default :free).
+   UPDATE-METADATA controls whether ICY metadata is updated immediately."
   (let* ((path (pathname file-path))
          (server (pipeline-harmony-server pipeline))
          (harmony:*server* server)
-         (display-title (or title (pathname-name path))))
-    ;; Update ICY metadata so listeners see the track name
-    (cl-streamer:set-now-playing (pipeline-mount-path pipeline) display-title)
+         (display-title (format-display-title path title)))
+    (when update-metadata
+      (update-all-mounts-metadata pipeline display-title))
     (let ((voice (harmony:play path :mixer mixer :on-end on-end)))
       (log:info "Now playing: ~A" display-title)
-      voice)))
+      (values voice display-title))))
 
 (defun voice-remaining-seconds (voice)
   "Return estimated seconds remaining for a voice, or NIL if unknown."
@@ -214,38 +251,41 @@
                         (values entry nil))
                   (handler-case
                       (let* ((server (pipeline-harmony-server pipeline))
-                             (harmony:*server* server)
-                             (voice (play-file pipeline path :title title
-                                                :on-end :disconnect)))
-                        (when voice
-                          ;; If this isn't the first track, fade in from 0
-                          (when (and prev-voice (> idx 0))
-                            (setf (mixed:volume voice) 0.0)
-                            ;; Fade in new voice and fade out old voice in parallel
-                            (let ((fade-thread
-                                    (bt:make-thread
-                                     (lambda ()
-                                       (volume-ramp prev-voice 0.0 fade-out)
-                                       (harmony:stop prev-voice))
-                                     :name "cl-streamer-fadeout")))
-                              (volume-ramp voice 1.0 fade-in)
-                              (bt:join-thread fade-thread)))
-                          ;; Wait for track to approach its end
-                          (sleep 0.5) ; let decoder start
-                          (loop while (and (pipeline-running-p pipeline)
-                                           (not (mixed:done-p voice)))
-                                for remaining = (voice-remaining-seconds voice)
-                                ;; Start crossfade when we're within crossfade-duration of the end
-                                when (and remaining
-                                          (<= remaining crossfade-duration)
-                                          (not (mixed:done-p voice)))
-                                  do (setf prev-voice voice)
-                                     (return)  ; break out to start next track
-                                do (sleep 0.1))
-                          ;; If track ended naturally (no crossfade), clean up
-                          (when (mixed:done-p voice)
-                            (harmony:stop voice)
-                            (setf prev-voice nil))))
+                             (harmony:*server* server))
+                        (multiple-value-bind (voice display-title)
+                            (play-file pipeline path :title title
+                                       :on-end :disconnect
+                                       :update-metadata (null prev-voice))
+                          (when voice
+                            ;; If this isn't the first track, crossfade
+                            (when (and prev-voice (> idx 0))
+                              (setf (mixed:volume voice) 0.0)
+                              ;; Fade in new voice and fade out old voice in parallel
+                              (let ((fade-thread
+                                      (bt:make-thread
+                                       (lambda ()
+                                         (volume-ramp prev-voice 0.0 fade-out)
+                                         (harmony:stop prev-voice))
+                                       :name "cl-streamer-fadeout")))
+                                (volume-ramp voice 1.0 fade-in)
+                                (bt:join-thread fade-thread))
+                              ;; Now the crossfade is done, update metadata
+                              (update-all-mounts-metadata pipeline display-title))
+                            ;; Wait for track to approach its end
+                            (sleep 0.5)
+                            (loop while (and (pipeline-running-p pipeline)
+                                             (not (mixed:done-p voice)))
+                                  for remaining = (voice-remaining-seconds voice)
+                                  when (and remaining
+                                            (<= remaining crossfade-duration)
+                                            (not (mixed:done-p voice)))
+                                    do (setf prev-voice voice)
+                                       (return)
+                                  do (sleep 0.1))
+                            ;; If track ended naturally (no crossfade), clean up
+                            (when (mixed:done-p voice)
+                              (harmony:stop voice)
+                              (setf prev-voice nil)))))
                     (error (e)
                       (log:warn "Error playing ~A: ~A" path e)
                       (sleep 1)))))
