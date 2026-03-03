@@ -122,7 +122,13 @@
                  :external-format :latin-1)))
     (handler-case
         (let* ((request-line (read-line stream))
-               (headers (read-http-headers stream)))
+               (headers (read-http-headers stream))
+               (method (first (split-sequence:split-sequence #\Space request-line))))
+          ;; Handle CORS preflight
+          (when (string-equal method "OPTIONS")
+            (send-cors-preflight stream)
+            (ignore-errors (usocket:socket-close client-socket))
+            (return-from handle-client))
           (multiple-value-bind (path wants-meta)
               (parse-icy-request request-line headers)
             (let ((mount (gethash path (server-mounts server))))
@@ -178,8 +184,13 @@
          (stream (client-stream client))
          (chunk-size 4096)
          (chunk (make-array chunk-size :element-type '(unsigned-byte 8))))
-    ;; Start from burst position for fast playback
-    (setf (client-read-pos client) (buffer-burst-start buffer))
+    ;; For MP3, burst recent data for fast playback start.
+    ;; For AAC, start from current position — AAC requires ADTS frame alignment
+    ;; and burst data from mid-stream causes browser decode errors.
+    (setf (client-read-pos client)
+          (if (string= (mount-content-type mount) "audio/aac")
+              (buffer-current-pos buffer)
+              (buffer-burst-start buffer)))
     (loop while (client-active-p client)
           do (multiple-value-bind (bytes-read new-pos)
                  (buffer-read-from buffer (client-read-pos client) chunk)
@@ -195,7 +206,8 @@
                                (write-sequence chunk stream :end bytes-read))
                            (force-output stream))
                        (error (e)
-                         (log:debug "Client stream error: ~A" e)
+                         (log:warn "Client stream error on ~A: ~A" 
+                                   (mount-path mount) e)
                          (setf (client-active-p client) nil)
                          (return)))))))))
 
@@ -220,6 +232,16 @@
                      (write-sequence data stream :start pos :end length)
                      (incf (client-bytes-since-meta client) bytes-remaining)
                      (setf pos length)))))))
+
+(defun send-cors-preflight (stream)
+  "Send a CORS preflight response for OPTIONS requests."
+  (format stream "HTTP/1.1 204 No Content~C~C" #\Return #\Linefeed)
+  (format stream "Access-Control-Allow-Origin: *~C~C" #\Return #\Linefeed)
+  (format stream "Access-Control-Allow-Methods: GET, OPTIONS~C~C" #\Return #\Linefeed)
+  (format stream "Access-Control-Allow-Headers: Origin, Accept, Content-Type, Icy-MetaData, Range~C~C" #\Return #\Linefeed)
+  (format stream "Access-Control-Max-Age: 86400~C~C" #\Return #\Linefeed)
+  (format stream "~C~C" #\Return #\Linefeed)
+  (force-output stream))
 
 (defun send-404 (stream path)
   "Send a 404 response for unknown mount points."

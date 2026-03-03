@@ -149,28 +149,23 @@
      ;; ========================================
      
      ;; Get stream configuration for a given channel and quality
-     ;; Curated channel has multiple quality options, shuffle has only one
+     ;; With cl-streamer, both channels use the same stream mounts -
+     ;; channel switching loads a different playlist server-side
      (defun get-stream-config (stream-base-url channel quality)
-       (let ((curated-config (ps:create
-                              :aac (ps:create :url (+ stream-base-url "/asteroid.aac")
-                                              :type "audio/aac"
-                                              :format "AAC 96kbps Stereo"
-                                              :mount "asteroid.aac")
-                              :mp3 (ps:create :url (+ stream-base-url "/asteroid.mp3")
-                                              :type "audio/mpeg"
-                                              :format "MP3 128kbps Stereo"
-                                              :mount "asteroid.mp3")
-                              :low (ps:create :url (+ stream-base-url "/asteroid-low.mp3")
-                                              :type "audio/mpeg"
-                                              :format "MP3 64kbps Stereo"
-                                              :mount "asteroid-low.mp3")))
-             (shuffle-config (ps:create :url (+ stream-base-url "/asteroid-shuffle.mp3")
-                                        :type "audio/mpeg"
-                                        :format "Shuffle MP3 96kbps"
-                                        :mount "asteroid-shuffle.mp3")))
-         (if (= channel "shuffle")
-             shuffle-config
-             (ps:getprop curated-config quality))))
+       (let ((config (ps:create
+                      :aac (ps:create :url (+ stream-base-url "/asteroid.aac")
+                                      :type "audio/aac"
+                                      :format "AAC 96kbps Stereo"
+                                      :mount "asteroid.aac")
+                      :mp3 (ps:create :url (+ stream-base-url "/asteroid.mp3")
+                                      :type "audio/mpeg"
+                                      :format "MP3 128kbps Stereo"
+                                      :mount "asteroid.mp3")
+                      :low (ps:create :url (+ stream-base-url "/asteroid.mp3")
+                                      :type "audio/mpeg"
+                                      :format "MP3 128kbps Stereo"
+                                      :mount "asteroid.mp3"))))
+         (ps:getprop config quality)))
      
      ;; Get current channel from selector or localStorage
      (defun get-current-channel ()
@@ -672,101 +667,52 @@
      (defvar *reconnect-timeout* nil)
      (defvar *is-reconnecting* false)
      
-     ;; Reconnect stream - recreates audio element to fix wedged state
+     ;; Reconnect stream - reuses existing audio element to preserve user gesture context
      (defun reconnect-stream ()
        (ps:chain console (log "Reconnecting stream..."))
        (show-status "🔄 Reconnecting..." false)
        
-       (let* ((container (ps:chain document (query-selector ".persistent-player")))
-              (old-audio (ps:chain document (get-element-by-id "persistent-audio")))
+       (let* ((audio (ps:chain document (get-element-by-id "persistent-audio")))
+              (source (ps:chain document (get-element-by-id "audio-source")))
               (stream-base-url (ps:@ (ps:chain document (get-element-by-id "stream-base-url")) value))
               (stream-channel (get-current-channel))
               (stream-quality (get-current-quality))
               (config (get-stream-config stream-base-url stream-channel stream-quality)))
          
-         (unless (and container old-audio)
+         (unless audio
            (show-status "❌ Could not reconnect - reload page" true)
            (setf *is-reconnecting* false)
            (return-from reconnect-stream nil))
          
-         ;; Save current volume and muted state
-         (let ((saved-volume (ps:@ old-audio volume))
-               (saved-muted (ps:@ old-audio muted)))
-           (ps:chain console (log "Saving volume:" saved-volume "muted:" saved-muted))
-           
-           ;; Reset spectrum analyzer if it exists
-           (when (ps:@ window reset-spectrum-analyzer)
-             (ps:chain window (reset-spectrum-analyzer)))
-           
-           ;; Stop and remove old audio
-           (ps:chain old-audio (pause))
-           (setf (ps:@ old-audio src) "")
-           (ps:chain old-audio (load))
-           
-           ;; Create new audio element
-           (let ((new-audio (ps:chain document (create-element "audio"))))
-             (setf (ps:@ new-audio id) "persistent-audio")
-             (setf (ps:@ new-audio controls) true)
-             (setf (ps:@ new-audio preload) "metadata")
-             (setf (ps:@ new-audio cross-origin) "anonymous")
-             
-             ;; Restore volume and muted state
-             (setf (ps:@ new-audio volume) saved-volume)
-             (setf (ps:@ new-audio muted) saved-muted)
-             
-             ;; Create source
-             (let ((source (ps:chain document (create-element "source"))))
-               (setf (ps:@ source id) "audio-source")
-               (setf (ps:@ source src) (ps:@ config url))
-               (setf (ps:@ source type) (ps:@ config type))
-               (ps:chain new-audio (append-child source)))
-             
-             ;; Replace old audio with new
-             (ps:chain old-audio (replace-with new-audio))
-             
-             ;; Re-attach event listeners
-             (attach-audio-listeners new-audio)
-             
-             ;; Try to play - reset flag so error handler can catch failures
-             (setf *is-reconnecting* false)
-             (set-timeout
-              (lambda ()
-                (ps:chain new-audio (play)
-                          (then (lambda ()
-                                  (ps:chain console (log "Reconnected successfully"))
-                                  (show-status "✓ Reconnected!" false)
-                                  ;; Reinitialize spectrum analyzer
-                                  (when (ps:@ window init-spectrum-analyzer)
-                                    (set-timeout (lambda ()
-                                                   (ps:chain window (init-spectrum-analyzer)))
-                                                 500))
-                                  ;; Also try in content frame
-                                  (set-timeout
-                                   (lambda ()
-                                     (ps:try
-                                      (let ((content-frame (ps:@ (ps:@ window parent) frames "content-frame")))
-                                        (when (and content-frame (ps:@ content-frame init-spectrum-analyzer))
-                                          (when (ps:@ content-frame reset-spectrum-analyzer)
-                                            (ps:chain content-frame (reset-spectrum-analyzer)))
-                                          (ps:chain content-frame (init-spectrum-analyzer))
-                                          (ps:chain console (log "Spectrum analyzer reinitialized in content frame"))))
-                                      (:catch (e)
-                                        (ps:chain console (log "Could not reinit spectrum in content frame:" e)))))
-                                   600)))
-                          (catch (lambda (err)
-                                   (ps:chain console (log "Reconnect play failed:" err))
-                                   ;; Retry with exponential backoff
-                                   (incf *stream-error-count*)
-                                   (if (< *stream-error-count* 5)
-                                       (let ((delay (* 2000 *stream-error-count*)))
-                                         (show-status (+ "⚠️ Reconnect failed, retrying in " (/ delay 1000) "s...") true)
-                                         (setf *is-reconnecting* false)
-                                         (setf *reconnect-timeout*
-                                               (set-timeout (lambda () (reconnect-stream)) delay)))
-                                       (progn
-                                         (setf *is-reconnecting* false)
-                                         (show-status "❌ Could not reconnect. Click play to try again." true)))))))
-              300)))))
+         (ps:chain console (log "Saving volume:" (ps:@ audio volume) "muted:" (ps:@ audio muted)))
+         
+         ;; Reset spectrum analyzer if it exists
+         (when (ps:@ window reset-spectrum-analyzer)
+           (ps:chain window (reset-spectrum-analyzer)))
+         
+         ;; Reload source on existing element (preserves user gesture context)
+         (ps:chain audio (pause))
+         (if source
+             ;; Update existing source element
+             (progn
+               (setf (ps:@ source src) (+ (ps:@ config url) "?t=" (ps:chain (ps:new (*Date)) (get-time))))
+               (setf (ps:@ source type) (ps:@ config type)))
+             ;; Create source if missing
+             (let ((new-source (ps:chain document (create-element "source"))))
+               (setf (ps:@ new-source id) "audio-source")
+               (setf (ps:@ new-source src) (+ (ps:@ config url) "?t=" (ps:chain (ps:new (*Date)) (get-time))))
+               (setf (ps:@ new-source type) (ps:@ config type))
+               (ps:chain audio (append-child new-source))))
+         
+         ;; Reload and play
+         (ps:chain audio (load))
+         (setf *is-reconnecting* false)
+         (set-timeout
+          (lambda ()
+            (ps:chain audio (play)
+                      (catch (lambda (error)
+                               (ps:chain console (log "Reconnect play failed:" error))))))
+          200)))
      
      ;; Simple reconnect for popout player (just reload and play)
      (defun simple-reconnect (audio-element)
