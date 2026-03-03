@@ -8,6 +8,12 @@
 
 (cffi:use-foreign-library libfdkaac)
 
+;; Shim library for safe NULL-pointer init call (SBCL/CFFI crashes on NULL args to aacEncEncode)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (let ((shim-path (merge-pathnames "libfdkaac-shim.so"
+                                     (asdf:system-source-directory :cl-streamer/aac-encoder))))
+    (cffi:load-foreign-library shim-path)))
+
 (cffi:defctype aac-encoder-handle :pointer)
 
 (cffi:defcenum aac-encoder-param
@@ -133,3 +139,27 @@
 (cffi:defcfun ("aacEncoder_GetParam" aac-encoder-get-param) :uint
   (h-aac-encoder aac-encoder-handle)
   (param aac-encoder-param))
+
+;; Shim: all FDK-AAC calls go through C to avoid SBCL signal handler conflicts
+(cffi:defcfun ("fdkaac_open_and_init" fdkaac-open-and-init) :int
+  (out-handle :pointer)
+  (sample-rate :int)
+  (channels :int)
+  (bitrate :int)
+  (aot :int)
+  (transmux :int)
+  (afterburner :int)
+  (out-frame-length :pointer)
+  (out-max-out-bytes :pointer))
+
+(cffi:defcfun ("fdkaac_encode" fdkaac-encode) :int
+  (handle :pointer)
+  (pcm-buf :pointer)
+  (pcm-bytes :int)
+  (num-samples :int)
+  (out-buf :pointer)
+  (out-buf-size :int)
+  (out-bytes-written :pointer))
+
+(cffi:defcfun ("fdkaac_close" fdkaac-close) :void
+  (ph :pointer))

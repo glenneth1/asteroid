@@ -14,7 +14,7 @@
    (not-empty :initform (bt:make-condition-variable :name "buffer-not-empty")
               :reader buffer-not-empty)
    (burst-size :initarg :burst-size :reader buffer-burst-size
-               :initform (* 32 1024)
+               :initform (* 64 1024)
                :documentation "Bytes of recent data to send on new client connect")))
 
 (defun make-ring-buffer (size)
