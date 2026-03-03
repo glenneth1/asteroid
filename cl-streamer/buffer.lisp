@@ -42,8 +42,8 @@
               for j = write-pos then (mod (1+ j) size)
               do (setf (aref buf-data j) (aref data i))
               finally (setf (buffer-write-pos buffer) (mod (1+ j) size))))
-      (bt:condition-notify (buffer-not-empty buffer))))
-  len)
+      (bt:condition-notify (buffer-not-empty buffer)))
+    len))
 
 (defun buffer-read (buffer output &key (start 0) (end (length output)) (blocking t))
   "Read bytes from BUFFER into OUTPUT. Returns number of bytes read.

@@ -32,7 +32,6 @@
   "Parse an ICY/HTTP request. Returns (values mount-point wants-metadata-p).
    HEADERS is an alist of (name . value) pairs."
   (let* ((parts (split-sequence:split-sequence #\Space request-line))
-         (method (first parts))
          (path (second parts))
          (icy-metadata-header (cdr (assoc "icy-metadata" headers :test #'string-equal))))
     (values path

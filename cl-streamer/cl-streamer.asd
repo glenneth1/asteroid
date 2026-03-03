@@ -24,7 +24,8 @@
   :depends-on (#:cl-streamer
                #:harmony
                #:cl-mixed
-               #:cl-mixed-mpg123)
+               #:cl-mixed-mpg123
+               #:cl-mixed-flac)
   :components ((:file "harmony-backend")))
 
 (asdf:defsystem #:cl-streamer/encoder
@@ -33,3 +34,10 @@
                #:cffi)
   :components ((:file "lame-ffi")
                (:file "encoder")))
+
+(asdf:defsystem #:cl-streamer/aac-encoder
+  :description "AAC encoding for cl-streamer (FDK-AAC)"
+  :depends-on (#:cl-streamer
+               #:cffi)
+  :components ((:file "fdkaac-ffi")
+               (:file "aac-encoder")))
