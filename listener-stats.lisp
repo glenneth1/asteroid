@@ -476,16 +476,25 @@
              location-counts)))
 
 (defun poll-and-store-stats ()
-  "Single poll iteration: fetch stats and store"
-  (let ((stats (fetch-icecast-stats)))
-    (when stats
-      (let ((sources (parse-icecast-sources stats)))
-        (dolist (source sources)
-          (let ((mount (getf source :mount))
-                (listeners (getf source :listeners)))
-            (when mount
-              (store-listener-snapshot mount listeners)
-              (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners)))))))
+  "Single poll iteration: fetch stats and store.
+   Uses cl-streamer listener counts when Harmony is running, falls back to Icecast."
+  (if *harmony-pipeline*
+      ;; Get listener counts directly from cl-streamer
+      (dolist (mount '("/asteroid.mp3" "/asteroid.aac"))
+        (let ((listeners (cl-streamer:get-listener-count mount)))
+          (when (and listeners (> listeners 0))
+            (store-listener-snapshot mount listeners)
+            (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))
+      ;; Fallback: poll Icecast
+      (let ((stats (fetch-icecast-stats)))
+        (when stats
+          (let ((sources (parse-icecast-sources stats)))
+            (dolist (source sources)
+              (let ((mount (getf source :mount))
+                    (listeners (getf source :listeners)))
+                (when mount
+                  (store-listener-snapshot mount listeners)
+                  (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))))))
   ;; Collect geo stats from web listeners (uses real IPs from X-Forwarded-For)
   (collect-geo-stats-from-web-listeners))
 

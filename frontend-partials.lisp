@@ -93,19 +93,18 @@
               (:track-id . ,(find-track-by-title title))
               (:favorite-count . ,(or (get-track-favorite-count title) 1))))))))
 
-(defun get-now-playing-stats (&optional (mount "stream.mp3"))
+(defun get-now-playing-stats (&optional (mount "asteroid.mp3"))
   "Get now-playing stats from Harmony pipeline, falling back to Icecast.
    Returns an alist with :listenurl, :title, :listeners, :track-id, :favorite-count."
   (or (harmony-now-playing mount)
-      (icecast-now-playing *stream-base-url*
-                           (if (string= mount "stream.mp3") "asteroid.mp3" mount))))
+      (icecast-now-playing *stream-base-url* mount)))
 
 (define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 10 :timeout 1)
   "Get Partial HTML with live now-playing status.
    Optional MOUNT parameter specifies which stream to get metadata from.
    Uses Harmony pipeline when available, falls back to Icecast."
   (with-error-handling
-    (let* ((mount-name (or mount "stream.mp3"))
+    (let* ((mount-name (or mount "asteroid.mp3"))
            (now-playing-stats (get-now-playing-stats mount-name)))
       (if now-playing-stats
           (let* ((title (cdr (assoc :title now-playing-stats)))
@@ -127,7 +126,7 @@
   "Get inline text with now playing info (for admin dashboard and widgets).
    Optional MOUNT parameter specifies which stream to get metadata from."
   (with-error-handling
-    (let* ((mount-name (or mount "stream.mp3"))
+    (let* ((mount-name (or mount "asteroid.mp3"))
            (now-playing-stats (get-now-playing-stats mount-name)))
       (if now-playing-stats
           (progn
@@ -143,7 +142,7 @@
   ;; Register web listener for geo stats (keeps listener active during playback)
   (register-web-listener)
   (with-error-handling
-    (let* ((mount-name (or mount "stream.mp3"))
+    (let* ((mount-name (or mount "asteroid.mp3"))
            (now-playing-stats (get-now-playing-stats mount-name)))
       (if now-playing-stats
           (let* ((title (cdr (assoc :title now-playing-stats)))

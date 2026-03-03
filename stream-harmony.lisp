@@ -74,7 +74,7 @@
 ;;; These functions provide the same data that icecast-now-playing returned,
 ;;; but sourced directly from cl-streamer's pipeline state.
 
-(defun harmony-now-playing (&optional (mount "stream.mp3"))
+(defun harmony-now-playing (&optional (mount "asteroid.mp3"))
   "Get now-playing information from cl-streamer pipeline.
    Returns an alist compatible with the icecast-now-playing format,
    or NIL if the pipeline is not running."
@@ -107,11 +107,11 @@
   (cl-streamer:start :port port)
 
   ;; Add mount points
-  (cl-streamer:add-mount cl-streamer:*server* "/stream.mp3"
+  (cl-streamer:add-mount cl-streamer:*server* "/asteroid.mp3"
                          :content-type "audio/mpeg"
                          :bitrate 128
                          :name "Asteroid Radio MP3")
-  (cl-streamer:add-mount cl-streamer:*server* "/stream.aac"
+  (cl-streamer:add-mount cl-streamer:*server* "/asteroid.aac"
                          :content-type "audio/aac"
                          :bitrate 128
                          :name "Asteroid Radio AAC")
@@ -131,12 +131,12 @@
         (cl-streamer/harmony:make-audio-pipeline
          :encoder *harmony-mp3-encoder*
          :stream-server cl-streamer:*server*
-         :mount-path "/stream.mp3"))
+         :mount-path "/asteroid.mp3"))
 
   ;; Add AAC output
   (cl-streamer/harmony:add-pipeline-output *harmony-pipeline*
                                            *harmony-aac-encoder*
-                                           "/stream.aac")
+                                           "/asteroid.aac")
 
   ;; Set the track-change callback
   (setf (cl-streamer/harmony:pipeline-on-track-change *harmony-pipeline*)

@@ -50,6 +50,8 @@
   (format stream "icy-br: ~A~C~C" bitrate #\Return #\Linefeed)
   (when metaint
     (format stream "icy-metaint: ~A~C~C" metaint #\Return #\Linefeed))
+  (format stream "Access-Control-Allow-Origin: *~C~C" #\Return #\Linefeed)
+  (format stream "Access-Control-Allow-Headers: Origin, Accept, Content-Type, Icy-MetaData~C~C" #\Return #\Linefeed)
   (format stream "Cache-Control: no-cache, no-store~C~C" #\Return #\Linefeed)
   (format stream "Connection: close~C~C" #\Return #\Linefeed)
   (format stream "~C~C" #\Return #\Linefeed)

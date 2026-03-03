@@ -853,7 +853,7 @@
   "Main front page"
   ;; Register this visitor for geo stats (captures real IP from X-Forwarded-For)
   (register-web-listener)
-  (let ((now-playing-stats (icecast-now-playing *stream-base-url*)))
+  (let ((now-playing-stats (get-now-playing-stats)))
     (clip:process-to-string
      (load-template "front-page")
      :title "ASTEROID RADIO"
@@ -1010,25 +1010,31 @@
 
 ;; Status check functions
 (defun check-icecast-status ()
-  "Check if Icecast server is running and accessible"
-  (handler-case
-      (let ((response (drakma:http-request (format nil "~a/status-json.xsl" *stream-base-url*)
-                                          :want-stream nil
-                                          :connection-timeout 2)))
-        (if response "🟢 Running" "🔴 Not Running"))
-    (error () "🔴 Not Running")))
+  "Check if streaming backend is running.
+   Uses Harmony pipeline status when available, falls back to Icecast HTTP check."
+  (if *harmony-pipeline*
+      "🟢 Running (cl-streamer)"
+      (handler-case
+          (let ((response (drakma:http-request (format nil "~a/status-json.xsl" *stream-base-url*)
+                                              :want-stream nil
+                                              :connection-timeout 2)))
+            (if response "🟢 Running" "🔴 Not Running"))
+        (error () "🔴 Not Running"))))
 
 (defun check-liquidsoap-status ()
-  "Check if Liquidsoap is running via Docker"
-  (handler-case
-      (let* ((output (with-output-to-string (stream)
-                       (uiop:run-program '("docker" "ps" "--filter" "name=liquidsoap" "--format" "{{.Status}}")
-                                        :output stream
-                                        :error-output nil
-                                        :ignore-error-status t)))
-             (running-p (search "Up" output)))
-        (if running-p "🟢 Running" "🔴 Not Running"))
-    (error () "🔴 Not Running")))
+  "Check if Liquidsoap is running via Docker.
+   Returns N/A when using cl-streamer."
+  (if *harmony-pipeline*
+      "⚪ N/A (using cl-streamer)"
+      (handler-case
+          (let* ((output (with-output-to-string (stream)
+                           (uiop:run-program '("docker" "ps" "--filter" "name=liquidsoap" "--format" "{{.Status}}")
+                                            :output stream
+                                            :error-output nil
+                                            :ignore-error-status t)))
+                 (running-p (search "Up" output)))
+            (if running-p "🟢 Running" "🔴 Not Running"))
+        (error () "🔴 Not Running"))))
 
 ;; Admin page (requires authentication)
 (define-page admin #@"/admin" ()
@@ -1376,41 +1382,48 @@
                 ("stream-url" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
                 ("stream-status" . "live"))))
 
-;; Live stream status from Icecast
+;; Live stream status
 (define-api-with-limit asteroid/icecast-status () ()
-  "Get live status from Icecast server"
+  "Get live stream status. Uses Harmony pipeline when available, falls back to Icecast."
   (with-error-handling
-    (let* ((icecast-url (format nil "~a/admin/stats.xml" *stream-base-url*))
-           (response (drakma:http-request icecast-url
-                                          :want-stream nil
-                                          :basic-authorization '("admin" "asteroid_admin_2024"))))
-      (if response
-          (let ((xml-string (if (stringp response)
-                                response
-                                (babel:octets-to-string response :encoding :utf-8))))
-            ;; Simple XML parsing to extract source information
-            ;; Look for <source mount="/asteroid.mp3"> sections and extract title, listeners, etc.
-            (multiple-value-bind (match-start match-end)
-                (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string)
-              (if match-start
-                  (let* ((source-section (subseq xml-string match-start
-                                                 (or (cl-ppcre:scan "</source>" xml-string :start match-start)
-                                                     (length xml-string))))
-                         (titlep (cl-ppcre:all-matches "<title>" source-section))
-                         (listenersp (cl-ppcre:all-matches "<listeners>" source-section))
-                         (title (if titlep (cl-ppcre:regex-replace-all ".*<title>(.*?)</title>.*" source-section "\\1") "Unknown"))
-                         (listeners (if listenersp (cl-ppcre:regex-replace-all ".*<listeners>(.*?)</listeners>.*" source-section "\\1") "0")))
-                    ;; Return JSON in format expected by frontend
-                    (api-output
-                     `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
-                                                   ("title" . ,title)
-                                                   ("listeners" . ,(parse-integer listeners :junk-allowed t)))))))))
-                  ;; No source found, return empty
-                  (api-output
-                   `(("icestats" . (("source" . nil))))))))
+    (if *harmony-pipeline*
+        ;; Return status from cl-streamer directly
+        (let* ((now-playing (get-now-playing-stats "asteroid.mp3"))
+               (title (if now-playing (cdr (assoc :title now-playing)) "Unknown"))
+               (listeners (if now-playing (cdr (assoc :listeners now-playing)) 0)))
           (api-output
-           `(("error" . "Could not connect to Icecast server"))
-           :status 503)))))
+           `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+                                          ("title" . ,title)
+                                          ("listeners" . ,listeners))))))))
+        ;; Fallback: poll Icecast XML
+        (let* ((icecast-url (format nil "~a/admin/stats.xml" *stream-base-url*))
+               (response (drakma:http-request icecast-url
+                                              :want-stream nil
+                                              :basic-authorization '("admin" "asteroid_admin_2024"))))
+          (if response
+              (let ((xml-string (if (stringp response)
+                                    response
+                                    (babel:octets-to-string response :encoding :utf-8))))
+                (multiple-value-bind (match-start match-end)
+                    (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string)
+                  (declare (ignore match-end))
+                  (if match-start
+                      (let* ((source-section (subseq xml-string match-start
+                                                     (or (cl-ppcre:scan "</source>" xml-string :start match-start)
+                                                         (length xml-string))))
+                             (titlep (cl-ppcre:all-matches "<title>" source-section))
+                             (listenersp (cl-ppcre:all-matches "<listeners>" source-section))
+                             (title (if titlep (cl-ppcre:regex-replace-all ".*<title>(.*?)</title>.*" source-section "\\1") "Unknown"))
+                             (listeners (if listenersp (cl-ppcre:regex-replace-all ".*<listeners>(.*?)</listeners>.*" source-section "\\1") "0")))
+                        (api-output
+                         `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+                                                       ("title" . ,title)
+                                                       ("listeners" . ,(parse-integer listeners :junk-allowed t)))))))))
+                      (api-output
+                       `(("icestats" . (("source" . nil))))))))
+              (api-output
+               `(("error" . "Could not connect to Icecast server"))
+               :status 503))))))
 
 ;;; Listener Statistics API Endpoints
 
@@ -1553,5 +1566,24 @@
   
   ;; TODO: Add auto-scan on startup once database timing issues are resolved
   ;; For now, use the "Scan Library" button in the admin interface
+  
+  ;; Start cl-streamer audio pipeline (replaces Icecast + Liquidsoap)
+  (format t "Starting cl-streamer audio pipeline...~%")
+  (handler-case
+      (progn
+        (start-harmony-streaming)
+        ;; Load the current playlist and start playing
+        (let ((playlist-path (get-stream-queue-path)))
+          (when (probe-file playlist-path)
+            (let ((file-list (m3u-to-file-list playlist-path)))
+              (when file-list
+                (cl-streamer/harmony:play-list *harmony-pipeline* file-list
+                                               :crossfade-duration 3.0)
+                (format t "~A tracks loaded from stream-queue.m3u~%" (length file-list))))))
+        (format t "📡 Stream: ~a/asteroid.mp3~%" *stream-base-url*)
+        (format t "📡 Stream: ~a/asteroid.aac~%" *stream-base-url*))
+    (error (e)
+      (format t "⚠️  Could not start streaming: ~a~%" e)
+      (format t "   (Web server will run without streaming)~%")))
   
   (run-server))
