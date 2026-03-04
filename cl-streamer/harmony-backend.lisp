@@ -310,11 +310,16 @@
              (sleep step-time))))
 
 (defun next-entry (pipeline file-list-ref)
-  "Get the next entry to play: from file-list first, then from the queue.
+  "Get the next entry to play: from queue first (scheduler priority), then file-list.
    FILE-LIST-REF is a cons cell whose car is the remaining file list.
+   When the scheduler queues a new playlist, it replaces the remaining file-list
+   so the new playlist takes effect immediately.
    Returns an entry or NIL if nothing to play."
-  (or (pop (car file-list-ref))
-      (pipeline-pop-queue pipeline)))
+  (let ((queued (pipeline-pop-queue pipeline)))
+    (when queued
+      ;; Scheduler queued new tracks — discard remaining file-list
+      (setf (car file-list-ref) nil))
+    (or queued (pop (car file-list-ref)))))
 
 (defun play-list (pipeline file-list &key (crossfade-duration 3.0)
                                           (fade-in 2.0)
@@ -325,7 +330,8 @@
    CROSSFADE-DURATION is how early to start the next track (seconds).
    FADE-IN/FADE-OUT control the volume ramp durations.
    Both voices play simultaneously through the mixer during crossfade.
-   When LOOP-QUEUE is T, waits for new queue entries instead of stopping."
+   When LOOP-QUEUE is T, repeats the playlist from the start when tracks run out.
+   Scheduler-queued tracks take priority over the repeat cycle."
   (bt:make-thread
    (lambda ()
      (let ((prev-voice nil)
@@ -334,9 +340,10 @@
        (loop while (pipeline-running-p pipeline)
              for entry = (next-entry pipeline remaining-list)
              do (cond
-                  ;; No entry and loop mode: wait for queue
+                  ;; No entry and loop mode: re-queue original playlist
                   ((and (null entry) loop-queue)
-                   (sleep 1))
+                   (log:info "Playlist ended, repeating from start")
+                   (setf (car remaining-list) (copy-list file-list)))
                   ;; No entry: done
                   ((null entry)
                    (return))

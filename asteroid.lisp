@@ -1579,7 +1579,8 @@
                    (resumed-list (when file-list (resume-from-saved-state file-list))))
               (when resumed-list
                 (cl-streamer/harmony:play-list *harmony-pipeline* resumed-list
-                                               :crossfade-duration 3.0)
+                                               :crossfade-duration 3.0
+                                               :loop-queue t)
                 (format t "~A tracks loaded from stream-queue.m3u (~A remaining after resume)~%"
                         (length file-list) (length resumed-list))))))
         (format t "📡 Stream: ~a/asteroid.mp3~%" *stream-base-url*)
