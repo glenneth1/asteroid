@@ -1,5 +1,5 @@
 ;;;; stream-harmony.lisp - CL-Streamer / Harmony integration for Asteroid Radio
-;;;; Replaces the Icecast + Liquidsoap stack with in-process audio streaming.
+;;;; In-process audio streaming via Harmony + cl-streamer.
 ;;;; Provides the same data interface to frontend-partials and admin APIs.
 
 (in-package :asteroid)
@@ -106,7 +106,14 @@
                        (and (> (length trimmed) 0) (char= (char trimmed 0) #\#)))
               collect (convert-from-docker-path trimmed)))))
 
-;;; ---- Track Change Callback ----
+;;; ---- Track & Playlist Change Callbacks ----
+
+(defun on-harmony-playlist-change (pipeline playlist-path)
+  "Called by cl-streamer when a scheduler playlist actually starts playing.
+   Updates *current-playlist-path* only now, not at queue time."
+  (declare (ignore pipeline))
+  (setf *current-playlist-path* playlist-path)
+  (log:info "Playlist now active: ~A" (file-namestring playlist-path)))
 
 (defun on-harmony-track-change (pipeline track-info)
   "Called by cl-streamer when a track changes.
@@ -147,13 +154,11 @@
       (error () nil))))
 
 ;;; ---- Now-Playing Data Source ----
-;;; These functions provide the same data that icecast-now-playing returned,
-;;; but sourced directly from cl-streamer's pipeline state.
+;;; These functions provide now-playing data from cl-streamer's pipeline state.
 
 (defun harmony-now-playing (&optional (mount "asteroid.mp3"))
   "Get now-playing information from cl-streamer pipeline.
-   Returns an alist compatible with the icecast-now-playing format,
-   or NIL if the pipeline is not running."
+   Returns an alist with now-playing data, or NIL if the pipeline is not running."
   (when (and *harmony-pipeline*
              (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
     (let* ((track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
@@ -217,6 +222,10 @@
   (setf (cl-streamer/harmony:pipeline-on-track-change *harmony-pipeline*)
         #'on-harmony-track-change)
 
+  ;; Set the playlist-change callback (fires when scheduler playlist actually starts)
+  (setf (cl-streamer/harmony:pipeline-on-playlist-change *harmony-pipeline*)
+        #'on-harmony-playlist-change)
+
   ;; Start the audio pipeline
   (cl-streamer/harmony:start-pipeline *harmony-pipeline*)
 
@@ -237,7 +246,7 @@
   (cl-streamer:stop)
   (log:info "Harmony streaming stopped"))
 
-;;; ---- Playlist Control (replaces Liquidsoap commands) ----
+;;; ---- Playlist Control ----
 
 (defun harmony-load-playlist (m3u-path &key (skip nil))
   "Load and start playing an M3U playlist through the Harmony pipeline.
@@ -247,8 +256,11 @@
   (when *harmony-pipeline*
     (let ((file-list (m3u-to-file-list m3u-path)))
       (when file-list
-        ;; Track which playlist is active for state persistence
-        (setf *current-playlist-path* (pathname m3u-path))
+        ;; Store pending playlist path on pipeline — it will be applied
+        ;; when drain-queue-into-remaining fires and the new tracks
+        ;; actually start playing, not now at queue time.
+        (setf (cl-streamer/harmony:pipeline-pending-playlist-path *harmony-pipeline*)
+              (pathname m3u-path))
         ;; Clear any existing queue and load new files
         (cl-streamer/harmony:pipeline-clear-queue *harmony-pipeline*)
         (cl-streamer/harmony:pipeline-queue-files *harmony-pipeline*
@@ -268,7 +280,7 @@
     t))
 
 (defun harmony-get-status ()
-  "Get current pipeline status (replaces liquidsoap status)."
+  "Get current pipeline status."
   (if *harmony-pipeline*
       (let ((track (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
             (listeners (cl-streamer:get-listener-count)))

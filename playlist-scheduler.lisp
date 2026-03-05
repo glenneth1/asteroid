@@ -33,61 +33,17 @@
   (let ((current-hour (local-time:timestamp-hour (local-time:now) :timezone local-time:+utc-zone+)))
     (get-scheduled-playlist-for-hour current-hour)))
 
-(defun liquidsoap-command-succeeded-p (result)
-  "Check if a liquidsoap-command result indicates success.
-   Returns NIL if the result is empty, an error string, or otherwise invalid."
-  (and result
-       (stringp result)
-       (> (length (string-trim '(#\Space #\Newline #\Return) result)) 0)
-       (not (search "Error:" result :test #'char-equal))))
-
-(defun liquidsoap-reload-and-skip (&key (max-retries 3) (retry-delay 2))
-  "Reload the playlist and skip the current track in Liquidsoap with retries.
-   First reloads the playlist file, then skips to trigger crossfade.
-   Retries up to MAX-RETRIES times with RETRY-DELAY seconds between attempts."
-  (let ((reload-ok nil)
-        (skip-ok nil))
-    ;; Step 1: Reload the playlist file in Liquidsoap
-    (dotimes (attempt max-retries)
-      (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
-        (when (liquidsoap-command-succeeded-p result)
-          (setf reload-ok t)
-          (return)))
-      (when (< attempt (1- max-retries))
-        (sleep retry-delay)))
-    ;; Step 2: Skip current track to trigger crossfade to new playlist
-    (when reload-ok
-      (sleep 1)) ; Brief pause after reload before skipping
-    (dotimes (attempt max-retries)
-      (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
-        (when (liquidsoap-command-succeeded-p result)
-          (setf skip-ok t)
-          (return)))
-      (when (< attempt (1- max-retries))
-        (sleep retry-delay)))
-    (values skip-ok reload-ok)))
-
 (defun load-scheduled-playlist (playlist-name)
-  "Load a playlist by name and trigger playback.
-   Uses Harmony pipeline when available, falls back to Liquidsoap."
+  "Load a playlist by name and trigger playback via the Harmony pipeline."
   (let ((playlist-path (merge-pathnames playlist-name (get-playlists-directory))))
     (if (probe-file playlist-path)
         (progn
           (copy-playlist-to-stream-queue playlist-path)
           (load-queue-from-m3u-file)
-          (if *harmony-pipeline*
-              ;; Use cl-streamer directly
-              (let ((count (harmony-load-playlist playlist-path)))
-                (if count
-                    (log:info "Scheduler loaded ~a (~a tracks via Harmony)" playlist-name count)
-                    (log:error "Scheduler failed to load ~a via Harmony" playlist-name)))
-              ;; Fallback to Liquidsoap
-              (multiple-value-bind (skip-ok reload-ok)
-                  (liquidsoap-reload-and-skip)
-                (if (and reload-ok skip-ok)
-                    (log:info "Scheduler loaded ~a" playlist-name)
-                    (log:error "Scheduler failed to switch to ~a (reload:~a skip:~a)" 
-                               playlist-name reload-ok skip-ok))))
+          (let ((count (harmony-load-playlist playlist-path)))
+            (if count
+                (log:info "Scheduler loaded ~a (~a tracks)" playlist-name count)
+                (log:error "Scheduler failed to load ~a" playlist-name)))
           t)
         (progn
           (log:error "Scheduler playlist not found: ~a" playlist-name)

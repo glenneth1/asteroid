@@ -1,5 +1,5 @@
 ;;;; listener-stats.lisp - Listener Statistics Collection Service
-;;;; Polls Icecast for listener data and stores with GDPR compliance
+;;;; Polls cl-streamer for listener data and stores with GDPR compliance
 
 (in-package #:asteroid)
 
@@ -7,22 +7,13 @@
 
 ;;; Configuration
 (defvar *stats-polling-interval* 60
-  "Seconds between Icecast polls")
+  "Seconds between listener count polls")
 
 (defvar *stats-polling-thread* nil
   "Background thread for polling")
 
 (defvar *stats-polling-active* nil
   "Flag to control polling loop")
-
-(defvar *icecast-stats-url* "http://localhost:8000/admin/stats"
-  "Icecast admin stats endpoint (XML)")
-
-(defvar *icecast-admin-user* "admin"
-  "Icecast admin username")
-
-(defvar *icecast-admin-pass* "asteroid_admin_2024"
-  "Icecast admin password")
 
 (defvar *geoip-api-url* "http://ip-api.com/json/~a?fields=status,countryCode,city,regionName"
   "GeoIP lookup API (free tier: 45 req/min)")
@@ -144,76 +135,7 @@
       (log:debug "GeoIP lookup failed for ~a: ~a" ip-address e)
       nil)))
 
-;;; Icecast Polling
-
-(defun extract-xml-value (xml tag)
-  "Extract value between XML tags. Simple regex-based extraction."
-  (let ((pattern (format nil "<~a>([^<]*)</~a>" tag tag)))
-    (multiple-value-bind (match groups)
-        (cl-ppcre:scan-to-strings pattern xml)
-      (when match
-        (aref groups 0)))))
-
-(defun extract-xml-sources (xml)
-  "Extract all source blocks from Icecast XML"
-  (let ((sources nil)
-        (pattern "<source mount=\"([^\"]+)\">(.*?)</source>"))
-    (cl-ppcre:do-register-groups (mount content) (pattern xml)
-      (let ((listeners (extract-xml-value content "listeners"))
-            (listener-peak (extract-xml-value content "listener_peak"))
-            (server-name (extract-xml-value content "server_name")))
-        (push (list :mount mount
-                    :server-name server-name
-                    :listeners (if listeners (parse-integer listeners :junk-allowed t) 0)
-                    :listener-peak (if listener-peak (parse-integer listener-peak :junk-allowed t) 0))
-              sources)))
-    (nreverse sources)))
-
-(defun fetch-icecast-stats ()
-  "Fetch current statistics from Icecast admin XML endpoint"
-  (handler-case
-      (let ((response (drakma:http-request *icecast-stats-url* 
-                                           :want-stream nil
-                                           :connection-timeout 5
-                                           :basic-authorization (list *icecast-admin-user* 
-                                                                      *icecast-admin-pass*))))
-        ;; Response is XML, return as string for parsing
-        (if (stringp response)
-            response
-            (babel:octets-to-string response :encoding :utf-8)))
-    (error (e)
-      (log:warn "Failed to fetch Icecast stats: ~a" e)
-      nil)))
-
-(defun parse-icecast-sources (xml-string)
-  "Parse Icecast XML stats and extract source/mount information.
-   Returns list of plists with mount info."
-  (when xml-string
-    (extract-xml-sources xml-string)))
-
-(defun fetch-icecast-listclients (mount)
-  "Fetch listener list for a specific mount from Icecast admin"
-  (handler-case
-      (let* ((url (format nil "http://localhost:8000/admin/listclients?mount=~a" mount))
-             (response (drakma:http-request url
-                                            :want-stream nil
-                                            :connection-timeout 5
-                                            :basic-authorization (list *icecast-admin-user* 
-                                                                       *icecast-admin-pass*))))
-        (if (stringp response)
-            response
-            (babel:octets-to-string response :encoding :utf-8)))
-    (error (e)
-      (log:debug "Failed to fetch listclients for ~a: ~a" mount e)
-      nil)))
-
-(defun extract-listener-ips (xml-string)
-  "Extract listener IPs from Icecast listclients XML"
-  (let ((ips nil)
-        (pattern "<IP>([^<]+)</IP>"))
-    (cl-ppcre:do-register-groups (ip) (pattern xml-string)
-      (push ip ips))
-    (nreverse ips)))
+;;; Listener Polling
 
 ;;; Database Operations
 
@@ -439,21 +361,6 @@
                     (list :country country :city city :time (get-universal-time)))
               (cons country city)))))))
 
-(defun collect-geo-stats-for-mount (mount)
-  "Collect geo stats for all listeners on a mount (from Icecast - may show proxy IPs)"
-  (let ((listclients-xml (fetch-icecast-listclients mount)))
-    (when listclients-xml
-      (let ((ips (extract-listener-ips listclients-xml))
-            (location-counts (make-hash-table :test 'equal)))
-        ;; Group by country+city
-        (dolist (ip ips)
-          (let ((geo (get-cached-geo ip)))  ; Returns (country . city) or nil
-            (when geo
-              (incf (gethash geo location-counts 0)))))
-        ;; Store each country+city count
-        (maphash (lambda (key count)
-                   (update-geo-stats (car key) count (cdr key)))
-                 location-counts)))))
 
 (defun collect-geo-stats-from-web-listeners ()
   "Collect geo stats from web listeners (uses real IPs from X-Forwarded-For)"
@@ -476,25 +383,12 @@
              location-counts)))
 
 (defun poll-and-store-stats ()
-  "Single poll iteration: fetch stats and store.
-   Uses cl-streamer listener counts when Harmony is running, falls back to Icecast."
-  (if *harmony-pipeline*
-      ;; Get listener counts directly from cl-streamer
-      (dolist (mount '("/asteroid.mp3" "/asteroid.aac"))
-        (let ((listeners (cl-streamer:get-listener-count mount)))
-          (when (and listeners (> listeners 0))
-            (store-listener-snapshot mount listeners)
-            (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))
-      ;; Fallback: poll Icecast
-      (let ((stats (fetch-icecast-stats)))
-        (when stats
-          (let ((sources (parse-icecast-sources stats)))
-            (dolist (source sources)
-              (let ((mount (getf source :mount))
-                    (listeners (getf source :listeners)))
-                (when mount
-                  (store-listener-snapshot mount listeners)
-                  (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))))))
+  "Single poll iteration: fetch listener counts from cl-streamer and store."
+  (dolist (mount '("/asteroid.mp3" "/asteroid.aac"))
+    (let ((listeners (cl-streamer:get-listener-count mount)))
+      (when (and listeners (> listeners 0))
+        (store-listener-snapshot mount listeners)
+        (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))
   ;; Collect geo stats from web listeners (uses real IPs from X-Forwarded-For)
   (collect-geo-stats-from-web-listeners))
 

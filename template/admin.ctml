@@ -26,13 +26,8 @@
           <p class="status-good" data-text="database-status">🟢 Connected</p>
         </div>
         <div class="status-card">
-          <h3>Liquidsoap Status</h3>
-          <p class="status-error" data-text="liquidsoap-status">🔴 Not Running</p>
-        </div>
-        <div class="status-card">
-          <h3>Icecast Status</h3>
-          <p class="status-error" data-text="icecast-status">🔴 Not Running</p>
-          <button id="icecast-restart" class="btn btn-danger btn-sm" style="margin-top: 8px;">🔄 Restart</button>
+          <h3>Stream Status</h3>
+          <p class="status-good" data-text="stream-status">� Running</p>
         </div>
       </div>
     </div>
@@ -127,7 +122,7 @@
       <div class="upload-section">
         <h3>Music Library</h3>
         <div class="upload-info">
-          <p>The music library is mounted from your local filesystem into the Liquidsoap container.</p>
+          <p>The music library is loaded from your local filesystem.</p>
           <p><strong>To add music:</strong></p>
           <ol>
               <li>Add files to your music library directory (set via <code>MUSIC_LIBRARY</code> env var)</li>
@@ -183,7 +178,7 @@
     <!-- Stream Queue Management -->
     <div class="admin-section">
       <h2>🎵 Stream Queue Management</h2>
-      <p>Manage the live stream playback queue. Liquidsoap watches <code>stream-queue.m3u</code> and reloads automatically.</p>
+      <p>Manage the live stream playback queue.</p>
       
       <!-- Playlist Selection -->
       <div class="playlist-controls" style="margin-bottom: 20px; padding: 15px; background: #2a2a2a; border-radius: 8px;">
@@ -196,7 +191,7 @@
           <button id="refresh-playlists-btn" class="btn btn-secondary">🔄 Refresh List</button>
         </div>
         <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #888;">
-          Loading a playlist will copy it to <code>stream-queue.m3u</code> and Liquidsoap will start playing it.
+          Loading a playlist will queue it for playback via the Harmony pipeline.
         </p>
       </div>
       
@@ -328,13 +323,13 @@
       </p>
     </div>
 
-    <!-- Liquidsoap Stream Control -->
+    <!-- Stream Control -->
     <div class="admin-section">
-      <h2>📡 Stream Control (Liquidsoap)</h2>
-      <p>Control the live audio stream. Commands are sent directly to Liquidsoap.</p>
+      <h2>📡 Stream Control</h2>
+      <p>Control the live audio stream via the Harmony pipeline.</p>
       
       <!-- Status Display -->
-      <div id="liquidsoap-status" style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px;">
+      <div id="stream-status-detail" style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 8px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
           <div>
             <strong>Uptime:</strong> <span id="ls-uptime">--</span>
@@ -353,13 +348,13 @@
         <button id="ls-refresh-status" class="btn btn-secondary">🔄 Refresh Status</button>
         <button id="ls-skip" class="btn btn-warning">⏭️ Skip Track</button>
         <button id="ls-reload" class="btn btn-info">📂 Reload Playlist</button>
-        <button id="ls-restart" class="btn btn-danger">🔄 Restart Container</button>
+        <button id="ls-restart" class="btn btn-danger">🔄 Restart Pipeline</button>
       </div>
       
       <p style="font-size: 0.9em; color: #888;">
-        <strong>Skip Track:</strong> Immediately skip to the next track in the playlist.<br>
-        <strong>Reload Playlist:</strong> Force Liquidsoap to re-read stream-queue.m3u.<br>
-        <strong>Restart Container:</strong> Restart the Liquidsoap Docker container (causes brief stream interruption).
+        <strong>Skip Track:</strong> Crossfade to the next track in the playlist.<br>
+        <strong>Reload Playlist:</strong> Re-read stream-queue.m3u into the pipeline.<br>
+        <strong>Restart Pipeline:</strong> Restart the Harmony streaming pipeline (causes brief stream interruption).
       </p>
     </div>
 

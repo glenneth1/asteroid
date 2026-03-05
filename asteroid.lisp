@@ -443,12 +443,7 @@
             (let ((count (load-queue-from-m3u-file))
                   (channel-name (get-curated-channel-name)))
               ;; Skip/switch to new playlist
-              (if *harmony-pipeline*
-                  (harmony-load-playlist playlist-path)
-                  (handler-case
-                      (liquidsoap-command "stream-queue_m3u.skip")
-                    (error (e) 
-                      (format *error-output* "Warning: Could not skip track: ~a~%" e))))
+              (harmony-load-playlist playlist-path)
               (api-output `(("status" . "success")
                             ("message" . ,(format nil "Loaded playlist: ~a" name))
                             ("count" . ,count)
@@ -480,7 +475,7 @@
                     ("message" . ,(format nil "Saved as: ~a" safe-name)))))))
 
 (define-api asteroid/stream/playlists/clear () ()
-  "Clear stream-queue.m3u (Liquidsoap will fall back to random)"
+  "Clear stream-queue.m3u"
   (require-role :admin)
   (with-error-handling
     (let ((stream-queue-path (get-stream-queue-path)))
@@ -492,7 +487,7 @@
       ;; Clear in-memory queue
       (setf *stream-queue* '())
       (api-output `(("status" . "success")
-                    ("message" . "Stream queue cleared - Liquidsoap will use random playback"))))))
+                    ("message" . "Stream queue cleared"))))))
 
 (define-api asteroid/stream/playlists/current () ()
   "Get current stream-queue.m3u contents with track info"
@@ -522,135 +517,46 @@
                                                    ("path" . ,docker-path)))))
                                          paths)))))))
 
-;;; Liquidsoap Control APIs
-;;; Control Liquidsoap via telnet interface on port 1234
+;;; Stream Control APIs
 
-(defun liquidsoap-command (command)
-  "Send a command to Liquidsoap via telnet and return the response"
-  (handler-case
-      (let ((result (uiop:run-program 
-                     (format nil "echo '~a' | nc -q1 127.0.0.1 1234" command)
-                     :output :string
-                     :error-output :string
-                     :ignore-error-status t)))
-        ;; Remove the trailing "END" line
-        (let ((lines (cl-ppcre:split "\\n" result)))
-          (string-trim '(#\Space #\Newline #\Return)
-                       (format nil "~{~a~^~%~}" 
-                               (remove-if (lambda (l) (string= (string-trim '(#\Space #\Return) l) "END")) 
-                                          lines)))))
-    (error (e)
-      (format nil "Error: ~a" e))))
-
-(defun parse-liquidsoap-metadata (raw-metadata)
-  "Parse Liquidsoap metadata string and extract current track info"
-  (when (and raw-metadata (> (length raw-metadata) 0))
-    ;; The metadata contains multiple tracks, separated by --- N ---
-    ;; --- 1 --- is the CURRENT track (most recent), at the end of the output
-    ;; Split by --- N --- pattern and get the last section
-    (let* ((sections (cl-ppcre:split "---\\s*\\d+\\s*---" raw-metadata))
-           (current-section (car (last sections))))
-      (when current-section
-        (let ((artist (cl-ppcre:register-groups-bind (val) 
-                          ("artist=\"([^\"]+)\"" current-section) val))
-              (title (cl-ppcre:register-groups-bind (val) 
-                         ("title=\"([^\"]+)\"" current-section) val))
-              (album (cl-ppcre:register-groups-bind (val) 
-                         ("album=\"([^\"]+)\"" current-section) val)))
-          (if (or artist title)
-              (format nil "~@[~a~]~@[ - ~a~]~@[ (~a)~]" 
-                      artist title album)
-              "Unknown"))))))
-
-(defun format-remaining-time (seconds-str)
-  "Format remaining seconds as MM:SS"
-  (handler-case
-      (let ((seconds (parse-integer (cl-ppcre:regex-replace "\\..*" seconds-str ""))))
-        (format nil "~d:~2,'0d" (floor seconds 60) (mod seconds 60)))
-    (error () seconds-str)))
-
-(define-api asteroid/liquidsoap/status () ()
-  "Get stream status - uses Harmony pipeline when available, falls back to Liquidsoap"
+(define-api asteroid/stream/status () ()
+  "Get stream status from Harmony pipeline."
   (require-role :admin)
   (with-error-handling
-    (if *harmony-pipeline*
-        (let ((status (harmony-get-status)))
-          (api-output `(("status" . "success")
-                        ("backend" . "harmony")
-                        ("uptime" . "n/a")
-                        ("metadata" . ,(getf status :current-track))
-                        ("remaining" . "n/a")
-                        ("listeners" . ,(getf status :listeners))
-                        ("queue_length" . ,(getf status :queue-length)))))
-        (let ((uptime (liquidsoap-command "uptime"))
-              (metadata-raw (liquidsoap-command "output.icecast.1.metadata"))
-              (remaining-raw (liquidsoap-command "output.icecast.1.remaining")))
-          (api-output `(("status" . "success")
-                        ("backend" . "liquidsoap")
-                        ("uptime" . ,(string-trim '(#\Space #\Newline #\Return) uptime))
-                        ("metadata" . ,(parse-liquidsoap-metadata metadata-raw))
-                        ("remaining" . ,(format-remaining-time 
-                                         (string-trim '(#\Space #\Newline #\Return) remaining-raw)))))))))
-
-(define-api asteroid/liquidsoap/skip () ()
-  "Skip the current track"
-  (require-role :admin)
-  (with-error-handling
-    (if *harmony-pipeline*
-        (progn
-          (harmony-skip-track)
-          (api-output `(("status" . "success")
-                        ("message" . "Track skipped (Harmony)"))))
-        (let ((result (liquidsoap-command "stream-queue_m3u.skip")))
-          (api-output `(("status" . "success")
-                        ("message" . "Track skipped")
-                        ("result" . ,(string-trim '(#\Space #\Newline #\Return) result))))))))
-
-(define-api asteroid/liquidsoap/reload () ()
-  "Force playlist reload"
-  (require-role :admin)
-  (with-error-handling
-    (if *harmony-pipeline*
-        (let* ((playlist-path (get-stream-queue-path))
-               (count (harmony-load-playlist playlist-path)))
-          (api-output `(("status" . "success")
-                        ("message" . ,(format nil "Playlist reloaded (~A tracks via Harmony)" count)))))
-        (let ((result (liquidsoap-command "stream-queue_m3u.reload")))
-          (api-output `(("status" . "success")
-                        ("message" . "Playlist reloaded")
-                        ("result" . ,(string-trim '(#\Space #\Newline #\Return) result))))))))
-
-(define-api asteroid/liquidsoap/restart () ()
-  "Restart the streaming backend"
-  (require-role :admin)
-  (with-error-handling
-    (if *harmony-pipeline*
-        (progn
-          (stop-harmony-streaming)
-          (start-harmony-streaming)
-          (api-output `(("status" . "success")
-                        ("message" . "Harmony pipeline restarted"))))
-        (let ((result (uiop:run-program 
-                       "docker restart asteroid-liquidsoap"
-                       :output :string
-                       :error-output :string
-                       :ignore-error-status t)))
-          (api-output `(("status" . "success")
-                        ("message" . "Liquidsoap container restarting")
-                        ("result" . ,result)))))))
-
-(define-api asteroid/icecast/restart () ()
-  "Restart the Icecast Docker container"
-  (require-role :admin)
-  (with-error-handling
-    (let ((result (uiop:run-program 
-                   "docker restart asteroid-icecast"
-                   :output :string
-                   :error-output :string
-                   :ignore-error-status t)))
+    (let ((status (harmony-get-status)))
       (api-output `(("status" . "success")
-                    ("message" . "Icecast container restarting")
-                    ("result" . ,result))))))
+                    ("backend" . "harmony")
+                    ("uptime" . "n/a")
+                    ("metadata" . ,(getf status :current-track))
+                    ("remaining" . "n/a")
+                    ("listeners" . ,(getf status :listeners))
+                    ("queue_length" . ,(getf status :queue-length)))))))
+
+(define-api asteroid/stream/skip () ()
+  "Skip the current track."
+  (require-role :admin)
+  (with-error-handling
+    (harmony-skip-track)
+    (api-output `(("status" . "success")
+                  ("message" . "Track skipped")))))
+
+(define-api asteroid/stream/reload () ()
+  "Force playlist reload."
+  (require-role :admin)
+  (with-error-handling
+    (let* ((playlist-path (get-stream-queue-path))
+           (count (harmony-load-playlist playlist-path)))
+      (api-output `(("status" . "success")
+                    ("message" . ,(format nil "Playlist reloaded (~A tracks)" count)))))))
+
+(define-api asteroid/stream/restart () ()
+  "Restart the streaming pipeline."
+  (require-role :admin)
+  (with-error-handling
+    (stop-harmony-streaming)
+    (start-harmony-streaming)
+    (api-output `(("status" . "success")
+                  ("message" . "Streaming pipeline restarted")))))
 
 (defun get-track-by-id (track-id)
   "Get a track by its ID - handles type mismatches"
@@ -1009,32 +915,12 @@
                                   (asdf:system-source-directory :asteroid))))))
 
 ;; Status check functions
-(defun check-icecast-status ()
-  "Check if streaming backend is running.
-   Uses Harmony pipeline status when available, falls back to Icecast HTTP check."
-  (if *harmony-pipeline*
+(defun check-stream-status ()
+  "Check if the Harmony streaming pipeline is running."
+  (if (and *harmony-pipeline*
+           (cl-streamer/harmony:pipeline-running-p *harmony-pipeline*))
       "🟢 Running (cl-streamer)"
-      (handler-case
-          (let ((response (drakma:http-request (format nil "~a/status-json.xsl" *stream-base-url*)
-                                              :want-stream nil
-                                              :connection-timeout 2)))
-            (if response "🟢 Running" "🔴 Not Running"))
-        (error () "🔴 Not Running"))))
-
-(defun check-liquidsoap-status ()
-  "Check if Liquidsoap is running via Docker.
-   Returns N/A when using cl-streamer."
-  (if *harmony-pipeline*
-      "⚪ N/A (using cl-streamer)"
-      (handler-case
-          (let* ((output (with-output-to-string (stream)
-                           (uiop:run-program '("docker" "ps" "--filter" "name=liquidsoap" "--format" "{{.Status}}")
-                                            :output stream
-                                            :error-output nil
-                                            :ignore-error-status t)))
-                 (running-p (search "Up" output)))
-            (if running-p "🟢 Running" "🔴 Not Running"))
-        (error () "🔴 Not Running"))))
+      "🔴 Not Running"))
 
 ;; Admin page (requires authentication)
 (define-page admin #@"/admin" ()
@@ -1051,8 +937,7 @@
      :database-status (handler-case 
                         (if (db:connected-p) "🟢 Connected" "🔴 Disconnected")
                         (error () "🔴 No Database Backend"))
-     :liquidsoap-status (check-liquidsoap-status)
-     :icecast-status (check-icecast-status)
+     :stream-status (check-stream-status)
      :track-count (format nil "~d" track-count)
      :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
      :stream-base-url *stream-base-url*
@@ -1382,48 +1267,17 @@
                 ("stream-url" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
                 ("stream-status" . "live"))))
 
-;; Live stream status
+;; Live stream status (kept as asteroid/icecast-status for frontend API compatibility)
 (define-api-with-limit asteroid/icecast-status () ()
-  "Get live stream status. Uses Harmony pipeline when available, falls back to Icecast."
+  "Get live stream status from cl-streamer pipeline."
   (with-error-handling
-    (if *harmony-pipeline*
-        ;; Return status from cl-streamer directly
-        (let* ((now-playing (get-now-playing-stats "asteroid.mp3"))
-               (title (if now-playing (cdr (assoc :title now-playing)) "Unknown"))
-               (listeners (or (cl-streamer:get-listener-count) 0)))
-          (api-output
-           `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
-                                          ("title" . ,title)
-                                          ("listeners" . ,listeners))))))))
-        ;; Fallback: poll Icecast XML
-        (let* ((icecast-url (format nil "~a/admin/stats.xml" *stream-base-url*))
-               (response (drakma:http-request icecast-url
-                                              :want-stream nil
-                                              :basic-authorization '("admin" "asteroid_admin_2024"))))
-          (if response
-              (let ((xml-string (if (stringp response)
-                                    response
-                                    (babel:octets-to-string response :encoding :utf-8))))
-                (multiple-value-bind (match-start match-end)
-                    (cl-ppcre:scan "<source mount=\"/asteroid\\.mp3\">" xml-string)
-                  (declare (ignore match-end))
-                  (if match-start
-                      (let* ((source-section (subseq xml-string match-start
-                                                     (or (cl-ppcre:scan "</source>" xml-string :start match-start)
-                                                         (length xml-string))))
-                             (titlep (cl-ppcre:all-matches "<title>" source-section))
-                             (listenersp (cl-ppcre:all-matches "<listeners>" source-section))
-                             (title (if titlep (cl-ppcre:regex-replace-all ".*<title>(.*?)</title>.*" source-section "\\1") "Unknown"))
-                             (listeners (if listenersp (cl-ppcre:regex-replace-all ".*<listeners>(.*?)</listeners>.*" source-section "\\1") "0")))
-                        (api-output
-                         `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
-                                                       ("title" . ,title)
-                                                       ("listeners" . ,(parse-integer listeners :junk-allowed t)))))))))
-                      (api-output
-                       `(("icestats" . (("source" . nil))))))))
-              (api-output
-               `(("error" . "Could not connect to Icecast server"))
-               :status 503))))))
+    (let* ((now-playing (get-now-playing-stats "asteroid.mp3"))
+           (title (if now-playing (cdr (assoc :title now-playing)) "Unknown"))
+           (listeners (or (cl-streamer:get-listener-count) 0)))
+      (api-output
+       `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
+                                      ("title" . ,title)
+                                      ("listeners" . ,listeners))))))))))
 
 ;;; Listener Statistics API Endpoints
 
@@ -1567,7 +1421,7 @@
   ;; TODO: Add auto-scan on startup once database timing issues are resolved
   ;; For now, use the "Scan Library" button in the admin interface
   
-  ;; Start cl-streamer audio pipeline (replaces Icecast + Liquidsoap)
+  ;; Start cl-streamer audio pipeline
   (format t "Starting cl-streamer audio pipeline...~%")
   (handler-case
       (progn

@@ -1,40 +1,4 @@
 services:
-  icecast:
-    build:
-      context: .
-      dockerfile: Dockerfile.icecast
-    container_name: asteroid-icecast
-    ports:
-      - "${ICECAST_BIND:-127.0.0.1}:8000:8000"
-    environment:
-      - ICECAST_SOURCE_PASSWORD=H1tn31EhsyLrfRmo
-      - ICECAST_ADMIN_PASSWORD=asteroid_admin_2024
-      - ICECAST_RELAY_PASSWORD=asteroid_relay_2024
-      - ICECAST_ENABLE_YP=${ICECAST_ENABLE_YP:-false}
-      - ICECAST_HOSTNAME=${ICECAST_HOSTNAME:-localhost}
-    restart: unless-stopped
-    networks:
-      - asteroid-network
-
-  liquidsoap:
-    build:
-      context: .
-      dockerfile: Dockerfile.liquidsoap
-    container_name: asteroid-liquidsoap
-    ports:
-      - "127.0.0.1:1234:1234"
-    depends_on:
-      - icecast
-    environment:
-      - STATION_URL=${STATION_URL:-http://localhost:8080/asteroid/}
-    volumes:
-      - ${MUSIC_LIBRARY:-../music/library}:/app/music:ro
-      - ./asteroid-radio-docker.liq:/app/asteroid-radio.liq:ro
-      - ${QUEUE_PLAYLIST:-../playlists/stream-queue.m3u}:/app/stream-queue.m3u:ro
-    restart: unless-stopped
-    networks:
-      - asteroid-network
-
   postgres:
     image: postgres:17-alpine
     container_name: asteroid-postgres

@@ -14,10 +14,13 @@
            ;; Track state & control
            #:pipeline-current-track
            #:pipeline-on-track-change
+           #:pipeline-running-p
            #:pipeline-skip
            #:pipeline-queue-files
            #:pipeline-get-queue
            #:pipeline-clear-queue
+           #:pipeline-pending-playlist-path
+           #:pipeline-on-playlist-change
            ;; Metadata helpers
            #:read-audio-metadata
            #:format-display-title))
@@ -117,7 +120,12 @@
    (queue-lock :initform (bt:make-lock "pipeline-queue-lock")
                :reader pipeline-queue-lock)
    (skip-flag :initform nil :accessor pipeline-skip-flag
-              :documentation "Set to T to skip the current track")))
+              :documentation "Set to T to skip the current track")
+   (pending-playlist-path :initform nil :accessor pipeline-pending-playlist-path
+                          :documentation "Playlist path queued by scheduler, applied when tracks start playing")
+   (on-playlist-change :initarg :on-playlist-change :initform nil
+                       :accessor pipeline-on-playlist-change
+                       :documentation "Callback (lambda (pipeline playlist-path)) called when scheduler playlist starts")))
 
 (defun make-audio-pipeline (&key encoder stream-server (mount-path "/stream.mp3")
                                  (sample-rate 44100) (channels 2))
@@ -218,9 +226,11 @@
 
 (defun ensure-simple-string (s)
   "Coerce S to a simple-string if it's a string, or return NIL.
-   Uses coerce to guarantee SIMPLE-STRING type for downstream consumers."
+   Coerce first to guarantee simple-string before any string operations,
+   since SBCL's string-trim may require simple-string input."
   (when (stringp s)
-    (coerce (string-trim '(#\Space #\Nul) s) 'simple-string)))
+    (let ((simple (coerce s 'simple-string)))
+      (string-trim '(#\Space #\Nul) simple))))
 
 (defun safe-tag (fn audio-file)
   "Safely read a tag field, coercing to simple-string. Returns NIL on any error."
@@ -337,6 +347,16 @@
         ;; Replace remaining list and update current for loop-queue
         (setf (car remaining-ref) all-queued)
         (setf (car current-list-ref) (copy-list all-queued))
+        ;; Fire playlist-change callback so app layer updates metadata
+        (when (pipeline-on-playlist-change pipeline)
+          (let ((playlist-path (pipeline-pending-playlist-path pipeline)))
+            (when playlist-path
+              (handler-case
+                  (funcall (pipeline-on-playlist-change pipeline)
+                           pipeline playlist-path)
+                (error (e)
+                  (log:warn "Playlist change callback error: ~A" e)))
+              (setf (pipeline-pending-playlist-path pipeline) nil))))
         t))))
 
 (defun next-entry (pipeline remaining-ref current-list-ref)

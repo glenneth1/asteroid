@@ -31,7 +31,7 @@
         <ul style="line-height: 1.8;">
           <li><strong>Status:</strong> 🟢 Live</li>
           <li><strong>Formats:</strong> AAC 96kbps, MP3 128kbps, MP3 64kbps</li>
-          <li><strong>Server:</strong> Icecast</li>
+          <li><strong>Server:</strong> CL-Streamer / Harmony</li>
         </ul>
       </section>
 

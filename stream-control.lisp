@@ -1,5 +1,5 @@
 ;;;; stream-control.lisp - Stream Queue and Playlist Control for Asteroid Radio
-;;;; Manages the main broadcast stream queue and generates M3U playlists for Liquidsoap
+;;;; Manages the main broadcast stream queue and generates M3U playlists
 
 (in-package :asteroid)
 
@@ -91,8 +91,8 @@
 
 (defun regenerate-stream-playlist ()
   "Regenerate the main stream playlist from the current queue.
-   NOTE: This writes to project root stream-queue.m3u, NOT playlists/stream-queue.m3u
-   which is what Liquidsoap actually reads. This function may be deprecated."
+   NOTE: This writes to project root stream-queue.m3u, NOT playlists/stream-queue.m3u.
+   This function may be deprecated."
   (let ((playlist-path (merge-pathnames "stream-queue.m3u" 
                                        (asdf:system-source-directory :asteroid))))
     (if (null *stream-queue*)

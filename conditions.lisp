@@ -87,7 +87,7 @@
     :initarg :stream-type
     :reader error-stream-type
     :initform nil
-    :documentation "Type of stream (e.g., 'icecast', 'liquidsoap')"))
+    :documentation "Type of stream (e.g., 'harmony', 'cl-streamer')"))
   (:documentation "Signaled when stream operations fail")
   (:report (lambda (condition stream)
              (format stream "Stream Error~@[ (~a)~]: ~a"

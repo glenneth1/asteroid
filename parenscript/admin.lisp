@@ -26,12 +26,12 @@
                  (setup-event-listeners)
                  (load-playlist-list)
                  (load-current-queue)
-                 (refresh-liquidsoap-status)
+                 (refresh-stream-status)
                  (setup-stats-refresh)
                  (refresh-scheduler-status)
                  (refresh-track-requests)
-                 ;; Update Liquidsoap status every 10 seconds
-                 (set-interval refresh-liquidsoap-status 10000)
+                 ;; Update stream status every 10 seconds
+                 (set-interval refresh-stream-status 10000)
                  ;; Update scheduler status every 30 seconds
                  (set-interval refresh-scheduler-status 30000))))
     
@@ -104,24 +104,19 @@
         (when refresh-playlists-btn
           (ps:chain refresh-playlists-btn (add-event-listener "click" load-playlist-list))))
       
-      ;; Liquidsoap controls
+      ;; Stream controls
       (let ((ls-refresh-btn (ps:chain document (get-element-by-id "ls-refresh-status")))
             (ls-skip-btn (ps:chain document (get-element-by-id "ls-skip")))
             (ls-reload-btn (ps:chain document (get-element-by-id "ls-reload")))
             (ls-restart-btn (ps:chain document (get-element-by-id "ls-restart"))))
         (when ls-refresh-btn
-          (ps:chain ls-refresh-btn (add-event-listener "click" refresh-liquidsoap-status)))
+          (ps:chain ls-refresh-btn (add-event-listener "click" refresh-stream-status)))
         (when ls-skip-btn
-          (ps:chain ls-skip-btn (add-event-listener "click" liquidsoap-skip)))
+          (ps:chain ls-skip-btn (add-event-listener "click" stream-skip)))
         (when ls-reload-btn
-          (ps:chain ls-reload-btn (add-event-listener "click" liquidsoap-reload)))
+          (ps:chain ls-reload-btn (add-event-listener "click" stream-reload)))
         (when ls-restart-btn
-          (ps:chain ls-restart-btn (add-event-listener "click" liquidsoap-restart))))
-      
-      ;; Icecast restart
-      (let ((icecast-restart-btn (ps:chain document (get-element-by-id "icecast-restart"))))
-        (when icecast-restart-btn
-          (ps:chain icecast-restart-btn (add-event-listener "click" icecast-restart)))))
+          (ps:chain ls-restart-btn (add-event-listener "click" stream-restart)))))
     
     ;; Load tracks from API
     (defun load-tracks ()
@@ -697,7 +692,7 @@
         (when container
           (if (= (ps:@ tracks length) 0)
               (setf (ps:@ container inner-h-t-m-l) 
-                    "<div class=\"empty-state\">Queue is empty. Liquidsoap will use random playback from the music library.</div>")
+                    "<div class=\"empty-state\">Queue is empty.</div>")
               (let ((html "<div class=\"queue-items\">"))
                 (ps:chain tracks
                           (for-each (lambda (track index)
@@ -775,7 +770,7 @@
     
     ;; Clear stream queue (updated to use new API)
     (defun clear-stream-queue ()
-      (unless (confirm "Clear the stream queue? Liquidsoap will fall back to random playback from the music library.")
+      (unless (confirm "Clear the stream queue?")
         (return))
       
       (ps:chain
@@ -793,13 +788,13 @@
                 (alert "Error clearing queue")))))
     
     ;; ========================================
-    ;; Liquidsoap Control Functions
+    ;; Stream Control Functions
     ;; ========================================
     
-    ;; Refresh Liquidsoap status
-    (defun refresh-liquidsoap-status ()
+    ;; Refresh stream status
+    (defun refresh-stream-status ()
       (ps:chain
-       (fetch "/api/asteroid/liquidsoap/status")
+       (fetch "/api/asteroid/stream/status")
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
                (let ((data (or (ps:@ result data) result)))
@@ -814,28 +809,28 @@
                      (when metadata-el
                        (setf (ps:@ metadata-el text-content) (or (ps:@ data metadata) "--"))))))))
        (catch (lambda (error)
-                (ps:chain console (error "Error fetching Liquidsoap status:" error))))))
+                (ps:chain console (error "Error fetching stream status:" error))))))
     
     ;; Skip current track
-    (defun liquidsoap-skip ()
+    (defun stream-skip ()
       (ps:chain
-       (fetch "/api/asteroid/liquidsoap/skip" (ps:create :method "POST"))
+       (fetch "/api/asteroid/stream/skip" (ps:create :method "POST"))
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
                (let ((data (or (ps:@ result data) result)))
                  (if (= (ps:@ data status) "success")
                      (progn
                        (show-toast "⏭️ Track skipped")
-                       (set-timeout refresh-liquidsoap-status 1000))
+                       (set-timeout refresh-stream-status 1000))
                      (alert (+ "Error skipping track: " (or (ps:@ data message) "Unknown error")))))))
        (catch (lambda (error)
                 (ps:chain console (error "Error skipping track:" error))
                 (alert "Error skipping track")))))
     
     ;; Reload playlist
-    (defun liquidsoap-reload ()
+    (defun stream-reload ()
       (ps:chain
-       (fetch "/api/asteroid/liquidsoap/reload" (ps:create :method "POST"))
+       (fetch "/api/asteroid/stream/reload" (ps:create :method "POST"))
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
                (let ((data (or (ps:@ result data) result)))
@@ -846,44 +841,25 @@
                 (ps:chain console (error "Error reloading playlist:" error))
                 (alert "Error reloading playlist")))))
     
-    ;; Restart Liquidsoap container
-    (defun liquidsoap-restart ()
-      (unless (confirm "Restart Liquidsoap container? This will cause a brief interruption to the stream.")
+    ;; Restart streaming pipeline
+    (defun stream-restart ()
+      (unless (confirm "Restart the streaming pipeline? This will cause a brief interruption.")
         (return))
       
-      (show-toast "🔄 Restarting Liquidsoap...")
+      (show-toast "🔄 Restarting stream...")
       (ps:chain
-       (fetch "/api/asteroid/liquidsoap/restart" (ps:create :method "POST"))
+       (fetch "/api/asteroid/stream/restart" (ps:create :method "POST"))
        (then (lambda (response) (ps:chain response (json))))
        (then (lambda (result)
                (let ((data (or (ps:@ result data) result)))
                  (if (= (ps:@ data status) "success")
                      (progn
-                       (show-toast "✓ Liquidsoap restarting")
-                       ;; Refresh status after a delay to let container restart
-                       (set-timeout refresh-liquidsoap-status 5000))
-                     (alert (+ "Error restarting Liquidsoap: " (or (ps:@ data message) "Unknown error")))))))
+                       (show-toast "✓ Stream restarting")
+                       (set-timeout refresh-stream-status 5000))
+                     (alert (+ "Error restarting stream: " (or (ps:@ data message) "Unknown error")))))))
        (catch (lambda (error)
-                (ps:chain console (error "Error restarting Liquidsoap:" error))
-                (alert "Error restarting Liquidsoap")))))
-    
-    ;; Restart Icecast container
-    (defun icecast-restart ()
-      (unless (confirm "Restart Icecast container? This will disconnect all listeners temporarily.")
-        (return))
-      
-      (show-toast "🔄 Restarting Icecast...")
-      (ps:chain
-       (fetch "/api/asteroid/icecast/restart" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (show-toast "✓ Icecast restarting - listeners will reconnect automatically")
-                     (alert (+ "Error restarting Icecast: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error restarting Icecast:" error))
-                (alert "Error restarting Icecast")))))
+                (ps:chain console (error "Error restarting stream:" error))
+                (alert "Error restarting stream")))))
     
     ;; ========================================
     ;; Listener Statistics

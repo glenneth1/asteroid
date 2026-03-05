@@ -47,8 +47,8 @@
           <li><strong><a href="https://codeberg.org/shinmera/clip" style="color: #00ff00;">Clip</a></strong> - HTML5-compliant template engine</li>
           <li><strong><a href="https://codeberg.org/shinmera/LASS" style="color: #00ff00;">LASS</a></strong> - Lisp Augmented Style Sheets</li>
           <li><strong><a href="https://gitlab.common-lisp.net/parenscript/parenscript" style="color: #00ff00;">ParenScript</a></strong> - Lisp-to-JavaScript compiler</li>
-          <li><strong><a href="https://icecast.org/" style="color: #00ff00;">Icecast</a></strong> - Streaming media server</li>
-          <li><strong><a href="https://www.liquidsoap.info/" style="color: #00ff00;">Liquidsoap</a></strong> - Audio stream generation</li>
+          <li><strong><a href="https://shirakumo.github.io/harmony/" style="color: #00ff00;">Harmony</a></strong> - Common Lisp audio system</li>
+          <li><strong><a href="https://shirakumo.github.io/cl-mixed/" style="color: #00ff00;">CL-Mixed</a></strong> - Audio mixing and processing</li>
         </ul>
         <p style="line-height: 1.6;">
           By building in Common Lisp, we're doubling down on our technical values and creating features 
