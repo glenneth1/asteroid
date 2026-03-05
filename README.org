@@ -1,10 +1,12 @@
 #+TITLE: Asteroid Radio - Internet Radio Streaming Platform
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2026-01-26
+#+DATE: 2026-03-05
 
 * Overview
 
-Asteroid Radio is a complete internet radio streaming platform built with Common Lisp, featuring a hacker-themed terminal aesthetic. The project combines the Radiance web framework with Icecast/Liquidsoap streaming infrastructure to create a full-featured music streaming platform with live broadcasting capabilities.
+Asteroid Radio is a complete internet radio streaming platform built entirely in Common Lisp. It combines the [[https://shirakumo.github.io/radiance/][Radiance]] web framework with an in-process audio streaming pipeline powered by [[https://shirakumo.github.io/harmony/][Harmony]], [[https://shirakumo.github.io/cl-mixed/][cl-mixed]], and a custom streaming server called *CL-Streamer*. Everything runs in a single SBCL process — audio decoding, mixing, encoding, HTTP streaming, metadata, playlist scheduling, and the web frontend.
+
+No external streaming services are required. The only external dependency is PostgreSQL for persistent data.
 
 ** Project Links
 - *Repository*: https://github.com/fade/asteroid
@@ -14,188 +16,229 @@ Asteroid Radio is a complete internet radio streaming platform built with Common
 * Key Features
 
 ** Live Internet Radio Streaming
-- Multiple quality streams: 128kbps MP3, 96kbps AAC, 64kbps MP3
-- Professional audio processing with crossfading and ReplayGain normalization
-- Icecast2 streaming server integration
-- Liquidsoap audio pipeline for reliable broadcasting
-- Stream queue control for curated programming
+- Dual-format simultaneous output: 128kbps MP3 + 128kbps AAC
+- Real-time audio decoding via Harmony (FLAC, MP3 via cl-mixed backends)
+- Crossfade between tracks (3s overlap, configurable fade-in/fade-out)
+- ICY metadata protocol for now-playing information in media players
+- Burst-on-connect for instant playback start (~4s of buffered audio)
+
+** CL-Streamer — The Audio Pipeline
+CL-Streamer is Asteroid Radio's own native Common Lisp audio streaming server, written from scratch as part of this project. It provides HTTP audio streaming with ICY metadata, dual-format encoding (MP3 + AAC), and real-time audio processing — replacing what previously required separate Icecast and Liquidsoap Docker containers. It lives in the =cl-streamer/= directory and is loaded as an ASDF system within the Asteroid Radio process. See =cl-streamer/README.org= for full technical details.
+
+Key components:
+- *streaming-drain* — custom Harmony drain that intercepts mixed audio and feeds it to encoders instead of a sound card
+- *MP3 encoder* — LAME via CFFI (=lame-ffi.lisp=)
+- *AAC encoder* — FDK-AAC via a C shim that avoids SBCL signal handler conflicts (=fdkaac-shim.c=, =fdkaac-ffi.lisp=)
+- *Broadcast buffer* — single-producer multi-consumer ring buffer per mount point; never blocks the encoder
+- *ICY metadata* — SHOUTcast-compatible metadata interleaved in the stream
+- *HTTP server* — usocket-based, serves =/asteroid.mp3= and =/asteroid.aac= directly
+
+** Playlist Scheduling
+- Cron-based playlist scheduler with configurable time slots (=playlist-scheduler.lisp=)
+- M3U playlist files with =#EXTINF= metadata (=playlists/= directory)
+- Playback state persistence — saves current track/playlist position to disk (=.playback-state.lisp=)
+- Automatic resume from saved state on restart
+- Sequential playback with crossfade transitions
 
 ** Music Library Management
 - Database-backed track storage with metadata extraction
-- Support for MP3, FLAC, OGG, and WAV formats
-- Automatic metadata extraction using taglib
+- Support for MP3 and FLAC formats (decoded by cl-mixed backends)
+- Automatic metadata extraction using [[https://github.com/psilord/taglib][taglib]] (artist, title, album)
 - Track search, filtering, sorting, and pagination
 - Recursive directory scanning
 
 ** Web Interface
-- RADIANCE framework with CLIP templating
-- Admin dashboard for library and user management
+- Radiance framework with CLIP templating
+- Admin dashboard with stream status, listener stats, and library management
 - Multiple player modes: inline, pop-out, and persistent frameset
-- Live stream integration with embedded player
+- Live stream integration with embedded HTML5 audio player
 - Responsive design for desktop and mobile
 - Role-based access control (Admin/DJ/Listener)
+- ParenScript-generated JavaScript (=parenscript/= directory)
+- LASS-generated CSS (=static/asteroid.lass=)
 
-** Network Broadcasting
-- Dynamic stream URL detection for multi-environment support
-- Professional streaming URLs for media players
-- Multi-listener support via Icecast2
-- Docker-based deployment for easy setup
+** Listener Statistics
+- In-process listener tracking (no external polling needed)
+- Geo IP lookup with caching (=listener-stats.lisp=)
+- Per-mount and aggregate listener counts
+- GDPR-compliant IP hashing and data retention
 
-* Architecture Changes
+* Architecture
 
-** Framework Migration
-- Migrated from Hunchentoot to RADIANCE web framework
-- Implemented proper domain routing (=/asteroid/=)
-- CLIP templating system for dynamic content
-- Database abstraction layer for track storage
+#+BEGIN_EXAMPLE
+┌──────────────────────────────────────────────────────────────┐
+│                    SBCL Process                               │
+│                                                               │
+│  ┌───────────┐   ┌──────────────┐   ┌───────────────────┐   │
+│  │ Harmony    │──▶│ streaming-   │──▶│ MP3 Encoder       │   │
+│  │ (decode,   │   │ drain        │   │ (LAME FFI)        │──▶│ /asteroid.mp3
+│  │  crossfade,│   │ (float→s16   │   └───────────────────┘   │
+│  │  mix)      │   │  conversion) │   ┌───────────────────┐   │
+│  └───────────┘   └──────────────┘──▶│ AAC Encoder        │   │
+│       ▲                              │ (FDK-AAC C shim)   │──▶│ /asteroid.aac
+│       │                              └───────────────────┘   │
+│  ┌───────────┐                       ┌───────────────────┐   │
+│  │ Playlist   │   ICY metadata ────▶│ CL-Streamer        │   │
+│  │ Scheduler  │   Listener stats ◀──│ HTTP Server         │   │
+│  │ (cl-cron)  │                      │ (usocket)           │   │
+│  └───────────┘                       └───────────────────┘   │
+│       │                                                       │
+│  ┌───────────┐   ┌──────────────┐   ┌───────────────────┐   │
+│  │ Radiance   │──▶│ Admin        │   │ PostgreSQL         │   │
+│  │ Web Server │   │ Dashboard    │   │ (external)         │   │
+│  │ (port 8080)│   │ + Player UI  │   │                    │   │
+│  └───────────┘   └──────────────┘   └───────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+#+END_EXAMPLE
 
-** Streaming Stack
-- *Icecast2*: Streaming server (port 8000) - Docker containerized
-- *Liquidsoap*: Audio processing and streaming pipeline - Docker containerized
-- *RADIANCE*: Web server and API (port 8080)
-- *PostgreSQL*: Database backend (configured, ready for migration)
-- *Docker Compose*: Container orchestration
+** How Audio Flows
+
+1. *Decode* — Harmony loads a FLAC or MP3 file via cl-mixed-flac or cl-mixed-mpg123
+2. *Mix* — during crossfade, two voices play simultaneously through Harmony's mixer
+3. *Drain* — the custom =streaming-drain= reads interleaved float samples from the pack buffer
+4. *Convert* — floats are converted to signed 16-bit PCM via CFFI
+5. *Encode* — PCM is fed to LAME (MP3) and FDK-AAC (AAC) encoders in parallel
+6. *Buffer* — encoded bytes are written to per-mount broadcast ring buffers
+7. *Serve* — HTTP clients read from their position in the ring buffer with ICY metadata interleaving
 
 ** File Structure
 #+BEGIN_SRC
 asteroid/
-├── asteroid.lisp              # Main server with RADIANCE routes
-├── asteroid.asd               # System definition with dependencies
+├── asteroid.lisp              # Main server, Radiance routes, API endpoints
+├── asteroid.asd               # ASDF system definition
+├── stream-harmony.lisp        # Harmony/CL-Streamer integration, playback state
+├── playlist-scheduler.lisp    # Cron-based playlist scheduling
 ├── stream-control.lisp        # Stream queue management
+├── listener-stats.lisp        # Listener statistics and geo IP
 ├── user-management.lisp       # User administration
 ├── playlist-management.lisp   # Playlist operations
-├── test-server.sh             # Automated test suite
-├── docker/                    # Docker infrastructure
-│   ├── docker-compose.yml     # Container orchestration
-│   ├── asteroid-radio-docker.liq  # Liquidsoap config
-│   ├── icecast.xml            # Icecast configuration
-│   └── music/                 # Music library mount
+├── user-playlists.lisp        # User playlist features
+├── user-profile.lisp          # User profile management
+├── track-requests.lisp        # Track request system
+├── auth-routes.lisp           # Authentication routes
+├── database.lisp              # Database schema and helpers
+├── Makefile                   # Build: compiles SBCL image
+├── cl-streamer/               # Audio streaming subsystem
+│   ├── cl-streamer.asd        # ASDF system definition
+│   ├── harmony-backend.lisp   # Harmony integration, crossfade, play-list/play-file
+│   ├── stream-server.lisp     # HTTP streaming server (usocket)
+│   ├── buffer.lisp            # Broadcast ring buffer
+│   ├── encoder.lisp           # MP3 encoder (LAME FFI)
+│   ├── aac-encoder.lisp       # AAC encoder with frame accumulation
+│   ├── lame-ffi.lisp          # CFFI bindings for libmp3lame
+│   ├── fdkaac-ffi.lisp        # CFFI bindings for FDK-AAC (via shim)
+│   ├── fdkaac-shim.c          # C shim for FDK-AAC (avoids SBCL signal conflicts)
+│   ├── libfdkaac-shim.so      # Compiled shim shared library
+│   ├── icy-protocol.lisp      # ICY metadata encoding
+│   └── README.org             # Full CL-Streamer documentation
+├── playlists/                 # M3U playlist files for the scheduler
 ├── template/                  # CLIP HTML templates
-│   ├── front-page.ctml        # Main page with live stream
-│   ├── admin.ctml             # Admin dashboard
-│   ├── player.ctml            # Web player interface
-│   └── users.ctml             # User management
-├── static/                    # CSS and assets
-│   └── asteroid.lass          # LASS stylesheet
+├── parenscript/               # ParenScript JavaScript sources
+├── static/                    # CSS (LASS) and assets
+├── migrations/                # PostgreSQL schema migrations
+├── docker/                    # Docker config (PostgreSQL only)
 ├── docs/                      # Comprehensive documentation
-│   ├── README.org             # Documentation index
-│   ├── PROJECT-OVERVIEW.org   # Architecture overview
-│   ├── PROJECT-HISTORY.org    # Development timeline
-│   ├── INSTALLATION.org       # Setup guide
-│   └── ...                    # Additional guides
-└── music/                     # Music library (local dev)
+└── music/                     # Music library symlink
 #+END_SRC
 
 * Quick Start
 
-** Docker Installation (Recommended)
+** Prerequisites
+- *SBCL* — Steel Bank Common Lisp
+- *Quicklisp* — with Ultralisp distribution (for Harmony, cl-mixed)
+- *PostgreSQL* — running instance (Docker or native)
+- *System libraries*: =libmp3lame=, =libfdk-aac=, =libflac=, =libmpg123=, =libtagc=
+
+** Building the FDK-AAC Shim
+
+CL-Streamer uses a thin C shim to call FDK-AAC, avoiding SBCL signal handler conflicts that cause recursive SIGSEGV when calling FDK-AAC directly via CFFI. The compiled =libfdkaac-shim.so= is included in the repository, but if you need to rebuild it (e.g. after updating =libfdk-aac=):
+
+#+BEGIN_SRC bash
+cd cl-streamer
+gcc -shared -fPIC -o libfdkaac-shim.so fdkaac-shim.c -lfdk-aac
+#+END_SRC
+
+The shim is loaded automatically at ASDF system load time from the =cl-streamer/= directory — no installation or =LD_LIBRARY_PATH= configuration needed.
+
+** Build and Run
 #+BEGIN_SRC bash
 # Clone repository
 git clone https://github.com/fade/asteroid
-cd asteroid/docker
+cd asteroid
 
-# Start all services
-docker compose up -d
+# Start PostgreSQL (if using Docker)
+cd docker && docker compose up -d postgres && cd ..
 
-# Verify streams are working
-curl -I http://localhost:8000/asteroid.mp3
-curl -I http://localhost:8000/asteroid.aac
-curl -I http://localhost:8000/asteroid-low.mp3
+# Build the SBCL image
+make
+
+# Run (set ASTEROID_STREAM_URL to the stream server address)
+ASTEROID_STREAM_URL=http://localhost:8000 ./asteroid
 #+END_SRC
+
+On startup, Asteroid will:
+1. Start the Radiance web server on port 8080
+2. Start the CL-Streamer HTTP server on port 8000
+3. Initialise the Harmony audio pipeline with MP3 + AAC encoders
+4. Connect to PostgreSQL and load the playlist schedule
+5. Resume playback from saved state (if =.playback-state.lisp= exists)
+6. Begin streaming audio on =/asteroid.mp3= and =/asteroid.aac=
 
 ** Access Points
 - *Web Interface*: http://localhost:8080/
 - *Admin Panel*: http://localhost:8080/admin
-- *High Quality MP3*: http://localhost:8000/asteroid.mp3 (128kbps)
-- *High Quality AAC*: http://localhost:8000/asteroid.aac (96kbps)
-- *Low Quality MP3*: http://localhost:8000/asteroid-low.mp3 (64kbps)
-- *Icecast Admin*: http://localhost:8000/admin/ (admin/asteroid_admin_2024)
+- *MP3 Stream*: http://localhost:8000/asteroid.mp3 (128kbps)
+- *AAC Stream*: http://localhost:8000/asteroid.aac (128kbps)
+
+* Playlist Scheduling
+
+Playlists are M3U files in the =playlists/= directory. The scheduler (=playlist-scheduler.lisp=) uses =cl-cron= to switch playlists at configured times.
+
+** Schedule Configuration
+The schedule is stored in the database and loaded on startup. Example schedule:
+
+| Time (UTC) | Playlist               | Description                    |
+|------------+------------------------+--------------------------------|
+| 00:00      | midnight-ambient.m3u   | Deep, dark ambient             |
+| 06:00      | morning-drift.m3u      | Lighter, awakening ambient     |
+| 12:00      | afternoon-orbit.m3u    | Mid-energy floating ambient    |
+| 13:00      | underworld-and-friends | Techno, electro, progressive   |
+| 18:00      | evening-descent.m3u    | Winding down transitional      |
+
+** M3U Format
+Playlists use =#EXTINF= metadata and =/app/music/= prefixed paths (rewritten to local library path at load time):
+
+#+BEGIN_SRC
+#EXTM3U
+#PLAYLIST:Underworld & Friends
+#EXTINF:-1,Underworld - Born Slippy (Nuxx)
+/app/music/Underworld - Second Toughest In The Infants (flac)/Second Toughest In The Infants (CD2)/01 Born Slippy (Nuxx).flac
+#EXTINF:-1,Orbital - Halcyon + On + On
+/app/music/Orbital/1993 - Orbital - Orbital 2 (Brown Album - TRUCD2, 828 386.2)/00. Halcyon + On + On.mp3
+#+END_SRC
+
+** Playback State Persistence
+The current track and playlist position are saved to =.playback-state.lisp= periodically. On restart, playback resumes from the saved position rather than restarting the playlist from the beginning.
 
 * Music Library Management
 
 ** Adding Music
-1. *Copy files*: Place MP3/FLAC files in =docker/music/= directory
-2. *Access admin panel*: Navigate to =http://localhost:8080/admin=
-3. *Scan library*: Click "Scan Library" to index new tracks
-4. *Metadata extraction*: Track information automatically extracted
-5. *Stream queue*: Optionally add tracks to broadcast queue
-
-** Library Scanning
-1. Recursive directory scanning of music folder
-2. Metadata extracted using taglib (title, artist, album, duration)
-3. Database records created with file paths and metadata
-4. Tracks immediately available for playback and streaming
-5. Supports nested folder structures
+1. Place MP3/FLAC files in the music library directory (symlinked from =music/library/=)
+2. Navigate to the admin panel at =http://localhost:8080/admin=
+3. Click "Scan Library" to index new tracks
+4. Metadata (artist, title, album) is automatically extracted via taglib
 
 ** Supported Formats
-- *MP3*: Primary format, best compatibility
-- *FLAC*: Lossless audio, high quality
-- *OGG*: Open source format
-- *WAV*: Uncompressed audio
+- *FLAC* — decoded by cl-mixed-flac (via libflac)
+- *MP3* — decoded by cl-mixed-mpg123 (via libmpg123)
 
-* Icecast2 Integration
-
-** Configuration
-- *Server*: localhost:8000 (Docker container)
-- *Mount points*: =/asteroid.mp3=, =/asteroid.aac=, =/asteroid-low.mp3=
-- *Password*: =H1tn31EhsyLrfRmo= (configured in Docker setup)
-- *Formats*: MP3 128kbps, AAC 96kbps, MP3 64kbps
-
-** Docker Setup
-Icecast2 runs in a Docker container - no manual installation needed.
-
-#+BEGIN_SRC bash
-# Managed via docker-compose
-cd docker
-docker compose up -d icecast
-#+END_SRC
-
-** Stream Access
-- *High Quality MP3*: =http://localhost:8000/asteroid.mp3= (128kbps)
-- *High Quality AAC*: =http://localhost:8000/asteroid.aac= (96kbps)
-- *Low Quality MP3*: =http://localhost:8000/asteroid-low.mp3= (64kbps)
-- *Admin interface*: =http://localhost:8000/admin/= (admin/asteroid_admin_2024)
-- *Statistics*: =http://localhost:8000/status.xsl=
-
-* Liquidsoap Integration
-
-** Docker Configuration
-Liquidsoap runs in a Docker container with configuration in =docker/asteroid-radio-docker.liq=
-
-** Key Features
-- *Multiple outputs*: Generates 3 simultaneous streams (MP3 128k, AAC 96k, MP3 64k)
-- *Audio processing*: Crossfading, normalization, ReplayGain
-- *Stream queue*: Reads from M3U playlist for curated programming
-- *Telnet control*: Remote control interface on port 1234
-- *Metadata*: Broadcasts track information to listeners
-
-** Management
-#+BEGIN_SRC bash
-# Start Liquidsoap container
-cd docker
-docker compose up -d liquidsoap
-
-# View logs
-docker compose logs -f liquidsoap
-
-# Restart streaming
-docker compose restart liquidsoap
-#+END_SRC
-
-** Telnet Control
-#+BEGIN_SRC bash
-# Connect to Liquidsoap
-telnet localhost 1234
-
-# Or use netcat for scripting
-echo "request.queue" | nc localhost 1234
-echo "request.skip" | nc localhost 1234
-#+END_SRC
+** Path Mapping
+In Docker deployments, music paths use =/app/music/= prefix. In local development, =music/library/= is a symlink to the actual music directory. The M3U playlist loader rewrites paths accordingly.
 
 * User Management
 
 ** Roles
-- *Admin*: Full system access, user management, stream control
+- *Admin*: Full system access, user management, stream control, skip tracks
 - *DJ*: Content management, playlist creation, library access
 - *Listener*: Basic playback and personal playlists
 
@@ -204,23 +247,15 @@ echo "request.skip" | nc localhost 1234
 - Password: =asteroid123=
 - ⚠️ Change default password after first login
 
-** User Administration
-- Create/manage users via admin panel
-- Role-based access control
-- User profiles and preferences
-- Session management
-
 * Player Modes
 
 ** Inline Player
 - Embedded in web pages
-- Standard HTML5 audio controls
-- Queue management
+- HTML5 audio with stream auto-reconnect
 
 ** Pop-Out Player
 - Standalone player window
 - Independent from main browser window
-- Persistent across page navigation
 
 ** Frameset Player
 - Bottom-frame persistent player
@@ -229,24 +264,15 @@ echo "request.skip" | nc localhost 1234
 
 * API Endpoints
 
-Asteroid Radio provides a comprehensive REST API with 90+ endpoints.
-
-** Status & Authentication
+** Status & Streaming
 - =GET /api/asteroid/status= - Server status
-- =GET /api/asteroid/auth-status= - Authentication status
-- =GET /api/asteroid/icecast-status= - Streaming status
+- =GET /api/asteroid/icecast-status= - Stream status (now-playing, listeners; name kept for frontend compatibility)
+- =POST /api/asteroid/stream/skip= - Skip current track (admin)
 
 ** Track Management
 - =GET /api/asteroid/tracks= - List all tracks
 - =GET /api/asteroid/admin/tracks= - Admin track listing
 - =POST /api/asteroid/admin/scan-library= - Scan music library
-
-** Player Control
-- =GET /api/asteroid/player/status= - Player status
-- =POST /api/asteroid/player/play= - Play track
-- =POST /api/asteroid/player/pause= - Pause playback
-- =POST /api/asteroid/player/stop= - Stop playback
-- =POST /api/asteroid/player/resume= - Resume playback
 
 ** Playlist Management
 - =GET /api/asteroid/playlists= - List user playlists
@@ -264,49 +290,52 @@ See =docs/API-ENDPOINTS.org= for complete API documentation.
 
 * Database
 
-** Current: Radiance DB
-- File-based database abstraction
-- Tracks, users, playlists, sessions
-- Suitable for development and small deployments
-
-** PostgreSQL (Configured)
-- Docker container ready
-- Full schema defined
-- Migration pending
-- See =docs/POSTGRESQL-SETUP.org= for details
-
-* Documentation
-
-Comprehensive documentation available in the =docs/= directory:
-
-- *README.org* - Documentation index
-- *PROJECT-OVERVIEW.org* - Architecture and features
-- *PROJECT-HISTORY.org* - Development timeline and milestones
-- *INSTALLATION.org* - Complete installation guide
-- *DEVELOPMENT.org* - Developer setup and guidelines
-- *DOCKER-STREAMING.org* - Docker streaming infrastructure
-- *API-ENDPOINTS.org* - REST API reference
-- *STREAM-CONTROL.org* - Stream queue management
-- *USER-MANAGEMENT-SYSTEM.org* - User administration
-- *PLAYLIST-SYSTEM.org* - Playlist functionality
-- *TESTING.org* - Automated testing guide
-- *POSTGRESQL-SETUP.org* - Database setup
+** PostgreSQL
+- Primary database for tracks, users, playlists, sessions, schedule, listener stats
+- Docker container or native installation
+- Schema managed via migrations in =migrations/= directory
+- Connection configured in =config/radiance-postgres.lisp=
+- See =docs/POSTGRESQL-SETUP.org= for setup details
 
 * Dependencies
 
 ** Lisp Dependencies
 - =radiance= - Web framework
+- =harmony= - Audio framework (decode, mix, effects)
+- =cl-mixed= / =cl-mixed-flac= / =cl-mixed-mpg123= - Low-level audio mixing and decoding
 - =r-clip= - CLIP templating
 - =lass= - CSS preprocessing
+- =parenscript= - Lisp-to-JavaScript compiler
 - =cl-json= - JSON handling
 - =alexandria= - Common Lisp utilities
+- =bordeaux-threads= - Portable threading
 - =local-time= - Time handling
 - =taglib= - Audio metadata extraction
+- =cl-cron= - Cron-style job scheduling
+- =cffi= - C foreign function interface
+- =usocket= - Socket networking
+- =i-postmodern= - PostgreSQL interface (Radiance)
+- =ironclad= - Cryptographic hashing (passwords, IP hashing)
+- =log4cl= - Logging
+- =slynk= - Sly/SLIME interactive development
 
-** System Dependencies (Docker)
-- Docker Engine 20.10+
-- Docker Compose 2.0+
-- All streaming components containerized
+** System Libraries
+- =libmp3lame= - MP3 encoding (LAME)
+- =libfdk-aac= - AAC encoding (FDK-AAC, accessed via C shim)
+- =libflac= - FLAC decoding
+- =libmpg123= - MP3 decoding
+- =libtagc= - Audio metadata reading (taglib C bindings)
+
+** Infrastructure
+- *PostgreSQL* - only external service required
+- *Docker* - optional, for running PostgreSQL
+
+* Resource Usage
+
+Running on a single SBCL process:
+- *RAM*: ~320MB RSS (real-time audio decode + dual MP3/AAC encode)
+- *CPU*: ~8% total (Harmony thread is ~5%)
+- *Threads*: ~18
 
 * Testing
 
@@ -336,6 +365,9 @@ Comprehensive documentation available in the =docs/= directory:
 4. Run test suite
 5. Submit pull request
 
+** Interactive Development
+Asteroid starts a Slynk server on port 4009. Connect from Emacs/Sly for live REPL access to the running system — inspect streams, modify playlists, debug audio issues without restarting.
+
 ** Community
 - *IRC*: #asteroid.music on irc.libera.chat
 - *Issues*: GitHub issue tracker
@@ -348,31 +380,44 @@ Comprehensive documentation available in the =docs/= directory:
 
 * Troubleshooting
 
-** Docker Issues
-#+BEGIN_SRC bash
-# Check container status
-docker compose ps
-
-# View logs
-docker compose logs icecast
-docker compose logs liquidsoap
-
-# Restart services
-docker compose restart
-#+END_SRC
-
 ** Stream Not Playing
-- Verify containers are running
-- Check music files exist in =docker/music/=
-- Test stream URLs with curl
-- Review Liquidsoap logs
+- Check that the process is running and CL-Streamer started (look for "CL-Streamer started on port 8000" in logs)
+- Test stream URLs: =curl -I http://localhost:8000/asteroid.mp3=
+- Check for audio file errors in the log (missing files, unsupported formats)
+- Verify music library symlink: =ls -la music/library/=
+
+** SBCL Pathname Issues
+File paths containing square brackets (e.g. =[WEB FLAC]=) can cause =SIMPLE-ARRAY CHARACTER= errors because SBCL's =pathname= function interprets brackets as wildcard patterns. CL-Streamer uses =sb-ext:parse-native-namestring= to avoid this.
 
 ** Database Issues
-- Check Radiance DB file permissions
-- Verify database collections exist
-- Review application logs
+- Check PostgreSQL is running: =docker compose ps= (if using Docker)
+- Verify connection in =config/radiance-postgres.lisp=
+- Review application logs for connection errors
+
+** Playback State
+- Saved to =.playback-state.lisp= in the project root
+- Delete this file to force a fresh start from the scheduled playlist
+- Check logs for "Resuming after track..." on startup
 
 For detailed troubleshooting, see documentation in =docs/= directory.
+
+* Documentation
+
+Comprehensive documentation available in the =docs/= directory:
+
+- *README.org* - Documentation index
+- *PROJECT-OVERVIEW.org* - Architecture and features
+- *PROJECT-HISTORY.org* - Development timeline and milestones
+- *INSTALLATION.org* - Complete installation guide
+- *DEVELOPMENT.org* - Developer setup and guidelines
+- *API-ENDPOINTS.org* - REST API reference
+- *STREAM-CONTROL.org* - Stream queue management
+- *USER-MANAGEMENT-SYSTEM.org* - User administration
+- *PLAYLIST-SYSTEM.org* - Playlist functionality
+- *TESTING.org* - Automated testing guide
+- *POSTGRESQL-SETUP.org* - Database setup
+
+See also =cl-streamer/README.org= for CL-Streamer technical documentation.
 
 * License
 
@@ -381,13 +426,14 @@ See LICENSE file for details.
 * Acknowledgments
 
 Built with:
-- Common Lisp (SBCL)
-- Radiance web framework
-- Icecast2 streaming server
-- Liquidsoap audio processing
-- Docker containerization
+- [[https://www.sbcl.org/][SBCL]] (Steel Bank Common Lisp)
+- [[https://shirakumo.github.io/radiance/][Radiance]] web framework (Shinmera)
+- [[https://shirakumo.github.io/harmony/][Harmony]] audio framework (Shinmera)
+- [[https://shirakumo.github.io/cl-mixed/][cl-mixed]] audio mixing library (Shinmera)
+- [[https://lame.sourceforge.io/][LAME]] MP3 encoder
+- [[https://github.com/mstorsjo/fdk-aac][FDK-AAC]] AAC encoder
 
-Special thanks to all contributors and the Common Lisp community.
+Special thanks to Yukari Hafner (Shinmera) for Harmony, cl-mixed, and Radiance, and to the Common Lisp community.
 
 * Credits
 
@@ -396,4 +442,4 @@ Special thanks to all contributors and the Common Lisp community.
 
 ---
 
-*Last Updated: 2026-01-26*
+*Last Updated: 2026-03-05*
