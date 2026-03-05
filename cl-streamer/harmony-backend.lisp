@@ -217,18 +217,25 @@
 ;;; ---- Metadata ----
 
 (defun ensure-simple-string (s)
-  "Coerce S to a simple-string if it's a string, or return NIL."
+  "Coerce S to a simple-string if it's a string, or return NIL.
+   Uses coerce to guarantee SIMPLE-STRING type for downstream consumers."
   (when (stringp s)
-    (copy-seq (string-trim '(#\Space #\Nul) s))))
+    (coerce (string-trim '(#\Space #\Nul) s) 'simple-string)))
+
+(defun safe-tag (fn audio-file)
+  "Safely read a tag field, coercing to simple-string. Returns NIL on any error."
+  (handler-case
+      (ensure-simple-string (funcall fn audio-file))
+    (error () nil)))
 
 (defun read-audio-metadata (file-path)
   "Read metadata (artist, title, album) from an audio file using taglib.
    Returns a plist (:artist ... :title ... :album ...) or NIL on failure."
   (handler-case
       (let ((audio-file (audio-streams:open-audio-file (namestring file-path))))
-        (list :artist (ensure-simple-string (abstract-tag:artist audio-file))
-              :title (ensure-simple-string (abstract-tag:title audio-file))
-              :album (ensure-simple-string (abstract-tag:album audio-file))))
+        (list :artist (safe-tag #'abstract-tag:artist audio-file)
+              :title (safe-tag #'abstract-tag:title audio-file)
+              :album (safe-tag #'abstract-tag:album audio-file)))
     (error (e)
       (log:debug "Could not read tags from ~A: ~A" file-path e)
       nil)))

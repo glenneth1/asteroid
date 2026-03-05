@@ -101,16 +101,30 @@
 
 ;;; Cron Job Management
 
+(defun utc-hour-to-local-hour (utc-hour)
+  "Convert a UTC hour (0-23) to the local timezone hour for cl-cron.
+   cl-cron uses decode-universal-time which returns local time."
+  (let* ((now (get-universal-time))
+         (local-hour (nth-value 2 (decode-universal-time now)))
+         (utc-hour-now (nth-value 2 (decode-universal-time now 0)))
+         (offset (- local-hour utc-hour-now)))
+    (mod (+ utc-hour offset) 24)))
+
 (defun setup-playlist-cron-jobs ()
-  "Set up cl-cron jobs for all scheduled playlists."
+  "Set up cl-cron jobs for all scheduled playlists.
+   Schedule hours are in UTC; cl-cron fires in local time,
+   so we convert UTC hours to local hours."
   (unless *scheduler-running*
     (dolist (entry *playlist-schedule*)
-      (let ((hour (car entry))
-            (playlist (cdr entry)))
+      (let* ((utc-hour (car entry))
+             (playlist (cdr entry))
+             (local-hour (utc-hour-to-local-hour utc-hour)))
+        (log:info "Scheduling ~A at ~2,'0d:00 UTC (~2,'0d:00 local)"
+                  playlist utc-hour local-hour)
         (cl-cron:make-cron-job 
-         (scheduled-playlist-loader hour playlist)
+         (scheduled-playlist-loader utc-hour playlist)
          :minute 0 
-         :hour hour)))
+         :hour local-hour)))
     (setf *scheduler-running* t)))
 
 (defun start-playlist-scheduler ()
