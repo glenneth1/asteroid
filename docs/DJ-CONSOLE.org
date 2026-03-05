@@ -1,0 +1,517 @@
+#+TITLE: DJ Console — Design Document
+#+AUTHOR: Glenn Thompson
+#+DATE: 2026-03-05
+
+* Overview
+
+The DJ Console is a new feature for Asteroid Radio that allows DJs to mix
+tracks live from the station's music library, or connect external audio
+equipment (turntables, CDJs, mixers, etc.) to broadcast live sets.
+
+The console is a dedicated web page at =/asteroid/dj=, accessible to users
+with the =:dj= or =:admin= role. It provides a dual-deck interface with
+crossfader, per-deck volume, library search, and external audio input —
+all feeding into the existing Harmony mixer and streaming pipeline.
+
+** Why This Works
+
+The current CL-Streamer architecture makes this straightforward:
+
+- *Harmony's mixer already sums all active voices.* The streaming drain,
+  encoders (LAME, FDK-AAC), and broadcast buffers don't need to change.
+  A DJ session is just manual control over which voices are playing and
+  at what volume.
+
+- *play-file already creates Harmony voices.* Each deck loads a track
+  the same way the auto-playlist does — the difference is that the DJ
+  controls when to start, stop, and crossfade rather than the
+  =play-list= loop.
+
+- *External audio input* is another voice on the mixer. Whether it
+  comes from a local sound card (ALSA/PulseAudio/JACK) or a network
+  audio stream, once it's a Harmony source, it's mixed identically to
+  library tracks.
+
+* Architecture
+
+** System Diagram
+
+#+BEGIN_EXAMPLE
+┌──────────────────────────────────────────────────────────────┐
+│                       SBCL Process                            │
+│                                                               │
+│  ┌─────────────────────────────────────────────────────┐     │
+│  │              DJ Session (dj-session.lisp)            │     │
+│  │                                                      │     │
+│  │  ┌──────────┐        ┌──────────┐                   │     │
+│  │  │ DECK A   │        │ DECK B   │                   │     │
+│  │  │ voice-a  │        │ voice-b  │                   │     │
+│  │  │ vol: 0.8 │        │ vol: 0.6 │                   │     │
+│  │  │ state:   │        │ state:   │                   │     │
+│  │  │ playing  │        │ cued     │                   │     │
+│  │  └────┬─────┘        └────┬─────┘                   │     │
+│  │       │                   │                          │     │
+│  │       │  ┌──────────────┐ │                          │     │
+│  │       │  │ EXTERNAL IN  │ │                          │     │
+│  │       │  │ (optional)   │ │                          │     │
+│  │       │  │ voice-ext    │ │                          │     │
+│  │       │  └──────┬───────┘ │                          │     │
+│  │       │         │         │                          │     │
+│  │  ┌────▼─────────▼─────────▼────┐                    │     │
+│  │  │     CROSSFADER (0.0 — 1.0)  │                    │     │
+│  │  │     Adjusts A/B balance     │                    │     │
+│  │  └─────────────┬───────────────┘                    │     │
+│  └────────────────│────────────────────────────────────┘     │
+│                   │                                           │
+│              ┌────▼────┐                                     │
+│              │ Harmony  │                                     │
+│              │ Mixer    │  (sums all active voices)           │
+│              └────┬────┘                                     │
+│                   │                                           │
+│  ┌────────────────▼──────────────────────────────────┐       │
+│  │            streaming-drain (unchanged)              │       │
+│  │  float→s16 → LAME (MP3) + FDK-AAC (AAC)           │       │
+│  │  → broadcast buffers → HTTP clients                │       │
+│  └────────────────────────────────────────────────────┘       │
+│                                                               │
+│  ┌───────────────────────┐  ┌────────────────────────┐       │
+│  │ Auto-Playlist          │  │ Radiance Web Server    │       │
+│  │ (paused while DJ live) │  │ (port 8080)            │       │
+│  └───────────────────────┘  └────────────────────────┘       │
+└──────────────────────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+** Audio Flow
+
+When a DJ session is active:
+
+1. The auto-playlist (=play-list= loop) is paused — its current
+   position is saved for seamless resume later.
+2. The DJ loads tracks onto Deck A and/or Deck B via the library search.
+3. Each deck creates a Harmony voice. =play-file= is called with
+   =:on-end :disconnect= so the voice cleans up when the track ends.
+4. The crossfader adjusts the =(mixed:volume)= of each deck's voice:
+   - Position 0.0: Deck A at full volume, Deck B silent
+   - Position 0.5: Both at equal volume
+   - Position 1.0: Deck B at full volume, Deck A silent
+5. Per-deck volume knobs provide independent gain before the crossfader.
+6. Harmony's mixer sums all active voices (both decks + external input
+   if connected).
+7. The streaming drain captures the mixed output — identical to
+   auto-playlist mode. Encoders and listeners are unaware of the
+   source change.
+
+When the DJ ends the session:
+
+1. Active decks fade out over 3 seconds (=volume-ramp=).
+2. The auto-playlist resumes from the saved position.
+3. ICY metadata updates to show the resumed track.
+
+* External Audio Input
+
+** Use Cases
+
+- *Turntable/CDJ setup*: DJ connects external hardware to the server's
+  sound card (line-in, USB audio interface)
+- *Remote DJ*: DJ streams audio over the network from their own
+  equipment/software (e.g., Traktor, Serato, Ableton, BUTT)
+- *Hybrid set*: DJ mixes between library tracks on the decks and
+  external audio input
+
+** Option 1: Local Sound Card Input (ALSA/PulseAudio/JACK)
+
+For DJs with physical access to the server (or a connected audio
+interface), cl-mixed can capture from ALSA, PulseAudio, or JACK:
+
+- =cl-mixed-pulse= — PulseAudio source capture
+- =cl-mixed-alsa= — ALSA device capture
+- =cl-mixed-jack= — JACK audio connection
+
+The captured audio becomes a Harmony source that feeds into the mixer
+like any other voice. This is the lowest-latency option.
+
+#+BEGIN_EXAMPLE
+┌──────────────┐    ┌───────────┐    ┌─────────────┐
+│ Turntable /  │───▶│ USB Audio │───▶│ ALSA/Pulse  │
+│ CDJ / Mixer  │    │ Interface │    │ Capture     │
+└──────────────┘    └───────────┘    └──────┬──────┘
+                                            │
+                                    ┌───────▼───────┐
+                                    │ Harmony Voice  │
+                                    │ (ext-input)    │
+                                    └───────┬───────┘
+                                            │
+                                    ┌───────▼───────┐
+                                    │ Harmony Mixer  │
+                                    │ → encoders →   │
+                                    │   listeners    │
+                                    └───────────────┘
+#+END_EXAMPLE
+
+** Option 2: Network Audio Input (Remote DJ)
+
+For remote DJs, the server accepts an incoming audio stream. The DJ
+sends audio from their software (BUTT, Traktor, etc.) over HTTP or
+Icecast protocol to a receive endpoint on the CL-Streamer server.
+
+The incoming compressed audio (MP3 or Ogg) is decoded and fed into
+Harmony's mixer as another voice.
+
+#+BEGIN_EXAMPLE
+┌──────────────┐         ┌──────────────────┐
+│ DJ Software  │ ──HTTP──▶│ CL-Streamer      │
+│ (BUTT,       │  or SRT  │ /dj-input mount  │
+│  Traktor,    │         │                  │
+│  etc.)       │         │ decode → Harmony │
+└──────────────┘         │ voice (ext-input)│
+                          └────────┬─────────┘
+                                   │
+                          ┌────────▼─────────┐
+                          │ Harmony Mixer     │
+                          │ → encoders →      │
+                          │   listeners       │
+                          └──────────────────┘
+#+END_EXAMPLE
+
+Implementation options:
+- *Icecast source protocol*: DJ software connects as an Icecast source
+  client (=SOURCE /dj-input HTTP/1.0=). CL-Streamer accepts the
+  connection, decodes the incoming MP3/Ogg stream via cl-mixed, and
+  routes it to the mixer. Most DJ software already supports this.
+- *SRT (Secure Reliable Transport)*: Lower latency for remote DJs.
+  Would require SRT library integration (future).
+- *WebRTC*: Browser-based DJ could stream from their mic/mixer via
+  WebRTC. Complex but enables browser-only DJ workflow (future).
+
+** Option 3: Hybrid
+
+Both options can be active simultaneously. The DJ console UI shows an
+"External Input" channel alongside Deck A and Deck B, with its own
+volume control and mute button. The crossfader operates on Deck A/B;
+the external input has independent volume.
+
+* Access Control
+
+** Route and Roles
+
+- *URL*: =/asteroid/dj=
+- *Required role*: =:dj= (which also grants access to =:admin= users,
+  since admin inherits all lower roles)
+- *Single session*: Only one DJ session can be active at a time. The
+  session is owned by the user who started it.
+- *Admin override*: Admin users can end any DJ session (e.g., if a DJ
+  disconnects without ending cleanly)
+
+** Session Lifecycle
+
+1. DJ navigates to =/asteroid/dj= and clicks "Go Live"
+2. Server pauses the auto-playlist and creates a =dj-session= struct
+3. DJ loads tracks, mixes, broadcasts
+4. DJ clicks "End Session" — decks fade out, auto-playlist resumes
+5. If DJ disconnects without ending: a watchdog timer (configurable,
+   default 60s of no API polls) auto-ends the session
+
+* Backend Design
+
+** New file: =dj-session.lisp=
+
+*** DJ Session State
+
+#+BEGIN_SRC lisp
+(defclass dj-session ()
+  ((owner :initarg :owner :accessor session-owner
+          :documentation "Username of the DJ who owns this session")
+   (started-at :initarg :started-at :accessor session-started-at
+               :initform (get-universal-time))
+   (deck-a :initform (make-instance 'dj-deck :name :a) :accessor session-deck-a)
+   (deck-b :initform (make-instance 'dj-deck :name :b) :accessor session-deck-b)
+   (crossfader :initform 0.5 :accessor session-crossfader
+               :documentation "0.0 = all A, 1.0 = all B")
+   (external-input :initform nil :accessor session-external-input
+                   :documentation "External audio voice, or NIL if not connected")
+   (external-volume :initform 1.0 :accessor session-external-volume)
+   (last-poll :initform (get-universal-time) :accessor session-last-poll
+              :documentation "Timestamp of last UI poll, for watchdog")
+   (saved-playlist-state :initform nil :accessor session-saved-playlist-state
+                         :documentation "Auto-playlist state saved on session start")))
+
+(defclass dj-deck ()
+  ((name :initarg :name :accessor deck-name :documentation ":a or :b")
+   (file-path :initform nil :accessor deck-file-path)
+   (voice :initform nil :accessor deck-voice
+          :documentation "Harmony voice, or NIL if not loaded/playing")
+   (volume :initform 1.0 :accessor deck-volume
+           :documentation "Per-deck volume before crossfader")
+   (state :initform :empty :accessor deck-state
+          :documentation ":empty, :loaded, :playing, :paused")
+   (track-info :initform nil :accessor deck-track-info
+               :documentation "Plist: (:artist :title :album :file :display-title)")))
+
+(defvar *dj-session* nil
+  "The currently active DJ session, or NIL if no DJ is live.")
+#+END_SRC
+
+*** Key Functions
+
+| Function                        | Description                                         |
+|---------------------------------+-----------------------------------------------------|
+| =start-dj-session (user)=      | Pause auto-playlist, create session                 |
+| =end-dj-session ()=            | Fade out decks, resume auto-playlist                |
+| =load-deck (deck file-path)=   | Load a track onto deck (reads metadata, creates voice) |
+| =play-deck (deck)=             | Start playback on a loaded/paused deck              |
+| =pause-deck (deck)=            | Pause a playing deck                                |
+| =stop-deck (deck)=             | Stop and unload a deck                              |
+| =seek-deck (deck position)=    | Seek to position (seconds)                          |
+| =set-crossfader (position)=    | Set crossfader 0.0–1.0, updates deck volumes        |
+| =set-deck-volume (deck vol)=   | Set per-deck volume 0.0–1.0                         |
+| =connect-external-input (src)= | Connect external audio source to mixer              |
+| =disconnect-external-input ()= | Disconnect external audio                           |
+| =set-external-volume (vol)=    | Set external input volume                           |
+| =dj-session-status ()=         | Returns full state for UI polling                   |
+| =dj-watchdog-check ()=         | Called by cl-cron; ends stale sessions               |
+
+*** Crossfader Volume Calculation
+
+The crossfader applies a constant-power curve so the perceived volume
+stays consistent across the sweep:
+
+#+BEGIN_SRC lisp
+(defun crossfader-volumes (position)
+  "Return (values vol-a vol-b) for crossfader position 0.0–1.0.
+   Uses constant-power (equal-power) curve."
+  (let ((angle (* position (/ pi 2.0))))
+    (values (cos angle)    ;; Deck A: 1.0 at 0.0, 0.0 at 1.0
+            (sin angle)))) ;; Deck B: 0.0 at 0.0, 1.0 at 1.0
+#+END_SRC
+
+The effective volume for each deck is:
+=effective-volume = deck-volume * crossfader-component=
+
+This is applied by setting =(mixed:volume voice)= on each deck's
+Harmony voice.
+
+*** ICY Metadata During DJ Session
+
+When the DJ is live, ICY metadata updates to reflect the currently
+audible track. Options:
+
+- *Auto-detect*: Whichever deck is louder (based on crossfader
+  position) determines the displayed track
+- *Manual override*: DJ can set custom metadata text (e.g., "DJ Fade
+  — Live Set")
+- *Session default*: Show "DJ <username> — Live" when the session starts
+
+* API Endpoints
+
+All endpoints require =:dj= role.
+
+** Session Management
+
+| Endpoint                          | Method | Description                          |
+|-----------------------------------+--------+--------------------------------------|
+| =asteroid/dj/session/start=      | POST   | Start DJ session                     |
+| =asteroid/dj/session/end=        | POST   | End session, resume auto-playlist    |
+| =asteroid/dj/session/status=     | GET    | Full state (polled by UI every 500ms) |
+| =asteroid/dj/session/metadata=   | POST   | Set custom ICY metadata text          |
+
+** Deck Control
+
+| Endpoint                          | Method | Params                   | Description          |
+|-----------------------------------+--------+--------------------------+----------------------|
+| =asteroid/dj/deck/load=          | POST   | deck (a/b), track-id     | Load track onto deck |
+| =asteroid/dj/deck/play=          | POST   | deck                     | Play                 |
+| =asteroid/dj/deck/pause=         | POST   | deck                     | Pause                |
+| =asteroid/dj/deck/stop=          | POST   | deck                     | Stop and unload      |
+| =asteroid/dj/deck/seek=          | POST   | deck, position (seconds) | Seek                 |
+| =asteroid/dj/deck/volume=        | POST   | deck, volume (0.0–1.0)   | Set deck volume      |
+
+** Crossfader
+
+| Endpoint                          | Method | Params              | Description          |
+|-----------------------------------+--------+---------------------+----------------------|
+| =asteroid/dj/crossfader=         | POST   | position (0.0–1.0)  | Set crossfader       |
+
+** External Input
+
+| Endpoint                          | Method | Params              | Description                |
+|-----------------------------------+--------+---------------------+----------------------------|
+| =asteroid/dj/external/connect=   | POST   | source (alsa/pulse)  | Connect local audio input  |
+| =asteroid/dj/external/disconnect= | POST  |                     | Disconnect external input  |
+| =asteroid/dj/external/volume=    | POST   | volume (0.0–1.0)    | Set external input volume  |
+
+** Library Search
+
+| Endpoint                          | Method | Params              | Description                |
+|-----------------------------------+--------+---------------------+----------------------------|
+| =asteroid/dj/library/search=     | GET    | q (search query)     | Search library for tracks  |
+
+* Frontend Design
+
+** Template: =template/dj-console.ctml=
+
+*** Layout
+
+#+BEGIN_EXAMPLE
+┌─────────────────────────────────────────────────────────────┐
+│  🎛️  DJ CONSOLE                    DJ: fade    [End Session]│
+├────────────────────────┬────────────────────────────────────┤
+│                        │                                     │
+│   ◉ DECK A             │   ◎ DECK B                         │
+│   ─────────────────    │   ─────────────────                │
+│   Orbital              │   (empty)                          │
+│   Halcyon + On + On    │                                     │
+│   Brown Album          │                                     │
+│                        │                                     │
+│   ▶  ⏸  ■             │   ▶  ⏸  ■                          │
+│   [========|------]    │   [-------------]                   │
+│   2:14 / 9:27          │   0:00 / 0:00                      │
+│                        │                                     │
+│   VOL [=========-]     │   VOL [=========-]                  │
+│                        │                                     │
+├────────────────────────┴────────────────────────────────────┤
+│                                                              │
+│      A [===================|===================] B           │
+│                     CROSSFADER                               │
+│                                                              │
+├──────────────────────────────────────────────────────────────┤
+│  🎤 EXTERNAL INPUT          [Connect]  Vol [=========-]      │
+│     Status: Not connected                                    │
+├──────────────────────────────────────────────────────────────┤
+│  📚 LIBRARY                                                  │
+│  [____________________________] [Search]                     │
+│                                                              │
+│  Artist              Title                  Album     Action │
+│  ─────────────────── ───────────────────── ───────── ─────── │
+│  Orbital             Halcyon + On + On     Brown..   [A] [B] │
+│  Underworld          Born Slippy (Nuxx)    STITI     [A] [B] │
+│  Boards of Canada    Kid for Today         In a..   [A] [B] │
+│  Drexciya            Bubble Chamber        Journey  [A] [B] │
+│  Model 500           Digital Solutions     Digital  [A] [B] │
+│  ...                                                         │
+│                                                              │
+│  ◀ Page 1 of 12 ▶                                            │
+└──────────────────────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+*** UI Behaviour
+
+- *Status polling*: ParenScript polls =asteroid/dj/session/status=
+  every 500ms for deck positions, crossfader state, and track info.
+  This keeps the progress bars and time displays in sync.
+- *Crossfader*: An HTML range input (slider). On change, sends the
+  new position to =asteroid/dj/crossfader=.
+- *Deck volume*: Vertical or horizontal sliders per deck.
+- *Library search*: Text input with debounced search (300ms delay).
+  Results show artist, title, album, and [Load A] / [Load B] buttons.
+- *Deck controls*: Play/Pause/Stop buttons. Seek by clicking on the
+  progress bar.
+- *External input*: Connect button opens a dropdown to select audio
+  source (ALSA device, PulseAudio). Volume slider.
+- *Session indicator*: Shows who is currently DJing and session
+  duration. Visible to admin users from the admin dashboard as well.
+
+** ParenScript: =parenscript/dj-console.lisp=
+
+Key functions:
+
+| Function                    | Description                               |
+|-----------------------------+-------------------------------------------|
+| =poll-session-status=       | GET status, update all UI elements         |
+| =load-track-to-deck=       | POST load, refresh deck display            |
+| =toggle-deck-playback=     | Play/pause deck                           |
+| =stop-deck=                | Stop and unload                           |
+| =update-crossfader=        | POST new crossfader position               |
+| =update-deck-volume=       | POST new volume                           |
+| =search-library=           | GET search results, render table           |
+| =start-session=            | POST session start                        |
+| =end-session=              | POST session end, redirect to front page   |
+| =connect-external=         | POST external input connection             |
+
+* Navigation
+
+Add "DJ Console" link to =template/partial/navbar-admin.ctml=, visible
+only to users with =:dj= or =:admin= role:
+
+#+BEGIN_SRC html
+<c:unless test='(asteroid::member-string "dj" (** :navbar-exclude))'>
+  <a href="/asteroid/dj"
+     lquery='(attr :target (when framesetp "_self"))'>
+    🎛️ DJ
+  </a>
+</c:unless>
+#+END_SRC
+
+The DJ link appears between "Profile" and "Admin" in the navbar. For
+=:dj= users who don't have =:admin= access, they won't see the Admin
+or Users links but will see the DJ Console link.
+
+* Files to Create / Modify
+
+** New Files
+
+| File                              | Description                                      |
+|-----------------------------------+--------------------------------------------------|
+| =dj-session.lisp=                | DJ session state, deck management, auto-fallback |
+| =parenscript/dj-console.lisp=    | DJ console UI logic (ParenScript)                |
+| =template/dj-console.ctml=       | DJ console HTML template                         |
+
+** Modified Files
+
+| File                                       | Change                                        |
+|--------------------------------------------+-----------------------------------------------|
+| =asteroid.lisp=                            | Add =define-page dj-console=, DJ API endpoints, serve =dj-console.js= |
+| =asteroid.asd=                             | Add =dj-session= to =:components=            |
+| =template/partial/navbar-admin.ctml=       | Add DJ Console nav link                       |
+| =stream-harmony.lisp=                      | Add pause/resume hooks for auto-playlist      |
+| =cl-streamer/harmony-backend.lisp=         | Export deck-level play/pause/seek if needed    |
+| =cl-streamer/package.lisp=                 | Export new symbols                            |
+
+* Implementation Plan
+
+** Phase 1: Library Mixing (Core)
+
+1. =dj-session.lisp= — session lifecycle, deck state, crossfader math
+2. API endpoints in =asteroid.lisp= — session/deck/crossfader control
+3. =stream-harmony.lisp= — pause/resume auto-playlist on session start/end
+4. =template/dj-console.ctml= — dual-deck UI with library browser
+5. =parenscript/dj-console.lisp= — polling, controls, search
+6. Navigation and ASDF updates
+
+** Phase 2: External Audio Input
+
+7. Local audio capture via cl-mixed-pulse or cl-mixed-alsa
+8. Network audio input — accept Icecast source protocol connections
+9. External input UI in the DJ console
+10. Hybrid mixing (decks + external simultaneously)
+
+** Phase 3: Polish
+
+11. Waveform display (decode audio ahead of time, render waveform in canvas)
+12. Cue points / hot cues
+13. BPM detection and sync
+14. Effects (EQ, filter, reverb via cl-mixed effects chain)
+15. Session recording (save the mixed output to a file)
+16. Chat / talkback between DJ and listeners
+
+* Open Questions
+
+1. *Monitoring / cue preview*: Should the DJ be able to preview a
+   track in headphones before pushing it live? This would require a
+   second audio output (local sound card) separate from the streaming
+   drain. Possible with Harmony but adds complexity.
+
+2. *Concurrent sessions*: Do we ever want multiple DJs? (e.g., back-
+   to-back sets with handover). For now, single session is simpler.
+
+3. *Network input protocol*: Icecast source protocol is the most
+   compatible with existing DJ software. Should we also support SRT
+   for lower latency?
+
+4. *Latency*: The current pipeline has ~50ms latency (Harmony's
+   buffer) plus encoding time. For remote DJ monitoring this is fine.
+   For local DJ monitoring with headphones, we may want a direct
+   monitor path that bypasses encoding.
+
+5. *Recording*: Should DJ sets be recorded to disk automatically?
+   Could write the raw PCM or a high-quality FLAC alongside the
+   encoded streams.
