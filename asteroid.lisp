@@ -1572,17 +1572,23 @@
   (handler-case
       (progn
         (start-harmony-streaming)
-        ;; Load the current playlist and start playing (resume from saved position)
-        (let ((playlist-path (get-stream-queue-path)))
-          (when (probe-file playlist-path)
-            (let* ((file-list (m3u-to-file-list playlist-path))
-                   (resumed-list (when file-list (resume-from-saved-state file-list))))
-              (when resumed-list
-                (cl-streamer/harmony:play-list *harmony-pipeline* resumed-list
-                                               :crossfade-duration 3.0
-                                               :loop-queue t)
-                (format t "~A tracks loaded from stream-queue.m3u (~A remaining after resume)~%"
-                        (length file-list) (length resumed-list))))))
+        ;; Load playlist and start playing (resume from saved position if available)
+        (multiple-value-bind (resumed-list playlist-path)
+            (resume-from-saved-state)
+          ;; Fall back to stream-queue.m3u if no saved state
+          (unless resumed-list
+            (let ((queue-path (get-stream-queue-path)))
+              (when (probe-file queue-path)
+                (setf resumed-list (m3u-to-file-list queue-path))
+                (setf playlist-path queue-path)
+                (setf *current-playlist-path* queue-path))))
+          (when resumed-list
+            (cl-streamer/harmony:play-list *harmony-pipeline* resumed-list
+                                           :crossfade-duration 3.0
+                                           :loop-queue t)
+            (format t "~A tracks loaded from ~A~%"
+                    (length resumed-list)
+                    (if playlist-path (file-namestring playlist-path) "stream-queue.m3u"))))
         (format t "📡 Stream: ~a/asteroid.mp3~%" *stream-base-url*)
         (format t "📡 Stream: ~a/asteroid.aac~%" *stream-base-url*))
     (error (e)

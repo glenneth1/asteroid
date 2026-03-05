@@ -216,14 +216,19 @@
 
 ;;; ---- Metadata ----
 
+(defun ensure-simple-string (s)
+  "Coerce S to a simple-string if it's a string, or return NIL."
+  (when (stringp s)
+    (copy-seq (string-trim '(#\Space #\Nul) s))))
+
 (defun read-audio-metadata (file-path)
   "Read metadata (artist, title, album) from an audio file using taglib.
    Returns a plist (:artist ... :title ... :album ...) or NIL on failure."
   (handler-case
       (let ((audio-file (audio-streams:open-audio-file (namestring file-path))))
-        (list :artist (or (abstract-tag:artist audio-file) nil)
-              :title (or (abstract-tag:title audio-file) nil)
-              :album (or (abstract-tag:album audio-file) nil)))
+        (list :artist (ensure-simple-string (abstract-tag:artist audio-file))
+              :title (ensure-simple-string (abstract-tag:title audio-file))
+              :album (ensure-simple-string (abstract-tag:album audio-file))))
     (error (e)
       (log:debug "Could not read tags from ~A: ~A" file-path e)
       nil)))
@@ -309,17 +314,31 @@
           do (setf (mixed:volume voice) (max 0.0 (min 1.0 (float vol))))
              (sleep step-time))))
 
-(defun next-entry (pipeline file-list-ref)
-  "Get the next entry to play: from queue first (scheduler priority), then file-list.
-   FILE-LIST-REF is a cons cell whose car is the remaining file list.
-   When the scheduler queues a new playlist, it replaces the remaining file-list
-   so the new playlist takes effect immediately.
-   Returns an entry or NIL if nothing to play."
-  (let ((queued (pipeline-pop-queue pipeline)))
-    (when queued
-      ;; Scheduler queued new tracks — discard remaining file-list
-      (setf (car file-list-ref) nil))
-    (or queued (pop (car file-list-ref)))))
+(defun drain-queue-into-remaining (pipeline remaining-ref current-list-ref)
+  "If the scheduler has queued tracks, drain them all into remaining-ref,
+   replacing any current remaining tracks. Also update current-list-ref
+   so loop-queue replays the scheduler's playlist, not the original.
+   Returns T if new tracks were loaded, NIL otherwise."
+  (let ((first (pipeline-pop-queue pipeline)))
+    (when first
+      (let ((all-queued (list first)))
+        ;; Drain remaining queue entries
+        (loop for item = (pipeline-pop-queue pipeline)
+              while item do (push item all-queued))
+        (setf all-queued (nreverse all-queued))
+        (log:info "Scheduler playlist taking over: ~A tracks" (length all-queued))
+        ;; Replace remaining list and update current for loop-queue
+        (setf (car remaining-ref) all-queued)
+        (setf (car current-list-ref) (copy-list all-queued))
+        t))))
+
+(defun next-entry (pipeline remaining-ref current-list-ref)
+  "Get the next entry to play. Checks scheduler queue first (drains all into remaining),
+   then pops from remaining-ref.
+   REMAINING-REF is a cons cell whose car is the remaining file list.
+   CURRENT-LIST-REF is a cons cell whose car is the full current playlist (for loop-queue)."
+  (drain-queue-into-remaining pipeline remaining-ref current-list-ref)
+  (pop (car remaining-ref)))
 
 (defun play-list (pipeline file-list &key (crossfade-duration 3.0)
                                           (fade-in 2.0)
@@ -334,21 +353,24 @@
    Scheduler-queued tracks take priority over the repeat cycle."
   (bt:make-thread
    (lambda ()
-     (let ((prev-voice nil)
-           (idx 0)
-           (remaining-list (list (copy-list file-list))))
-       (loop while (pipeline-running-p pipeline)
-             for entry = (next-entry pipeline remaining-list)
-             do (cond
-                  ;; No entry and loop mode: re-queue original playlist
-                  ((and (null entry) loop-queue)
-                   (log:info "Playlist ended, repeating from start")
-                   (setf (car remaining-list) (copy-list file-list)))
-                  ;; No entry: done
-                  ((null entry)
-                   (return))
-                  ;; Play the entry
-                  (t
+     (handler-case
+         (let ((prev-voice nil)
+               (idx 0)
+               (remaining-list (list (copy-list file-list)))
+               (current-list (list (copy-list file-list))))
+           (loop while (pipeline-running-p pipeline)
+                 for entry = (next-entry pipeline remaining-list current-list)
+                 do (cond
+                      ;; No entry and loop mode: re-queue current playlist
+                      ((and (null entry) loop-queue)
+                       (log:info "Playlist ended, repeating from start (~A tracks)"
+                                 (length (car current-list)))
+                       (setf (car remaining-list) (copy-list (car current-list))))
+                      ;; No entry: done
+                      ((null entry)
+                       (return))
+                      ;; Play the entry
+                      (t
                    (multiple-value-bind (path title)
                        (if (listp entry)
                            (values (getf entry :file) (getf entry :title))
@@ -357,9 +379,18 @@
                          (let* ((server (pipeline-harmony-server pipeline))
                                 (harmony:*server* server))
                            (multiple-value-bind (voice display-title track-info)
-                               (play-file pipeline path :title title
-                                          :on-end :disconnect
-                                          :update-metadata (null prev-voice))
+                               (handler-case
+                                   (play-file pipeline path :title title
+                                              :on-end :disconnect
+                                              :update-metadata (null prev-voice))
+                                 (error (retry-err)
+                                   ;; Retry once after brief delay for transient FLAC init errors
+                                   (log:debug "Retrying ~A after init error: ~A"
+                                              (pathname-name (pathname path)) retry-err)
+                                   (sleep 0.2)
+                                   (play-file pipeline path :title title
+                                              :on-end :disconnect
+                                              :update-metadata (null prev-voice))))
                              (when voice
                                ;; If this isn't the first track, crossfade
                                (when (and prev-voice (> idx 0))
@@ -411,11 +442,13 @@
                        (error (e)
                          (log:warn "Error playing ~A: ~A" path e)
                          (sleep 1)))))))
-       ;; Clean up last voice
-       (when prev-voice
-         (let ((harmony:*server* (pipeline-harmony-server pipeline)))
-           (volume-ramp prev-voice 0.0 fade-out)
-           (harmony:stop prev-voice)))))
+           ;; Clean up last voice
+           (when prev-voice
+             (let ((harmony:*server* (pipeline-harmony-server pipeline)))
+               (volume-ramp prev-voice 0.0 fade-out)
+               (harmony:stop prev-voice))))
+       (error (e)
+         (log:error "play-list thread crashed: ~A" e))))
    :name "cl-streamer-playlist"))
 
 (declaim (inline float-to-s16))

@@ -24,8 +24,11 @@
 
 ;;; ---- Playback State Persistence ----
 
+(defvar *current-playlist-path* nil
+  "Path of the currently active playlist file.")
+
 (defun save-playback-state (track-file-path)
-  "Save the current track file path to the state file.
+  "Save the current track file path and playlist to the state file.
    Called on each track change so we can resume after restart."
   (handler-case
       (with-open-file (s *harmony-state-file*
@@ -33,6 +36,8 @@
                        :if-exists :supersede
                        :if-does-not-exist :create)
         (prin1 (list :track-file track-file-path
+                     :playlist (when *current-playlist-path*
+                                 (namestring *current-playlist-path*))
                      :timestamp (get-universal-time))
                s))
     (error (e)
@@ -48,29 +53,43 @@
       (log:warn "Could not load playback state: ~A" e)
       nil)))
 
-(defun resume-from-saved-state (file-list)
-  "Given a playlist FILE-LIST, find the saved track and return the list
-   starting from the NEXT track after it. Returns the full list if no
-   saved state or track not found."
+(defun resume-from-saved-state ()
+  "Load saved playback state, resolve the correct playlist, and return
+   (values file-list playlist-path) starting after the saved track.
+   Returns NIL if no state or playlist found."
   (let ((state (load-playback-state)))
-    (if state
-        (let* ((saved-file (getf state :track-file))
-               (pos (position saved-file file-list :test #'string=)))
-          (if pos
-              (let ((remaining (nthcdr (1+ pos) file-list)))
-                (if remaining
-                    (progn
-                      (log:info "Resuming after track ~A (~A of ~A)"
-                                (file-namestring saved-file) (1+ pos) (length file-list))
-                      remaining)
-                    ;; Was the last track — start from beginning
-                    (progn
-                      (log:info "Last saved track was final in playlist, starting from beginning")
-                      file-list)))
-              (progn
-                (log:info "Saved track not found in current playlist, starting from beginning")
-                file-list)))
-        file-list)))
+    (when state
+      (let* ((saved-file (getf state :track-file))
+             (saved-playlist (getf state :playlist))
+             ;; Use saved playlist if it exists, otherwise fall back to current scheduled
+             (playlist-path (or (and saved-playlist
+                                    (probe-file (pathname saved-playlist)))
+                               (let ((scheduled (get-current-scheduled-playlist)))
+                                 (when scheduled
+                                   (let ((p (merge-pathnames scheduled (get-playlists-directory))))
+                                     (probe-file p))))))
+             (file-list (when playlist-path
+                          (m3u-to-file-list playlist-path))))
+        (when file-list
+          (setf *current-playlist-path* playlist-path)
+          (let ((pos (when saved-file
+                       (position saved-file file-list :test #'string=))))
+            (if pos
+                (let ((remaining (nthcdr (1+ pos) file-list)))
+                  (if remaining
+                      (progn
+                        (log:info "Resuming after track ~A (~A of ~A) from ~A"
+                                  (file-namestring saved-file) (1+ pos) (length file-list)
+                                  (file-namestring playlist-path))
+                        (values remaining playlist-path))
+                      (progn
+                        (log:info "Last saved track was final, restarting ~A"
+                                  (file-namestring playlist-path))
+                        (values file-list playlist-path))))
+                (progn
+                  (log:info "Saved track not found, starting ~A from beginning"
+                            (file-namestring playlist-path))
+                  (values file-list playlist-path)))))))))
 
 ;;; ---- M3U Playlist Loading ----
 
@@ -228,6 +247,8 @@
   (when *harmony-pipeline*
     (let ((file-list (m3u-to-file-list m3u-path)))
       (when file-list
+        ;; Track which playlist is active for state persistence
+        (setf *current-playlist-path* (pathname m3u-path))
         ;; Clear any existing queue and load new files
         (cl-streamer/harmony:pipeline-clear-queue *harmony-pipeline*)
         (cl-streamer/harmony:pipeline-queue-files *harmony-pipeline*
@@ -237,8 +258,7 @@
         ;; Only skip if explicitly requested
         (when skip
           (cl-streamer/harmony:pipeline-skip *harmony-pipeline*))
-        (log:info "Loaded playlist ~A (~A tracks~A)" m3u-path (length file-list)
-                  (if skip ", skipping to start" ""))
+        (log:info "Loaded playlist ~A (~A tracks)" (file-namestring m3u-path) (length file-list))
         (length file-list)))))
 
 (defun harmony-skip-track ()
