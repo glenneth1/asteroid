@@ -27,6 +27,10 @@
 (defvar *current-playlist-path* nil
   "Path of the currently active playlist file.")
 
+(defvar *resumed-from-saved-state* nil
+  "Set to T when startup successfully resumed from saved playback state.
+   Prevents the scheduler from overwriting the resumed position.")
+
 (defun save-playback-state (track-file-path)
   "Save the current track file path and playlist to the state file.
    Called on each track change so we can resume after restart."
@@ -72,6 +76,7 @@
                           (m3u-to-file-list playlist-path))))
         (when file-list
           (setf *current-playlist-path* playlist-path)
+          (setf *resumed-from-saved-state* t)
           (let ((pos (when saved-file
                        (position saved-file file-list :test #'string=))))
             (if pos

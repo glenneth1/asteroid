@@ -312,14 +312,21 @@
 ;;; This ensures the scheduler starts after the server is fully initialized
 
 (define-trigger db:connected ()
-  "Start the playlist scheduler after database connection is established"
+  "Start the playlist scheduler after database connection is established.
+   Loads the current scheduled playlist only if the pipeline has no tracks
+   (i.e., we did NOT just resume from saved state)."
   (handler-case
       (progn
         (load-schedule-from-db)
         (start-playlist-scheduler)
-        (let ((current-playlist (get-current-scheduled-playlist)))
-          (when current-playlist
-            (load-scheduled-playlist current-playlist)))
-        (log:info "Playlist scheduler started"))
+        ;; Only load scheduled playlist if we didn't just resume from saved state
+        (if *resumed-from-saved-state*
+            (progn
+              (setf *resumed-from-saved-state* nil)
+              (log:info "Playlist scheduler started (resumed from saved state, skipping initial load)"))
+            (let ((current-playlist (get-current-scheduled-playlist)))
+              (when current-playlist
+                (load-scheduled-playlist current-playlist))
+              (log:info "Playlist scheduler started"))))
     (error (e)
       (log:error "Scheduler failed to start: ~a" e))))

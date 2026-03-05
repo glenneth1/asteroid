@@ -290,12 +290,19 @@
    FILE-PATH can be a string or pathname.
    ON-END is passed to harmony:play (default :free).
    UPDATE-METADATA controls whether ICY metadata is updated immediately."
-  (let* ((path (pathname file-path))
+  (let* ((path-string (etypecase file-path
+                        (string file-path)
+                        (pathname (namestring file-path))))
+         ;; Use parse-native-namestring to prevent SBCL from interpreting
+         ;; brackets as wildcard patterns. Standard (pathname ...) turns
+         ;; "[FLAC]" into a wild component with non-simple strings, which
+         ;; causes SIMPLE-ARRAY errors in cl-flac's CFFI calls.
+         (path (sb-ext:parse-native-namestring path-string))
          (server (pipeline-harmony-server pipeline))
          (harmony:*server* server)
          (tags (read-audio-metadata path))
          (display-title (format-display-title path title))
-         (track-info (list :file (namestring path)
+         (track-info (list :file path-string
                            :display-title display-title
                            :artist (getf tags :artist)
                            :title (getf tags :title)
