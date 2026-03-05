@@ -23,7 +23,11 @@
            #:pipeline-on-playlist-change
            ;; Metadata helpers
            #:read-audio-metadata
-           #:format-display-title))
+           #:format-display-title
+           #:update-all-mounts-metadata
+           ;; DJ support
+           #:pipeline-harmony-server
+           #:volume-ramp))
 
 (in-package #:cl-streamer/harmony)
 

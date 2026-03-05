@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title data-text="title">Asteroid Radio - DJ Console</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script lquery='(text (asteroid::get-auth-state-js-var))'></script>
+  <style>
+    /* DJ Console Styles — layered on top of asteroid.css */
+    .dj-console { max-width: 1200px; margin: 0 auto; }
+
+    .dj-header {
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #00ffff33; padding-bottom: 10px; margin-bottom: 20px;
+    }
+    .dj-header h1 { margin: 0; font-size: 1.8rem; }
+    .dj-session-info { color: #4488FF; font-size: 1.1rem; }
+
+    .session-controls { display: flex; gap: 10px; align-items: center; }
+    .btn-go-live {
+      background: #00aa44; color: #000; border: none; padding: 8px 20px;
+      font-family: VT323, monospace; font-size: 1.2rem; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 2px;
+    }
+    .btn-go-live:hover { background: #00ff66; }
+    .btn-go-live:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .btn-end-session {
+      background: #cc2200; color: #fff; border: none; padding: 8px 20px;
+      font-family: VT323, monospace; font-size: 1.2rem; cursor: pointer;
+      text-transform: uppercase; letter-spacing: 2px;
+    }
+    .btn-end-session:hover { background: #ff3300; }
+
+    .live-indicator {
+      display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+      background: #ff0000; margin-right: 8px;
+      animation: pulse-live 1s ease-in-out infinite;
+    }
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; box-shadow: 0 0 4px #ff0000; }
+      50% { opacity: 0.4; box-shadow: 0 0 12px #ff0000; }
+    }
+
+    /* Decks */
+    .decks-container {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+      margin-bottom: 20px;
+    }
+    .deck {
+      background: #0d1117; border: 1px solid #00ffff22;
+      padding: 15px; position: relative;
+    }
+    .deck.active { border-color: #00ffff66; }
+    .deck-label {
+      font-size: 1.4rem; color: #00ffff; margin-bottom: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .deck-state { font-size: 0.9rem; color: #4488FF; text-transform: uppercase; }
+
+    .deck-track-info {
+      min-height: 60px; margin-bottom: 10px;
+      border-left: 3px solid #00ffff33; padding-left: 10px;
+    }
+    .deck-artist { color: #00ffff; font-size: 1.2rem; }
+    .deck-title { color: #aaa; font-size: 1.1rem; }
+    .deck-album { color: #666; font-size: 0.9rem; }
+    .deck-empty { color: #444; font-style: italic; }
+
+    .deck-transport {
+      display: flex; gap: 8px; margin-bottom: 10px;
+    }
+    .deck-transport button {
+      background: #1a2332; color: #00ffff; border: 1px solid #00ffff44;
+      padding: 6px 14px; font-family: VT323, monospace; font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .deck-transport button:hover { background: #00ffff22; }
+    .deck-transport button:disabled { color: #444; border-color: #333; cursor: not-allowed; }
+
+    .deck-progress {
+      width: 100%; height: 8px; background: #1a2332; margin-bottom: 5px;
+      cursor: pointer; position: relative;
+    }
+    .deck-progress-fill {
+      height: 100%; background: #00ffff; width: 0%; transition: width 0.2s linear;
+    }
+    .deck-time {
+      display: flex; justify-content: space-between; color: #666;
+      font-size: 0.9rem; margin-bottom: 10px;
+    }
+
+    .deck-volume {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .deck-volume label { color: #666; font-size: 0.9rem; min-width: 30px; }
+    .deck-volume input[type="range"] {
+      -webkit-appearance: none; appearance: none; flex: 1;
+      height: 4px; background: #1a2332; outline: none;
+    }
+    .deck-volume input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; background: #00ffff; cursor: pointer;
+    }
+
+    /* Crossfader */
+    .crossfader-section {
+      background: #0d1117; border: 1px solid #00ffff22;
+      padding: 15px; margin-bottom: 20px; text-align: center;
+    }
+    .crossfader-label {
+      display: flex; justify-content: space-between; color: #666;
+      margin-bottom: 5px; font-size: 0.9rem;
+    }
+    .crossfader-input {
+      -webkit-appearance: none; appearance: none; width: 100%;
+      height: 6px; background: #1a2332; outline: none;
+    }
+    .crossfader-input::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 20px; height: 20px; background: #4488FF; cursor: pointer;
+    }
+
+    /* Metadata Override */
+    .metadata-section {
+      background: #0d1117; border: 1px solid #00ffff22;
+      padding: 15px; margin-bottom: 20px;
+      display: flex; gap: 10px; align-items: center;
+    }
+    .metadata-section label { color: #666; white-space: nowrap; }
+    .metadata-section input[type="text"] {
+      flex: 1; background: #1a2332; border: 1px solid #00ffff33;
+      color: #00ffff; padding: 6px 10px; font-family: VT323, monospace;
+      font-size: 1rem;
+    }
+    .metadata-section button {
+      background: #1a2332; color: #4488FF; border: 1px solid #4488FF44;
+      padding: 6px 14px; font-family: VT323, monospace; font-size: 1rem;
+      cursor: pointer;
+    }
+    .metadata-section button:hover { background: #4488FF22; }
+
+    /* Library Search */
+    .library-section {
+      background: #0d1117; border: 1px solid #00ffff22; padding: 15px;
+    }
+    .library-section h2 { margin-top: 0; font-size: 1.3rem; color: #00ffff; }
+    .library-search {
+      display: flex; gap: 10px; margin-bottom: 15px;
+    }
+    .library-search input[type="text"] {
+      flex: 1; background: #1a2332; border: 1px solid #00ffff33;
+      color: #00ffff; padding: 8px 12px; font-family: VT323, monospace;
+      font-size: 1.1rem;
+    }
+    .library-search button {
+      background: #1a2332; color: #00ffff; border: 1px solid #00ffff44;
+      padding: 8px 16px; font-family: VT323, monospace; font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .library-search button:hover { background: #00ffff22; }
+
+    .library-results { max-height: 400px; overflow-y: auto; }
+    .library-results table { width: 100%; border-collapse: collapse; }
+    .library-results th {
+      text-align: left; color: #666; border-bottom: 1px solid #00ffff22;
+      padding: 5px 8px; font-size: 0.9rem;
+    }
+    .library-results td {
+      padding: 5px 8px; border-bottom: 1px solid #0d1117;
+      font-size: 1rem; color: #aaa;
+    }
+    .library-results tr:hover td { background: #1a233244; }
+    .library-results .load-btn {
+      background: none; border: 1px solid #00ffff44; color: #00ffff;
+      padding: 2px 8px; font-family: VT323, monospace; font-size: 0.9rem;
+      cursor: pointer; margin: 0 2px;
+    }
+    .library-results .load-btn:hover { background: #00ffff22; }
+
+    .no-session-overlay {
+      position: relative; pointer-events: auto;
+    }
+    .no-session-overlay .decks-container,
+    .no-session-overlay .crossfader-section,
+    .no-session-overlay .metadata-section,
+    .no-session-overlay .library-section {
+      opacity: 0.3; pointer-events: none;
+    }
+
+    .dj-message {
+      padding: 10px; margin-bottom: 15px; border: 1px solid;
+      display: none;
+    }
+    .dj-message.error { border-color: #cc2200; color: #ff4444; }
+    .dj-message.success { border-color: #00aa44; color: #00ff66; }
+  </style>
+</head>
+<body>
+  <div class="container dj-console">
+    <div class="dj-header">
+      <h1>🎛️ DJ CONSOLE</h1>
+      <div class="session-controls">
+        <span id="session-info" class="dj-session-info"></span>
+        <button id="btn-go-live" class="btn-go-live" onclick="startSession()">GO LIVE</button>
+        <button id="btn-end-session" class="btn-end-session" onclick="endSession()" style="display:none">END SESSION</button>
+      </div>
+    </div>
+
+    <c:h>(asteroid::load-template "partial/navbar-admin")</c:h>
+
+    <div id="dj-message" class="dj-message"></div>
+
+    <div id="dj-controls" class="no-session-overlay">
+      <!-- Decks -->
+      <div class="decks-container">
+        <!-- Deck A -->
+        <div class="deck" id="deck-a-container">
+          <div class="deck-label">
+            <span>◉ DECK A</span>
+            <span class="deck-state" id="deck-a-state">EMPTY</span>
+          </div>
+          <div class="deck-track-info" id="deck-a-info">
+            <div class="deck-empty">No track loaded</div>
+          </div>
+          <div class="deck-transport">
+            <button onclick="playDeck('a')" id="deck-a-play" disabled>▶ PLAY</button>
+            <button onclick="pauseDeck('a')" id="deck-a-pause" disabled>⏸ PAUSE</button>
+            <button onclick="stopDeck('a')" id="deck-a-stop" disabled>■ STOP</button>
+          </div>
+          <div class="deck-progress" id="deck-a-progress-bar" onclick="seekDeck('a', event)">
+            <div class="deck-progress-fill" id="deck-a-progress"></div>
+          </div>
+          <div class="deck-time">
+            <span id="deck-a-position">0:00</span>
+            <span id="deck-a-duration">0:00</span>
+          </div>
+          <div class="deck-volume">
+            <label>VOL</label>
+            <input type="range" min="0" max="100" value="100"
+                   oninput="setDeckVolume('a', this.value / 100)"
+                   id="deck-a-volume">
+          </div>
+        </div>
+
+        <!-- Deck B -->
+        <div class="deck" id="deck-b-container">
+          <div class="deck-label">
+            <span>◎ DECK B</span>
+            <span class="deck-state" id="deck-b-state">EMPTY</span>
+          </div>
+          <div class="deck-track-info" id="deck-b-info">
+            <div class="deck-empty">No track loaded</div>
+          </div>
+          <div class="deck-transport">
+            <button onclick="playDeck('b')" id="deck-b-play" disabled>▶ PLAY</button>
+            <button onclick="pauseDeck('b')" id="deck-b-pause" disabled>⏸ PAUSE</button>
+            <button onclick="stopDeck('b')" id="deck-b-stop" disabled>■ STOP</button>
+          </div>
+          <div class="deck-progress" id="deck-b-progress-bar" onclick="seekDeck('b', event)">
+            <div class="deck-progress-fill" id="deck-b-progress"></div>
+          </div>
+          <div class="deck-time">
+            <span id="deck-b-position">0:00</span>
+            <span id="deck-b-duration">0:00</span>
+          </div>
+          <div class="deck-volume">
+            <label>VOL</label>
+            <input type="range" min="0" max="100" value="100"
+                   oninput="setDeckVolume('b', this.value / 100)"
+                   id="deck-b-volume">
+          </div>
+        </div>
+      </div>
+
+      <!-- Crossfader -->
+      <div class="crossfader-section">
+        <div class="crossfader-label">
+          <span>◉ DECK A</span>
+          <span>CROSSFADER</span>
+          <span>DECK B ◎</span>
+        </div>
+        <input type="range" class="crossfader-input" id="crossfader"
+               min="0" max="100" value="50"
+               oninput="setCrossfader(this.value / 100)">
+      </div>
+
+      <!-- Metadata Override -->
+      <div class="metadata-section">
+        <label>ICY METADATA:</label>
+        <input type="text" id="metadata-input" placeholder="Auto-detect from active deck">
+        <button onclick="setMetadata()">SET</button>
+        <button onclick="clearMetadata()">AUTO</button>
+      </div>
+
+      <!-- Library Search -->
+      <div class="library-section">
+        <h2>📚 LIBRARY</h2>
+        <div class="library-search">
+          <input type="text" id="library-query" placeholder="Search artist, title, album..."
+                 onkeyup="if(event.key==='Enter')searchLibrary()">
+          <button onclick="searchLibrary()">SEARCH</button>
+        </div>
+        <div class="library-results" id="library-results">
+          <p style="color: #444; text-align: center;">Search the library to load tracks onto a deck</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input type="hidden" id="dj-active" lquery='(val (** :dj-active))'>
+  <input type="hidden" id="dj-owner" lquery='(val (** :dj-owner))'>
+  <input type="hidden" id="dj-username" lquery='(val (** :username))'>
+  <script src="/asteroid/static/js/dj-console.js"></script>
+</body>
+</html>

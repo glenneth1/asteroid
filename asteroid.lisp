@@ -558,6 +558,138 @@
     (api-output `(("status" . "success")
                   ("message" . "Streaming pipeline restarted")))))
 
+;;; ---- DJ Console API Endpoints ----
+
+(define-api asteroid/dj/session/start () ()
+  "Start a new DJ session. Pauses the auto-playlist."
+  (require-role :dj)
+  (with-error-handling
+    (let* ((user (get-current-user))
+           (username (if user (dm:field user "username") "unknown")))
+      (start-dj-session username)
+      (api-output `(("status" . "success")
+                    ("message" . ,(format nil "DJ session started by ~A" username)))))))
+
+(define-api asteroid/dj/session/end () ()
+  "End the current DJ session. Resumes auto-playlist."
+  (require-role :dj)
+  (with-error-handling
+    (end-dj-session)
+    (api-output `(("status" . "success")
+                  ("message" . "DJ session ended")))))
+
+(define-api asteroid/dj/session/status () ()
+  "Get full DJ session status (polled by UI)."
+  (require-role :dj)
+  (with-error-handling
+    (let ((status (dj-session-status)))
+      (api-output (or status `(("active" . nil)))))))
+
+(define-api asteroid/dj/session/metadata (text) ()
+  "Set custom ICY metadata text for the DJ session. Empty string clears override."
+  (require-role :dj)
+  (with-error-handling
+    (set-dj-metadata (if (or (null text) (string= text "")) nil text))
+    (api-output `(("status" . "success")
+                  ("message" . "Metadata updated")))))
+
+(define-api asteroid/dj/deck/load (deck track-id) ()
+  "Load a track onto a deck by track ID."
+  (require-role :dj)
+  (with-error-handling
+    (let* ((deck-id (parse-deck-id deck))
+           (id (parse-integer track-id :junk-allowed t))
+           (track (when id (dm:get-one "tracks" (db:query (:= '_id id)))))
+           (file-path (when track (dm:field track "file-path"))))
+      (unless file-path
+        (error "Track not found: ~A" track-id))
+      (unless (probe-file file-path)
+        (error "Audio file not found on disk: ~A" file-path))
+      (let ((info (load-deck deck-id file-path)))
+        (api-output `(("status" . "success")
+                      ("deck" . ,deck)
+                      ("trackInfo" . (("artist" . ,(or (getf info :artist) ""))
+                                      ("title" . ,(or (getf info :title) ""))
+                                      ("album" . ,(or (getf info :album) ""))
+                                      ("displayTitle" . ,(or (getf info :display-title) ""))))))))))
+
+(define-api asteroid/dj/deck/load-path (deck path) ()
+  "Load a track onto a deck by file path (for loading from playlists)."
+  (require-role :dj)
+  (with-error-handling
+    (let ((deck-id (parse-deck-id deck)))
+      (unless (probe-file path)
+        (error "Audio file not found: ~A" path))
+      (let ((info (load-deck deck-id path)))
+        (api-output `(("status" . "success")
+                      ("deck" . ,deck)
+                      ("trackInfo" . (("artist" . ,(or (getf info :artist) ""))
+                                      ("title" . ,(or (getf info :title) ""))
+                                      ("album" . ,(or (getf info :album) ""))
+                                      ("displayTitle" . ,(or (getf info :display-title) ""))))))))))
+
+(define-api asteroid/dj/deck/play (deck) ()
+  "Start or resume playback on a deck."
+  (require-role :dj)
+  (with-error-handling
+    (play-deck (parse-deck-id deck))
+    (api-output `(("status" . "success")
+                  ("message" . ,(format nil "Deck ~A playing" deck))))))
+
+(define-api asteroid/dj/deck/pause (deck) ()
+  "Pause a playing deck."
+  (require-role :dj)
+  (with-error-handling
+    (pause-deck (parse-deck-id deck))
+    (api-output `(("status" . "success")
+                  ("message" . ,(format nil "Deck ~A paused" deck))))))
+
+(define-api asteroid/dj/deck/stop (deck) ()
+  "Stop and unload a deck."
+  (require-role :dj)
+  (with-error-handling
+    (stop-deck (parse-deck-id deck))
+    (api-output `(("status" . "success")
+                  ("message" . ,(format nil "Deck ~A stopped" deck))))))
+
+(define-api asteroid/dj/deck/seek (deck position) ()
+  "Seek to a position (seconds) on a deck."
+  (require-role :dj)
+  (with-error-handling
+    (let ((pos (float (read-from-string position))))
+      (seek-deck (parse-deck-id deck) pos)
+      (api-output `(("status" . "success")
+                    ("message" . ,(format nil "Deck ~A seeked to ~,1Fs" deck pos)))))))
+
+(define-api asteroid/dj/deck/volume (deck volume) ()
+  "Set per-deck volume (0.0-1.0)."
+  (require-role :dj)
+  (with-error-handling
+    (let ((vol (float (read-from-string volume))))
+      (set-deck-volume (parse-deck-id deck) vol)
+      (api-output `(("status" . "success")
+                    ("volume" . ,vol))))))
+
+(define-api asteroid/dj/crossfader (position) ()
+  "Set crossfader position (0.0-1.0)."
+  (require-role :dj)
+  (with-error-handling
+    (let ((pos (float (read-from-string position))))
+      (set-crossfader pos)
+      (api-output `(("status" . "success")
+                    ("position" . ,pos))))))
+
+(define-api asteroid/dj/library/search (q &optional (limit "50") (offset "0")) ()
+  "Search the music library for tracks to load onto a deck."
+  (require-role :dj)
+  (with-error-handling
+    (let ((results (search-library-tracks q
+                    :limit (parse-integer limit :junk-allowed t)
+                    :offset (parse-integer offset :junk-allowed t))))
+      (api-output `(("status" . "success")
+                    ("results" . ,results)
+                    ("count" . ,(length results)))))))
+
 (defun get-track-by-id (track-id)
   "Get a track by its ID - handles type mismatches"
   (dm:get-one "tracks" (db:query (:= '_id track-id))))
@@ -909,6 +1041,16 @@
          (format t "ERROR generating frameset-utils.js: ~a~%" e)
          (format nil "// Error generating JavaScript: ~a~%" e))))
     
+    ;; Serve ParenScript-compiled dj-console.js
+    ((string= path "js/dj-console.js")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-dj-console-js)))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating dj-console.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
     ;; Serve regular static file
     (t
      (serve-file (merge-pathnames (format nil "static/~a" path) 
@@ -942,6 +1084,21 @@
      :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
      :stream-base-url *stream-base-url*
      :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*))))
+
+;; DJ Console page (requires DJ or admin role)
+(define-page dj-console #@"/dj" ()
+  "DJ Console - Live mixing interface"
+  (require-role :dj)
+  (let* ((user (get-current-user))
+         (username (if user (dm:field user "username") "unknown")))
+    (clip:process-to-string 
+     (load-template "dj-console")
+     :navbar-exclude '("dj")
+     :title "🎛️ ASTEROID RADIO - DJ Console"
+     :username username
+     :stream-base-url *stream-base-url*
+     :dj-active (if (dj-session-active-p) "true" "false")
+     :dj-owner (when *dj-session* (session-owner *dj-session*)))))
 
 ;; User Management page (requires authentication)
 (define-page users-management #@"/admin/user" ()

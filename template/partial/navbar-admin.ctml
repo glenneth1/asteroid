@@ -20,6 +20,13 @@
         Profile
       </a>
     </c:unless>
+    <c:when test='(and (not (asteroid::member-string "dj" (** :navbar-exclude)))
+                       (asteroid::user-has-role-p current-user :dj))'>
+      <a href="/asteroid/dj"
+         lquery='(attr :target (when framesetp "_self"))'>
+        🎛️ DJ
+      </a>
+    </c:when>
     <c:unless test='(asteroid::member-string "admin" (** :navbar-exclude))'>
       <a href="/asteroid/admin"
          lquery='(attr :target (when framesetp "_self"))'>
