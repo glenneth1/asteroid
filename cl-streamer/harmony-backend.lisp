@@ -55,30 +55,23 @@
 
 (defmethod mixed:start ((drain streaming-drain)))
 
-(declaim (inline float-to-s16))
-(defun float-to-s16 (sample)
-  "Convert a float sample (-1.0 to 1.0) to signed 16-bit integer."
-  (let ((clamped (max -1.0 (min 1.0 sample))))
-    (the (signed-byte 16) (round (* clamped 32767.0)))))
-
 (defmethod mixed:mix ((drain streaming-drain))
-  "Read interleaved float PCM from the pack buffer, encode to all outputs.
-   The pack buffer is (unsigned-byte 8) with IEEE 754 single-floats (4 bytes each).
-   Layout: L0b0 L0b1 L0b2 L0b3 R0b0 R0b1 R0b2 R0b3 L1b0 ... (interleaved stereo)"
+  "Read interleaved s16 PCM from the pack buffer, encode to all outputs.
+   The pack is created with :encoding :int16, so cl-mixed converts float→s16 in C.
+   Layout: L0lo L0hi R0lo R0hi L1lo L1hi R1lo R1hi ... (interleaved stereo, 2 bytes/sample)"
   (mixed:with-buffer-tx (data start size (mixed:pack drain))
     (when (> size 0)
       (let* ((channels (drain-channels drain))
-             (bytes-per-sample 4)  ; single-float = 4 bytes
-             (total-floats (floor size bytes-per-sample))
-             (num-samples (floor total-floats channels))
+             (bytes-per-sample 2)  ; int16 = 2 bytes
+             (total-samples (floor size bytes-per-sample))
+             (num-samples (floor total-samples channels))
              (pcm-buffer (make-array (* num-samples channels)
                                      :element-type '(signed-byte 16))))
-        ;; Convert raw bytes -> single-float -> signed-16
+        ;; Read s16 PCM directly — no conversion needed, cl-mixed did it
         (cffi:with-pointer-to-vector-data (ptr data)
           (loop for i below (* num-samples channels)
                 for byte-offset = (+ start (* i bytes-per-sample))
-                for sample = (cffi:mem-ref ptr :float byte-offset)
-                do (setf (aref pcm-buffer i) (float-to-s16 sample))))
+                do (setf (aref pcm-buffer i) (cffi:mem-ref ptr :int16 byte-offset))))
         ;; Feed PCM to all encoder/mount pairs
         (dolist (output (drain-outputs drain))
           (let ((encoder (car output))
@@ -91,7 +84,7 @@
                 (log:warn "Encode error for ~A: ~A" mount-path e)))))))
     ;; Sleep for most of the audio duration (leave headroom for encoding)
     (let* ((channels (drain-channels drain))
-           (bytes-per-frame (* channels 4))
+           (bytes-per-frame (* channels 2))  ; 2 bytes per sample (int16)
            (frames (floor size bytes-per-frame))
            (samplerate (mixed:samplerate (mixed:pack drain))))
       (when (> frames 0)
@@ -175,16 +168,23 @@
                   :output-channels (pipeline-channels pipeline)))
          (output (harmony:segment :output server))
          (old-drain (harmony:segment :drain output))
-         (pack (mixed:pack old-drain))
          (drain (pipeline-drain pipeline)))
-    ;; TODO: Investigate setting (mixed:encoding pack) :int16 to let cl-mixed
-    ;; handle float→s16 in C. Currently causes static — may need to be set
-    ;; before server start, or pack may need recreation with correct encoding.
-    ;; Wire our streaming drain to the same pack buffer
-    (setf (mixed:pack drain) pack)
-    ;; Swap: withdraw old dummy drain, add our streaming drain
-    (mixed:withdraw old-drain output)
-    (mixed:add drain output)
+    ;; Replace the default float packer with an int16 packer.
+    ;; cl-mixed handles float→s16 conversion in C (faster than our Lisp loop).
+    (let* ((old-packer (harmony:segment :packer output))
+           (new-packer (mixed:make-packer
+                        :encoding :int16
+                        :channels (pipeline-channels pipeline)
+                        :samplerate (pipeline-sample-rate pipeline)
+                        :frames (* 2 (harmony::buffersize server)))))
+      ;; Connect upmix → new packer (same wiring as old)
+      (harmony:connect (harmony:segment :upmix output) T new-packer T)
+      ;; Withdraw old packer and float drain, add new int16 packer and our drain
+      (mixed:withdraw old-drain output)
+      (mixed:withdraw old-packer output)
+      (mixed:add new-packer output)
+      (setf (mixed:pack drain) (mixed:pack new-packer))
+      (mixed:add drain output))
     (setf (pipeline-harmony-server pipeline) server)
     (mixed:start server))
   (setf (pipeline-running-p pipeline) t)

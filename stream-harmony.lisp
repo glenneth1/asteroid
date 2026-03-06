@@ -60,41 +60,58 @@
 (defun resume-from-saved-state ()
   "Load saved playback state, resolve the correct playlist, and return
    (values file-list playlist-path) starting after the saved track.
+   If the currently scheduled playlist differs from the saved one,
+   uses the scheduled playlist from the beginning instead.
    Returns NIL if no state or playlist found."
   (let ((state (load-playback-state)))
     (when state
       (let* ((saved-file (getf state :track-file))
              (saved-playlist (getf state :playlist))
-             ;; Use saved playlist if it exists, otherwise fall back to current scheduled
-             (playlist-path (or (and saved-playlist
-                                    (probe-file (pathname saved-playlist)))
-                               (let ((scheduled (get-current-scheduled-playlist)))
-                                 (when scheduled
-                                   (let ((p (merge-pathnames scheduled (get-playlists-directory))))
-                                     (probe-file p))))))
+             (saved-playlist-name (when saved-playlist
+                                    (file-namestring (pathname saved-playlist))))
+             ;; Check what should be playing right now
+             (scheduled-name (get-current-scheduled-playlist))
+             (scheduled-path (when scheduled-name
+                               (let ((p (merge-pathnames scheduled-name (get-playlists-directory))))
+                                 (probe-file p))))
+             ;; If scheduled playlist differs from saved, use scheduled (start fresh)
+             (playlist-changed-p (and scheduled-name saved-playlist-name
+                                      (not (string= scheduled-name saved-playlist-name))))
+             (playlist-path (if playlist-changed-p
+                                scheduled-path
+                                (or (and saved-playlist
+                                         (probe-file (pathname saved-playlist)))
+                                    scheduled-path)))
              (file-list (when playlist-path
                           (m3u-to-file-list playlist-path))))
         (when file-list
           (setf *current-playlist-path* playlist-path)
           (setf *resumed-from-saved-state* t)
-          (let ((pos (when saved-file
-                       (position saved-file file-list :test #'string=))))
-            (if pos
-                (let ((remaining (nthcdr (1+ pos) file-list)))
-                  (if remaining
-                      (progn
-                        (log:info "Resuming after track ~A (~A of ~A) from ~A"
-                                  (file-namestring saved-file) (1+ pos) (length file-list)
-                                  (file-namestring playlist-path))
-                        (values remaining playlist-path))
-                      (progn
-                        (log:info "Last saved track was final, restarting ~A"
-                                  (file-namestring playlist-path))
-                        (values file-list playlist-path))))
-                (progn
-                  (log:info "Saved track not found, starting ~A from beginning"
-                            (file-namestring playlist-path))
-                  (values file-list playlist-path)))))))))
+          (if playlist-changed-p
+              ;; Different playlist should be active — start from beginning
+              (progn
+                (log:info "Scheduled playlist changed: ~A -> ~A, starting from beginning"
+                          saved-playlist-name scheduled-name)
+                (values file-list playlist-path))
+              ;; Same playlist — resume from saved position
+              (let ((pos (when saved-file
+                           (position saved-file file-list :test #'string=))))
+                (if pos
+                    (let ((remaining (nthcdr (1+ pos) file-list)))
+                      (if remaining
+                          (progn
+                            (log:info "Resuming after track ~A (~A of ~A) from ~A"
+                                      (file-namestring saved-file) (1+ pos) (length file-list)
+                                      (file-namestring playlist-path))
+                            (values remaining playlist-path))
+                          (progn
+                            (log:info "Last saved track was final, restarting ~A"
+                                      (file-namestring playlist-path))
+                            (values file-list playlist-path))))
+                    (progn
+                      (log:info "Saved track not found, starting ~A from beginning"
+                                (file-namestring playlist-path))
+                      (values file-list playlist-path))))))))))
 
 ;;; ---- M3U Playlist Loading ----
 
