@@ -37,8 +37,32 @@
 
 (defun get-now-playing-stats (&optional (mount "asteroid.mp3"))
   "Get now-playing stats from the Harmony pipeline.
+   When a DJ session is active, returns the DJ deck's current track info instead.
    Returns an alist with :listenurl, :title, :listeners, :track-id, :favorite-count."
-  (harmony-now-playing mount))
+  (if (dj-session-active-p)
+      ;; DJ session is live — show the active deck's track info
+      (let* ((status (dj-session-status))
+             (deck-a (cdr (assoc "deckA" status :test #'string=)))
+             (deck-b (cdr (assoc "deckB" status :test #'string=)))
+             (crossfader (or (cdr (assoc "crossfader" status :test #'string=)) 0.5))
+             ;; Pick the dominant deck based on crossfader position
+             (active-deck (if (<= crossfader 0.5) deck-a deck-b))
+             (track-info (when active-deck
+                           (cdr (assoc "trackInfo" active-deck :test #'string=))))
+             (display-title (if track-info
+                                (or (cdr (assoc "displayTitle" track-info :test #'string=))
+                                    "DJ Live")
+                                "DJ Live"))
+             (owner (or (cdr (assoc "owner" status :test #'string=)) "DJ"))
+             (title (format nil "~A [DJ: ~A]" display-title owner))
+             (listeners (or (cl-streamer:get-listener-count) 0)))
+        `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
+          (:title . ,title)
+          (:listeners . ,listeners)
+          (:track-id . nil)
+          (:favorite-count . 0)))
+      ;; Normal auto-playlist mode
+      (harmony-now-playing mount)))
 
 (define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 10 :timeout 1)
   "Get Partial HTML with live now-playing status.

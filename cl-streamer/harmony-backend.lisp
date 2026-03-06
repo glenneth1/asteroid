@@ -27,7 +27,8 @@
            #:update-all-mounts-metadata
            ;; DJ support
            #:pipeline-harmony-server
-           #:volume-ramp))
+           #:volume-ramp
+           #:pipeline-stop-all-voices))
 
 (in-package #:cl-streamer/harmony)
 
@@ -220,6 +221,21 @@
   (bt:with-lock-held ((pipeline-queue-lock pipeline))
     (setf (pipeline-file-queue pipeline) nil))
   (log:info "Queue cleared"))
+
+(defun pipeline-stop-all-voices (pipeline)
+  "Immediately stop all active voices on the Harmony mixer.
+   Used by DJ session to silence the auto-playlist before mixing."
+  (let ((server (pipeline-harmony-server pipeline)))
+    (when server
+      (let ((harmony:*server* server))
+        (dolist (voice (harmony:voices server))
+          (handler-case
+              (progn
+                (setf (mixed:volume voice) 0.0)
+                (harmony:stop voice))
+            (error (e)
+              (log:debug "Error stopping voice: ~A" e))))
+        (log:info "All voices stopped on mixer")))))
 
 (defun pipeline-pop-queue (pipeline)
   "Pop the next entry from the file queue (internal use)."

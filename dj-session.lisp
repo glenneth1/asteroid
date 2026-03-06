@@ -86,17 +86,20 @@
 ;;; ---- Auto-Playlist Pause / Resume ----
 
 (defun pause-auto-playlist ()
-  "Pause the auto-playlist by skipping and clearing the queue.
-   The play-list thread will exit when it has no more tracks.
+  "Pause the auto-playlist by immediately stopping all voices and clearing the queue.
+   The play-list thread will exit when it sees the empty queue and skip flag.
    Returns saved state for restoration."
   (when *harmony-pipeline*
     (let ((state (list :playlist-path (when *current-playlist-path*
                                         (namestring *current-playlist-path*))
                        :current-track (cl-streamer/harmony:pipeline-current-track
                                        *harmony-pipeline*))))
-      ;; Skip current track to stop playback, then clear queue
-      (cl-streamer/harmony:pipeline-skip *harmony-pipeline*)
+      ;; 1. Clear the queue so play-list has nothing to advance to
       (cl-streamer/harmony:pipeline-clear-queue *harmony-pipeline*)
+      ;; 2. Set skip flag so the play-list loop exits its wait
+      (cl-streamer/harmony:pipeline-skip *harmony-pipeline*)
+      ;; 3. Immediately silence and stop all voices on the mixer
+      (cl-streamer/harmony:pipeline-stop-all-voices *harmony-pipeline*)
       (log:info "Auto-playlist paused for DJ session")
       state)))
 
@@ -464,19 +467,14 @@
    Returns a list of alists with track info."
   (handler-case
       (with-db
-        (let ((results (postmodern:query
-                        (:limit
-                         (:offset
-                          (:order-by
-                           (:select '_id 'title 'artist 'album 'file-path
-                            :from 'tracks
-                            :where (:or (:ilike 'title (format nil "%~A%" query))
-                                        (:ilike 'artist (format nil "%~A%" query))
-                                        (:ilike 'album (format nil "%~A%" query))))
-                           'artist 'title)
-                          offset)
-                         limit)
-                        :rows)))
+        (let* ((pattern (format nil "%~A%" query))
+               (results
+                 (postmodern:query
+                  (:raw (format nil
+                         "SELECT _id, title, artist, album, \"file-path\" FROM tracks WHERE (title ILIKE $1 OR artist ILIKE $1 OR album ILIKE $1) ORDER BY artist, title LIMIT ~A OFFSET ~A"
+                         limit offset))
+                  pattern
+                  :rows)))
           (mapcar (lambda (row)
                     `(("id" . ,(first row))
                       ("title" . ,(or (second row) ""))
