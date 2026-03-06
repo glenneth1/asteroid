@@ -55,6 +55,12 @@
 
 (defmethod mixed:start ((drain streaming-drain)))
 
+(declaim (inline float-to-s16))
+(defun float-to-s16 (sample)
+  "Convert a float sample (-1.0 to 1.0) to signed 16-bit integer."
+  (let ((clamped (max -1.0 (min 1.0 sample))))
+    (the (signed-byte 16) (round (* clamped 32767.0)))))
+
 (defmethod mixed:mix ((drain streaming-drain))
   "Read interleaved float PCM from the pack buffer, encode to all outputs.
    The pack buffer is (unsigned-byte 8) with IEEE 754 single-floats (4 bytes each).
@@ -171,6 +177,9 @@
          (old-drain (harmony:segment :drain output))
          (pack (mixed:pack old-drain))
          (drain (pipeline-drain pipeline)))
+    ;; TODO: Investigate setting (mixed:encoding pack) :int16 to let cl-mixed
+    ;; handle float→s16 in C. Currently causes static — may need to be set
+    ;; before server start, or pack may need recreation with correct encoding.
     ;; Wire our streaming drain to the same pack buffer
     (setf (mixed:pack drain) pack)
     ;; Swap: withdraw old dummy drain, add our streaming drain
@@ -505,8 +514,3 @@
          (log:error "play-list thread crashed: ~A" e))))
    :name "cl-streamer-playlist"))
 
-(declaim (inline float-to-s16))
-(defun float-to-s16 (sample)
-  "Convert a float sample (-1.0 to 1.0) to signed 16-bit integer."
-  (let ((clamped (max -1.0 (min 1.0 sample))))
-    (the (signed-byte 16) (round (* clamped 32767.0)))))
