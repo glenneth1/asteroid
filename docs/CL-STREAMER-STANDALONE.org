@@ -1,0 +1,271 @@
+#+TITLE: CL-Streamer Standalone Library Refactor
+#+AUTHOR: Glenn Thompson
+#+DATE: 2026-03-07
+#+DESCRIPTION: Plan for extracting cl-streamer into a standalone, reusable Common Lisp streaming library
+
+* Overview
+
+Extract =cl-streamer= from its current role as an embedded subsystem of Asteroid Radio
+into a standalone, reusable Common Lisp audio streaming library. This aligns with Fade's
+architecture vision: logically separated concerns with a stream daemon, a queue manager,
+and the application layer communicating through well-defined protocols.
+
+The goal is a library that any CL application could use to stream audio over HTTP,
+without any Asteroid-specific knowledge baked in.
+
+** Current State
+
+=cl-streamer= already lives in its own directory (=cl-streamer/=) with its own ASDF
+system definitions and packages. However, it has implicit coupling to Asteroid through:
+
+- The glue layer (=stream-harmony.lisp=) lives in the =:asteroid= package
+- Encoder creation and lifecycle managed by Asteroid, not cl-streamer
+- Mount configuration hardcoded in Asteroid's startup
+- Playlist loading, scheduling, and resume logic all in Asteroid
+- DJ session control reaches directly into Harmony internals
+
+** Architecture Vision (per Fade)
+
+#+begin_quote
+"I want the basic architecture of the station to stay roughly the same.
+The concerns are logically separated, with a daemon holding up the streams,
+and a queue manager standing between the asteroid application and the stream daemon.
+This allows scaling horizontally in an unintrusive way."
+#+end_quote
+
+Target architecture:
+
+#+begin_example
+┌─────────────────────────┐     ┌──────────────────────────────┐
+│   Asteroid Application  │     │   cl-streamer (standalone)   │
+│                         │     │                              │
+│  Playlist Scheduler ────┼──>──┤  Pipeline Protocol           │
+│  DJ Session ────────────┼──>──┤  (generic functions / CLOS)  │
+│  Admin APIs ────────────┼──>──┤                              │
+│  Track Metadata ────────┼──>──┤  Stream Server (iolib)       │
+│                         │     │  Encoders (MP3, AAC)         │
+│  Frontend/ParenScript   │     │  Broadcast Buffer            │
+│                         │     │  Harmony Backend             │
+│  Rate Limiting          │     │  ICY Protocol                │
+│  User Management        │     │                              │
+└─────────────────────────┘     └──────────────────────────────┘
+        Application                    Library / Daemon
+#+end_example
+
+* Phase 1: Define the Protocol (CLOS Generic Functions)
+
+The key deliverable is a protocol layer that decouples Asteroid from cl-streamer internals.
+
+** 1.1 Streaming Protocol Classes
+
+Define protocol classes that cl-streamer exports and Asteroid programs against:
+
+#+begin_src lisp
+;; Protocol classes — no implementation, just interface
+(defclass stream-pipeline () ()
+  (:documentation "Protocol class for an audio streaming pipeline."))
+
+(defclass stream-encoder () ()
+  (:documentation "Protocol class for an audio encoder (MP3, AAC, etc)."))
+
+(defclass stream-server () ()
+  (:documentation "Protocol class for the HTTP stream server."))
+#+end_src
+
+** 1.2 Generic Functions (the Protocol)
+
+These replace the current direct function calls:
+
+#+begin_src lisp
+;;; Pipeline lifecycle
+(defgeneric pipeline-start (pipeline))
+(defgeneric pipeline-stop (pipeline))
+(defgeneric pipeline-running-p (pipeline))
+
+;;; Playback control
+(defgeneric pipeline-play-file (pipeline file-path))
+(defgeneric pipeline-play-list (pipeline file-list &key on-track-change on-playlist-change))
+(defgeneric pipeline-skip (pipeline))
+(defgeneric pipeline-queue-files (pipeline files))
+(defgeneric pipeline-clear-queue (pipeline))
+(defgeneric pipeline-get-queue (pipeline))
+
+;;; State queries
+(defgeneric pipeline-current-track (pipeline))
+(defgeneric pipeline-listener-count (pipeline &optional mount))
+
+;;; Metadata
+(defgeneric pipeline-update-metadata (pipeline mount title &optional url))
+
+;;; Encoder protocol
+(defgeneric encoder-encode (encoder pcm-data &key start end))
+(defgeneric encoder-flush (encoder))
+(defgeneric encoder-close (encoder))
+
+;;; Server protocol
+(defgeneric server-start (server))
+(defgeneric server-stop (server))
+(defgeneric server-add-mount (server path &key content-type bitrate name))
+(defgeneric server-remove-mount (server path))
+(defgeneric server-write-audio (server mount-path data &key start end))
+#+end_src
+
+** 1.3 Callback Protocol
+
+Replace the current =setf= slot approach with a proper callback/hook system:
+
+#+begin_src lisp
+(defgeneric pipeline-add-hook (pipeline event function))
+(defgeneric pipeline-remove-hook (pipeline event function))
+
+;; Events: :track-change, :playlist-change, :pipeline-start, :pipeline-stop
+#+end_src
+
+** 1.4 Files to Create/Modify
+
+| File                       | Action | Description                              |
+|----------------------------+--------+------------------------------------------|
+| =cl-streamer/protocol.lisp=  | NEW    | Protocol classes and generic functions    |
+| =cl-streamer/package.lisp=   | MODIFY | Export protocol symbols                  |
+| =cl-streamer/cl-streamer.asd= | MODIFY | Add protocol.lisp to all systems         |
+| =cl-streamer/harmony-backend.lisp= | MODIFY | Implement protocol for Harmony backend |
+
+* Phase 2: Clean Package Boundaries
+
+** 2.1 Move Asteroid-Specific Code Out of cl-streamer
+
+Currently cl-streamer is clean. The coupling is in Asteroid's =stream-harmony.lisp=
+which directly references cl-streamer internals. This file should become a thin adapter:
+
+| Current (stream-harmony.lisp)       | Target                                    |
+|-------------------------------------+-------------------------------------------|
+| Creates encoders explicitly         | Calls =(make-pipeline :mp3 :aac)=        |
+| Manages mount points manually       | Pipeline auto-creates from config         |
+| Stores encoder instances as globals | Pipeline owns encoder lifecycle            |
+| Track-change callback via setf      | Uses =pipeline-add-hook=                  |
+| Docker path conversion              | Stays in Asteroid (app-specific)          |
+| Playback state persistence          | Stays in Asteroid (app-specific)          |
+| Playlist scheduling                 | Stays in Asteroid (app-specific)          |
+
+** 2.2 Declarative Pipeline Configuration (DSL)
+
+Replace the imperative setup in =start-harmony-streaming= with a declarative form:
+
+#+begin_src lisp
+;; Target API — Asteroid calls this at startup
+(setf *harmony-pipeline*
+      (cl-streamer:make-pipeline
+       '(:input (:harmony :channels 2 :samplerate 44100)
+         :outputs ((:mp3 :mount "/asteroid.mp3" :bitrate 128
+                         :content-type "audio/mpeg" :name "Asteroid Radio MP3")
+                   (:aac :mount "/asteroid.aac" :bitrate 128
+                         :content-type "audio/aac" :name "Asteroid Radio AAC"))
+         :server (:port 8000))))
+#+end_src
+
+This keeps the pipeline definition in Asteroid but all the wiring inside cl-streamer.
+
+** 2.3 Remove Global State
+
+Current globals in =cl-streamer.lisp= (=*server*=, =*default-port*=) should move to
+pipeline-scoped state. Multiple pipelines should be possible (needed for shuffle channel).
+
+* Phase 3: Refactor Stream Server to iolib
+
+Per Fade's recommendation, replace =sb-bsd-sockets= / =usocket= with =iolib= for:
+
+- Nonblocking I/O with event loop (epoll/kqueue)
+- Better stale socket detection (SO_KEEPALIVE, TCP_NODELAY)
+- Portability across CL implementations
+- Cleaner connection lifecycle management
+
+** 3.1 Changes Required
+
+| File                          | Change                                           |
+|-------------------------------+--------------------------------------------------|
+| =cl-streamer/stream-server.lisp= | Rewrite socket handling to use iolib          |
+| =cl-streamer/cl-streamer.asd=    | Replace =usocket= dependency with =iolib=    |
+| =cl-streamer/package.lisp=       | Update exports if socket API changes         |
+
+** 3.2 Key iolib Features to Use
+
+- =iolib:make-socket= with =:connect :passive= for the listener
+- =iolib:accept-connection= for new clients
+- =iomux:event-dispatch= or per-client threads with iolib sockets
+- =iolib:socket-option= for =SO_KEEPALIVE=, =TCP_NODELAY=
+- Proper =:timeout= on write operations to detect stale clients
+
+** 3.3 Risk Mitigation
+
+- iolib requires =libfixposix= — ensure it's available on VPS
+- Test with multiple concurrent listeners
+- Benchmark against current implementation (should be equivalent or better)
+
+* Phase 4: Separate Repository (Future)
+
+Once cl-streamer is fully standalone, it could be extracted to its own git repo
+and loaded via Quicklisp/Ultralisp. This is optional and depends on whether
+other projects want to use it.
+
+** 4.1 What Stays in Asteroid
+
+- =stream-harmony.lisp= — glue layer / adapter
+- =stream-control.lisp= — queue management, playlist generation
+- =playlist-scheduler.lisp= — cron-based playlist switching
+- =dj-session.lisp= — DJ console logic (uses protocol)
+- All ParenScript/frontend code
+- Docker path conversion, playback state persistence
+
+** 4.2 What Goes with cl-streamer
+
+- =cl-streamer/= directory (all files)
+- =libfdkaac-shim.so= and =fdkaac-shim.c=
+- Protocol definitions
+- Encoder implementations (LAME, FDK-AAC)
+- Harmony backend
+- Stream server
+- Broadcast buffer
+- ICY protocol
+
+* Task Checklist
+
+** Phase 1: Protocol Definition
+- [ ] Create =cl-streamer/protocol.lisp= with protocol classes and generic functions
+- [ ] Update =cl-streamer/package.lisp= to export protocol symbols
+- [ ] Implement protocol in =harmony-backend.lisp= (methods on existing classes)
+- [ ] Update =stream-harmony.lisp= to use protocol generics instead of direct calls
+- [ ] Verify: =make 2>&1= compiles, audio plays, metadata updates
+
+** Phase 2: Clean Boundaries
+- [ ] Implement =make-pipeline= DSL for declarative pipeline creation
+- [ ] Move encoder lifecycle into pipeline (pipeline owns encoders)
+- [ ] Move mount creation into pipeline configuration
+- [ ] Remove global =*server*= — pipeline-scoped server
+- [ ] Add hook system for callbacks (=pipeline-add-hook= / =pipeline-remove-hook=)
+- [ ] Update =dj-session.lisp= to use protocol generics
+- [ ] Verify: full integration test (auto-playlist + DJ console + skip + metadata)
+
+** Phase 3: iolib Refactor
+- [ ] Install iolib and libfixposix on dev machine
+- [ ] Rewrite =stream-server.lisp= socket layer to use iolib
+- [ ] Add SO_KEEPALIVE and TCP_NODELAY to client sockets
+- [ ] Add write timeouts for stale client detection
+- [ ] Update =cl-streamer.asd= dependencies
+- [ ] Stress test: multiple concurrent listeners, client disconnect scenarios
+- [ ] Test on VPS (ensure libfixposix available)
+
+** Phase 4: Extraction (Future / Optional)
+- [ ] Create separate git repository for cl-streamer
+- [ ] Write proper README with usage examples
+- [ ] Register on Ultralisp for Quicklisp distribution
+- [ ] Update Asteroid to load cl-streamer as external dependency
+
+* Notes
+
+- Branch: =glenneth/cl-streamer-standalone= (off =experimental/cl-streaming=)
+- The current =experimental/cl-streaming= branch remains the stable working version
+- Each phase should end with a working, tested system
+- Phase 1 is the highest priority — it establishes the protocol without breaking anything
+- Phase 3 (iolib) can be done independently of Phase 2
+- The C shim for FDK-AAC (=libfdkaac-shim.so=) travels with cl-streamer — it's
+  needed to avoid SBCL signal handler conflicts with FDK-AAC internals
