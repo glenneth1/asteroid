@@ -1438,7 +1438,7 @@
 
 ;;; Listener Statistics API Endpoints
 
-(define-api-with-limit asteroid/stats/current () ()
+(define-api-with-limit asteroid/stats/current () (:limit 120 :timeout 60)
   "Get current listener count from recent snapshots"
   (with-error-handling
     (let ((listeners (get-current-listeners)))
