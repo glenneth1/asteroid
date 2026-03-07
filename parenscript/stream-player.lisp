@@ -664,8 +664,10 @@
      
      ;; Error retry counter and reconnect state
      (defvar *stream-error-count* 0)
+     (defvar *stall-count* 0)
      (defvar *reconnect-timeout* nil)
      (defvar *is-reconnecting* false)
+     (defvar *user-paused* false)
      
      ;; Reconnect stream - reuses existing audio element to preserve user gesture context
      (defun reconnect-stream ()
@@ -704,15 +706,16 @@
                (setf (ps:@ new-source type) (ps:@ config type))
                (ps:chain audio (append-child new-source))))
          
-         ;; Reload and play
+         ;; Reload and play — keep *is-reconnecting* true until 'playing' fires
          (ps:chain audio (load))
-         (setf *is-reconnecting* false)
          (set-timeout
           (lambda ()
             (ps:chain audio (play)
                       (catch (lambda (error)
-                               (ps:chain console (log "Reconnect play failed:" error))))))
-          200)))
+                               (ps:chain console (log "Reconnect play failed:" error))
+                               ;; play() rejected — reset so next stall/error can retry
+                               (setf *is-reconnecting* false)))))
+          500)))
      
      ;; Simple reconnect for popout player (just reload and play)
      (defun simple-reconnect (audio-element)
@@ -737,6 +740,7 @@
                                        (start-mini-spectrum)
                                        (hide-status)
                                        (setf *stream-error-count* 0)
+                                       (setf *stall-count* 0)
                                        (setf *is-reconnecting* false)
                                        (when *reconnect-timeout*
                                          (clear-timeout *reconnect-timeout*)
@@ -756,18 +760,26 @@
                                                  (set-timeout (lambda () (reconnect-stream)) delay)))))))
        
        (ps:chain audio-element
-                 (add-event-listener "stalled"
-                                     (lambda ()
-                                       (unless *is-reconnecting*
-                                         (ps:chain console (log "Audio stalled, will auto-reconnect in 5 seconds..."))
-                                         (show-status "⚠️ Stream stalled - reconnecting..." true)
-                                         (setf *is-reconnecting* true)
-                                         (setf *reconnect-timeout*
-                                               (set-timeout
-                                                (lambda ()
-                                                  ;; Always reconnect on stall - ready-state is unreliable for streams
-                                                  (reconnect-stream))
-                                                5000))))))
+                (add-event-listener "stalled"
+                                    (lambda ()
+                                      (unless *is-reconnecting*
+                                        (setf *stall-count* (+ *stall-count* 1))
+                                        ;; Exponential backoff: 5s, 10s, 20s, max 60s
+                                        (let ((delay (ps:chain -math (min (* 5000 (ps:chain -math (pow 2 (- *stall-count* 1)))) 60000))))
+                                          (if (> *stall-count* 10)
+                                              ;; Give up after 10 stall attempts — show manual retry
+                                              (progn
+                                                (ps:chain console (log "Too many stall retries, giving up auto-reconnect"))
+                                                (show-status "⚠️ Stream unavailable - click play to retry" true))
+                                              (progn
+                                                (ps:chain console (log (+ "Audio stalled (attempt " *stall-count* "), reconnecting in " (/ delay 1000) "s...")))
+                                                (show-status (+ "⚠️ Stream stalled - reconnecting (" *stall-count* ")...") true)
+                                                (setf *is-reconnecting* true)
+                                                (setf *reconnect-timeout*
+                                                      (set-timeout
+                                                       (lambda ()
+                                                         (reconnect-stream))
+                                                       delay)))))))))
        
        ;; Handle ended event - stream shouldn't end, so reconnect
        (ps:chain audio-element
@@ -785,12 +797,14 @@
                                      (lambda ()
                                        ;; Stop mini spectrum when paused
                                        (stop-mini-spectrum)
-                                       ;; If paused while muted and we didn't initiate it, browser may have throttled
-                                       (when (and (ps:@ audio-element muted) (not *is-reconnecting*))
-                                         (ps:chain console (log "Stream paused while muted (possible browser throttling), will reconnect in 3 seconds..."))
+                                       ;; Only treat as throttle if: muted, not reconnecting, and not user-initiated
+                                       (when (and (ps:@ audio-element muted)
+                                                  (not *is-reconnecting*)
+                                                  (not *user-paused*))
+                                         (ps:chain console (log "Stream paused while muted (possible browser throttling), will reconnect in 5 seconds..."))
                                          (show-status "⚠️ Stream paused - reconnecting..." true)
                                          (setf *is-reconnecting* true)
-                                         (set-timeout (lambda () (reconnect-stream)) 3000))))))
+                                         (set-timeout (lambda () (reconnect-stream)) 5000))))))
      
      ;; Attach simple listeners for popout player
      (defun attach-popout-listeners (audio-element)
