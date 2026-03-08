@@ -307,7 +307,8 @@
 
 (defun scan-music-library-files (&optional (directory *music-library-path*))
   "Recursively scan DIRECTORY for supported audio files.
-   Returns a list of namestrings."
+   Returns a list of native namestrings (real OS paths without SBCL's
+   bracket escaping, safe to pass through parse-native-namestring later)."
   (let ((files nil)
         (extensions *supported-formats*))
     (labels ((scan (dir)
@@ -315,7 +316,7 @@
                    (dolist (entry (uiop:directory-files dir))
                      (let ((ext (pathname-type entry)))
                        (when (and ext (member ext extensions :test #'string-equal))
-                         (push (namestring entry) files))))
+                         (push (sb-ext:native-namestring entry) files))))
                  (error (e)
                    (log:debug "Error scanning ~A: ~A" dir e)))
                (handler-case
@@ -323,7 +324,14 @@
                      (scan sub))
                  (error (e)
                    (log:debug "Error listing subdirs of ~A: ~A" dir e)))))
-      (scan (pathname directory)))
+      ;; Use parse-native-namestring so directories with brackets (e.g.
+      ;; "[FLAC]") are not treated as wildcard patterns by SBCL.
+      (scan (sb-ext:parse-native-namestring
+             (etypecase directory
+               (string directory)
+               (pathname (sb-ext:native-namestring directory)))
+             nil *default-pathname-defaults*
+             :as-directory t)))
     (nreverse files)))
 
 (defvar *shuffle-library-cache* nil
