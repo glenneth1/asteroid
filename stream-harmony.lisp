@@ -12,11 +12,19 @@
 (defvar *harmony-stream-port* 8000
   "Port for the cl-streamer HTTP stream server.")
 
-(defvar *harmony-mp3-encoder* nil
-  "MP3 encoder instance.")
+;; Encoder instances are now owned by the pipeline (Phase 2).
+;; Kept as aliases for backward compatibility with any external references.
+(defun harmony-mp3-encoder ()
+  "Get the MP3 encoder from the pipeline (if running)."
+  (when *harmony-pipeline*
+    (car (find "/asteroid.mp3" (cl-streamer/harmony:pipeline-encoders *harmony-pipeline*)
+               :key #'cdr :test #'string=))))
 
-(defvar *harmony-aac-encoder* nil
-  "AAC encoder instance.")
+(defun harmony-aac-encoder ()
+  "Get the AAC encoder from the pipeline (if running)."
+  (when *harmony-pipeline*
+    (car (find "/asteroid.aac" (cl-streamer/harmony:pipeline-encoders *harmony-pipeline*)
+               :key #'cdr :test #'string=))))
 
 (defvar *harmony-state-file*
   (merge-pathnames ".playback-state.lisp" (asdf:system-source-directory :asteroid))
@@ -197,75 +205,46 @@
 ;;; ---- Pipeline Lifecycle ----
 
 (defun start-harmony-streaming (&key (port *harmony-stream-port*)
-                                     (mp3-bitrate 128000)
-                                     (aac-bitrate 128000))
+                                     (mp3-bitrate 128)
+                                     (aac-bitrate 128))
   "Start the cl-streamer pipeline with MP3 and AAC outputs.
-   Should be called once during application startup."
+   Should be called once during application startup.
+   MP3-BITRATE and AAC-BITRATE are in kbps (e.g. 128)."
   (when *harmony-pipeline*
     (log:warn "Harmony streaming already running")
     (return-from start-harmony-streaming *harmony-pipeline*))
 
-  ;; Start the stream server
-  (cl-streamer:start :port port)
-
-  ;; Add mount points
-  (cl-streamer:add-mount cl-streamer:*server* "/asteroid.mp3"
-                         :content-type "audio/mpeg"
-                         :bitrate 128
-                         :name "Asteroid Radio MP3")
-  (cl-streamer:add-mount cl-streamer:*server* "/asteroid.aac"
-                         :content-type "audio/aac"
-                         :bitrate 128
-                         :name "Asteroid Radio AAC")
-
-  ;; Create encoders
-  (setf *harmony-mp3-encoder*
-        (cl-streamer:make-mp3-encoder :bitrate (floor mp3-bitrate 1000)
-                                      :sample-rate 44100
-                                      :channels 2))
-  (setf *harmony-aac-encoder*
-        (cl-streamer:make-aac-encoder :bitrate aac-bitrate
-                                      :sample-rate 44100
-                                      :channels 2))
-
-  ;; Create pipeline with track-change callback
+  ;; Create pipeline from declarative spec — server, mounts, encoders all handled
   (setf *harmony-pipeline*
-        (cl-streamer/harmony:make-audio-pipeline
-         :encoder *harmony-mp3-encoder*
-         :stream-server cl-streamer:*server*
-         :mount-path "/asteroid.mp3"))
+        (cl-streamer/harmony:make-pipeline
+         :port port
+         :outputs (list (list :format :mp3
+                              :mount "/asteroid.mp3"
+                              :bitrate mp3-bitrate
+                              :name "Asteroid Radio MP3")
+                        (list :format :aac
+                              :mount "/asteroid.aac"
+                              :bitrate aac-bitrate
+                              :name "Asteroid Radio AAC"))))
 
-  ;; Add AAC output
-  (cl-streamer/harmony:add-pipeline-output *harmony-pipeline*
-                                           *harmony-aac-encoder*
-                                           "/asteroid.aac")
-
-  ;; Set the track-change callback
-  (setf (cl-streamer/harmony:pipeline-on-track-change *harmony-pipeline*)
-        #'on-harmony-track-change)
-
-  ;; Set the playlist-change callback (fires when scheduler playlist actually starts)
-  (setf (cl-streamer/harmony:pipeline-on-playlist-change *harmony-pipeline*)
-        #'on-harmony-playlist-change)
+  ;; Register hooks
+  (cl-streamer/harmony:pipeline-add-hook *harmony-pipeline*
+                                         :track-change #'on-harmony-track-change)
+  (cl-streamer/harmony:pipeline-add-hook *harmony-pipeline*
+                                         :playlist-change #'on-harmony-playlist-change)
 
   ;; Start the audio pipeline
-  (cl-streamer/harmony:start-pipeline *harmony-pipeline*)
+  (cl-streamer/harmony:pipeline-start *harmony-pipeline*)
 
   (log:info "Harmony streaming started on port ~A (MP3 + AAC)" port)
   *harmony-pipeline*)
 
 (defun stop-harmony-streaming ()
-  "Stop the cl-streamer pipeline and stream server."
+  "Stop the cl-streamer pipeline and stream server.
+   Pipeline owns encoders and server — cleanup is automatic."
   (when *harmony-pipeline*
-    (cl-streamer/harmony:stop-pipeline *harmony-pipeline*)
+    (cl-streamer/harmony:pipeline-stop *harmony-pipeline*)
     (setf *harmony-pipeline* nil))
-  (when *harmony-mp3-encoder*
-    (cl-streamer:close-encoder *harmony-mp3-encoder*)
-    (setf *harmony-mp3-encoder* nil))
-  (when *harmony-aac-encoder*
-    (cl-streamer:close-aac-encoder *harmony-aac-encoder*)
-    (setf *harmony-aac-encoder* nil))
-  (cl-streamer:stop)
   (log:info "Harmony streaming stopped"))
 
 ;;; ---- Playlist Control ----
