@@ -193,7 +193,7 @@
              (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
     (let* ((track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
            (display-title (or (getf track-info :display-title) "Unknown"))
-           (listeners (cl-streamer:get-listener-count))
+           (listeners (cl-streamer:pipeline-listener-count *harmony-pipeline*))
            (track-id (or (find-track-by-title display-title)
                          (find-track-by-file-path (getf track-info :file)))))
       `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
@@ -284,7 +284,7 @@
   "Get current pipeline status."
   (if *harmony-pipeline*
       (let ((track (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
-            (listeners (cl-streamer:get-listener-count)))
+            (listeners (cl-streamer:pipeline-listener-count *harmony-pipeline*)))
         (list :running t
               :current-track (getf track :display-title)
               :artist (getf track :artist)

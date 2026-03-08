@@ -92,14 +92,14 @@
   (when *harmony-pipeline*
     (let ((state (list :playlist-path (when *current-playlist-path*
                                         (namestring *current-playlist-path*))
-                       :current-track (cl-streamer/harmony:pipeline-current-track
+                       :current-track (cl-streamer:pipeline-current-track
                                        *harmony-pipeline*))))
       ;; 1. Clear the queue so play-list has nothing to advance to
-      (cl-streamer/harmony:pipeline-clear-queue *harmony-pipeline*)
+      (cl-streamer:pipeline-clear-queue *harmony-pipeline*)
       ;; 2. Set skip flag so the play-list loop exits its wait
-      (cl-streamer/harmony:pipeline-skip *harmony-pipeline*)
+      (cl-streamer:pipeline-skip *harmony-pipeline*)
       ;; 3. Immediately silence and stop all voices on the mixer
-      (cl-streamer/harmony:pipeline-stop-all-voices *harmony-pipeline*)
+      (cl-streamer:pipeline-stop-all-voices *harmony-pipeline*)
       (log:info "Auto-playlist paused for DJ session")
       state)))
 
@@ -183,15 +183,13 @@
   (unless *dj-session*
     (error "No active DJ session"))
   (let* ((deck (get-deck *dj-session* deck-id))
-         (pipeline *harmony-pipeline*)
-         (server (cl-streamer/harmony:pipeline-harmony-server pipeline))
-         (org.shirakumo.fraf.harmony:*server* server))
+         (pipeline *harmony-pipeline*))
     ;; Stop current track if playing
     (when (member (deck-state deck) '(:playing :paused))
       (stop-deck-internal deck))
     ;; Read metadata
-    (let* ((tags (cl-streamer/harmony:read-audio-metadata file-path))
-           (display-title (cl-streamer/harmony:format-display-title file-path))
+    (let* ((tags (cl-streamer:pipeline-read-metadata pipeline file-path))
+           (display-title (cl-streamer:pipeline-format-title pipeline file-path))
            (track-info (list :file file-path
                              :display-title display-title
                              :artist (getf tags :artist)
@@ -209,16 +207,14 @@
     (error "No active DJ session"))
   (let* ((session *dj-session*)
          (deck (get-deck session deck-id))
-         (pipeline *harmony-pipeline*)
-         (server (cl-streamer/harmony:pipeline-harmony-server pipeline))
-         (org.shirakumo.fraf.harmony:*server* server))
+         (pipeline *harmony-pipeline*))
     (ecase (deck-state deck)
       (:empty
        (error "Deck ~A has no track loaded" deck-id))
       (:loaded
        ;; Create a new voice and start playing
-       (let ((voice (org.shirakumo.fraf.harmony:play
-                     (sb-ext:parse-native-namestring (deck-file-path deck))
+       (let ((voice (cl-streamer:pipeline-play-voice pipeline
+                     (deck-file-path deck)
                      :mixer :music
                      :on-end :disconnect)))
          (setf (deck-voice deck) voice
@@ -264,11 +260,9 @@
 (defun stop-deck-internal (deck)
   "Internal: stop a deck's voice and reset state."
   (when (deck-voice deck)
-    (let* ((pipeline *harmony-pipeline*)
-           (server (cl-streamer/harmony:pipeline-harmony-server pipeline))
-           (org.shirakumo.fraf.harmony:*server* server))
+    (let ((pipeline *harmony-pipeline*))
       (handler-case
-          (org.shirakumo.fraf.harmony:stop (deck-voice deck))
+          (cl-streamer:pipeline-stop-voice pipeline (deck-voice deck))
         (error (e)
           (log:debug "Error stopping deck voice: ~A" e)))))
   (setf (deck-voice deck) nil
@@ -282,7 +276,7 @@
              (member (deck-state deck) '(:playing :paused)))
     (handler-case
         (progn
-          (cl-streamer/harmony:volume-ramp (deck-voice deck) 0.0 duration)
+          (cl-streamer:pipeline-volume-ramp *harmony-pipeline* (deck-voice deck) 0.0 duration)
           (stop-deck-internal deck))
       (error (e)
         (log:debug "Error fading deck: ~A" e)
@@ -343,10 +337,8 @@
   "Internal: disconnect external input voice."
   (when (session-external-input session)
     (handler-case
-        (let* ((pipeline *harmony-pipeline*)
-               (server (cl-streamer/harmony:pipeline-harmony-server pipeline))
-               (org.shirakumo.fraf.harmony:*server* server))
-          (org.shirakumo.fraf.harmony:stop (session-external-input session)))
+        (let ((pipeline *harmony-pipeline*))
+          (cl-streamer:pipeline-stop-voice pipeline (session-external-input session)))
       (error (e)
         (log:debug "Error stopping external input: ~A" e)))
     (setf (session-external-input session) nil)
@@ -379,7 +371,7 @@
     (let ((title (or (session-metadata-override *dj-session*)
                      (auto-detect-dj-metadata *dj-session*))))
       (when title
-        (cl-streamer/harmony:update-all-mounts-metadata *harmony-pipeline* title)))))
+        (cl-streamer:pipeline-update-metadata *harmony-pipeline* title)))))
 
 (defun auto-detect-dj-metadata (session)
   "Determine ICY metadata from the louder deck.

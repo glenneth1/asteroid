@@ -385,7 +385,8 @@
 (defun poll-and-store-stats ()
   "Single poll iteration: fetch listener counts from cl-streamer and store."
   (dolist (mount '("/asteroid.mp3" "/asteroid.aac"))
-    (let ((listeners (cl-streamer:get-listener-count mount)))
+    (let ((listeners (when *harmony-pipeline*
+                      (cl-streamer:pipeline-listener-count *harmony-pipeline* mount))))
       (when (and listeners (> listeners 0))
         (store-listener-snapshot mount listeners)
         (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))
