@@ -746,8 +746,8 @@
                     (catch (lambda (error)
                              (ps:chain console (error "Error adding favorite:" error)))))))))))
      
-     ;; Update now playing every 5 seconds
-     (set-interval update-now-playing 5000)
+     ;; Update now playing every 15 seconds
+     (set-interval update-now-playing 15000)
     
     ;; Poll server for channel name changes (works across all listeners)
     (let ((last-channel-name nil))

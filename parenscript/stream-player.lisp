@@ -149,23 +149,23 @@
      ;; ========================================
      
      ;; Get stream configuration for a given channel and quality
-     ;; With cl-streamer, both channels use the same stream mounts -
-     ;; channel switching loads a different playlist server-side
+     ;; Curated channel uses /asteroid.* mounts, shuffle uses /shuffle.* mounts
      (defun get-stream-config (stream-base-url channel quality)
-       (let ((config (ps:create
-                      :aac (ps:create :url (+ stream-base-url "/asteroid.aac")
-                                      :type "audio/aac"
-                                      :format "AAC 96kbps Stereo"
-                                      :mount "asteroid.aac")
-                      :mp3 (ps:create :url (+ stream-base-url "/asteroid.mp3")
-                                      :type "audio/mpeg"
-                                      :format "MP3 128kbps Stereo"
-                                      :mount "asteroid.mp3")
-                      :low (ps:create :url (+ stream-base-url "/asteroid.mp3")
-                                      :type "audio/mpeg"
-                                      :format "MP3 128kbps Stereo"
-                                      :mount "asteroid.mp3"))))
-         (ps:getprop config quality)))
+       (let ((prefix (if (= channel "shuffle") "/shuffle" "/asteroid")))
+         (let ((config (ps:create
+                        :aac (ps:create :url (+ stream-base-url prefix ".aac")
+                                        :type "audio/aac"
+                                        :format "AAC 96kbps Stereo"
+                                        :mount (+ (ps:chain prefix (substring 1)) ".aac"))
+                        :mp3 (ps:create :url (+ stream-base-url prefix ".mp3")
+                                        :type "audio/mpeg"
+                                        :format "MP3 128kbps Stereo"
+                                        :mount (+ (ps:chain prefix (substring 1)) ".mp3"))
+                        :low (ps:create :url (+ stream-base-url prefix ".mp3")
+                                        :type "audio/mpeg"
+                                        :format "MP3 128kbps Stereo"
+                                        :mount (+ (ps:chain prefix (substring 1)) ".mp3")))))
+           (ps:getprop config quality))))
      
      ;; Get current channel from selector or localStorage
      (defun get-current-channel ()

@@ -810,8 +810,8 @@
 
       ;; Initial update after 1 second
       (set-timeout update-now-playing 1000)
-      ;; Update live stream info every 10 seconds
-      (set-interval update-now-playing 10000)
+      ;; Update live stream info every 15 seconds
+      (set-interval update-now-playing 15000)
 
       ;; Make functions globally accessible for onclick handlers
       (defvar window (ps:@ window))

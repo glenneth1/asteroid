@@ -553,8 +553,10 @@
   "Restart the streaming pipeline."
   (require-role :admin)
   (with-error-handling
+    (stop-shuffle-streaming)
     (stop-harmony-streaming)
     (start-harmony-streaming)
+    (start-shuffle-streaming)
     (api-output `(("status" . "success")
                   ("message" . "Streaming pipeline restarted")))))
 
@@ -1430,7 +1432,9 @@
   (with-error-handling
     (let* ((now-playing (get-now-playing-stats "asteroid.mp3"))
            (title (if now-playing (cdr (assoc :title now-playing)) "Unknown"))
-           (listeners (or (cl-streamer:get-listener-count) 0)))
+           (listeners (if *harmony-pipeline*
+                        (or (cl-streamer:pipeline-listener-count *harmony-pipeline*) 0)
+                        0)))
       (api-output
        `(("icestats" . (("source" . (("listenurl" . ,(format nil "~a/asteroid.mp3" *stream-base-url*))
                                       ("title" . ,title)
@@ -1601,7 +1605,15 @@
                     (length resumed-list)
                     (if playlist-path (file-namestring playlist-path) "stream-queue.m3u"))))
         (format t "📡 Stream: ~a/asteroid.mp3~%" *stream-base-url*)
-        (format t "📡 Stream: ~a/asteroid.aac~%" *stream-base-url*))
+        (format t "📡 Stream: ~a/asteroid.aac~%" *stream-base-url*)
+        ;; Start shuffle stream (shares the same HTTP server)
+        (handler-case
+            (progn
+              (start-shuffle-streaming)
+              (format t "📡 Shuffle: ~a/shuffle.mp3~%" *stream-base-url*)
+              (format t "📡 Shuffle: ~a/shuffle.aac~%" *stream-base-url*))
+          (error (e)
+            (format t "⚠️  Could not start shuffle stream: ~a~%" e))))
     (error (e)
       (format t "⚠️  Could not start streaming: ~a~%" e)
       (format t "   (Web server will run without streaming)~%")))

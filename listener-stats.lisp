@@ -384,9 +384,17 @@
 
 (defun poll-and-store-stats ()
   "Single poll iteration: fetch listener counts from cl-streamer and store."
+  ;; Curated stream mounts
   (dolist (mount '("/asteroid.mp3" "/asteroid.aac"))
     (let ((listeners (when *harmony-pipeline*
                       (cl-streamer:pipeline-listener-count *harmony-pipeline* mount))))
+      (when (and listeners (> listeners 0))
+        (store-listener-snapshot mount listeners)
+        (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))
+  ;; Shuffle stream mounts
+  (dolist (mount '("/shuffle.mp3" "/shuffle.aac"))
+    (let ((listeners (when *shuffle-pipeline*
+                      (cl-streamer:pipeline-listener-count *shuffle-pipeline* mount))))
       (when (and listeners (> listeners 0))
         (store-listener-snapshot mount listeners)
         (log:debug "Stored snapshot: ~a = ~a listeners" mount listeners))))

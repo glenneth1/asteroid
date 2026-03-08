@@ -55,14 +55,18 @@
                                 "DJ Live"))
              (owner (or (cdr (assoc "owner" status :test #'string=)) "DJ"))
              (title (format nil "~A [DJ: ~A]" display-title owner))
-             (listeners (or (cl-streamer:get-listener-count) 0)))
+             (listeners (if *harmony-pipeline*
+                           (or (cl-streamer:pipeline-listener-count *harmony-pipeline*) 0)
+                           0)))
         `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
           (:title . ,title)
           (:listeners . ,listeners)
           (:track-id . nil)
           (:favorite-count . 0)))
-      ;; Normal auto-playlist mode
-      (harmony-now-playing mount)))
+      ;; Normal mode — route to curated or shuffle based on mount name
+      (if (search "shuffle" mount :test #'char-equal)
+          (shuffle-now-playing mount)
+          (harmony-now-playing mount))))
 
 (define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 30 :timeout 60)
   "Get Partial HTML with live now-playing status.

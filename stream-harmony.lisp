@@ -12,6 +12,9 @@
 (defvar *harmony-stream-port* 8000
   "Port for the cl-streamer HTTP stream server.")
 
+(defvar *shuffle-pipeline* nil
+  "The shuffle stream pipeline — plays random tracks from the music library.")
+
 ;; Encoder instances are now owned by the pipeline (Phase 2).
 ;; Kept as aliases for backward compatibility with any external references.
 (defun harmony-mp3-encoder ()
@@ -294,3 +297,155 @@
               :queue-length (length (cl-streamer/harmony:pipeline-get-queue
                                     *harmony-pipeline*))))
       (list :running nil)))
+
+;;; ============================================================
+;;; Shuffle Stream — random tracks from the music library
+;;; ============================================================
+
+(defvar *shuffle-batch-size* 20
+  "Number of tracks to queue at a time on the shuffle pipeline.")
+
+(defun scan-music-library-files (&optional (directory *music-library-path*))
+  "Recursively scan DIRECTORY for supported audio files.
+   Returns a list of namestrings."
+  (let ((files nil)
+        (extensions *supported-formats*))
+    (labels ((scan (dir)
+               (handler-case
+                   (dolist (entry (uiop:directory-files dir))
+                     (let ((ext (pathname-type entry)))
+                       (when (and ext (member ext extensions :test #'string-equal))
+                         (push (namestring entry) files))))
+                 (error (e)
+                   (log:debug "Error scanning ~A: ~A" dir e)))
+               (handler-case
+                   (dolist (sub (uiop:subdirectories dir))
+                     (scan sub))
+                 (error (e)
+                   (log:debug "Error listing subdirs of ~A: ~A" dir e)))))
+      (scan (pathname directory)))
+    (nreverse files)))
+
+(defvar *shuffle-library-cache* nil
+  "Cached list of audio files from the music library for shuffle.")
+
+(defvar *shuffle-library-cache-time* 0
+  "Universal time when *shuffle-library-cache* was last refreshed.")
+
+(defvar *shuffle-cache-ttl* 3600
+  "Seconds before the shuffle library cache expires (default 1 hour).")
+
+(defun get-shuffle-library ()
+  "Return the cached list of music library files, refreshing if stale."
+  (when (or (null *shuffle-library-cache*)
+            (> (- (get-universal-time) *shuffle-library-cache-time*)
+               *shuffle-cache-ttl*))
+    (log:info "Scanning music library for shuffle pool...")
+    (let ((files (scan-music-library-files)))
+      (setf *shuffle-library-cache* files
+            *shuffle-library-cache-time* (get-universal-time))
+      (log:info "Shuffle pool: ~A tracks" (length files))))
+  *shuffle-library-cache*)
+
+(defun shuffle-random-batch (&optional (n *shuffle-batch-size*))
+  "Pick N random tracks from the music library (with replacement for small libs)."
+  (let ((library (get-shuffle-library)))
+    (when library
+      (let ((len (length library)))
+        (loop repeat (min n len)
+              collect (list :file (nth (random len) library)))))))
+
+(defun refill-shuffle-queue ()
+  "Queue another batch of random tracks on the shuffle pipeline.
+   Called by the track-change hook when the queue is running low."
+  (when *shuffle-pipeline*
+    (let ((queue-len (length (cl-streamer/harmony:pipeline-get-queue *shuffle-pipeline*))))
+      (when (< queue-len (floor *shuffle-batch-size* 2))
+        (let ((batch (shuffle-random-batch)))
+          (when batch
+            (cl-streamer/harmony:pipeline-queue-files *shuffle-pipeline* batch)
+            (log:debug "Shuffle: queued ~A tracks (~A in queue)"
+                       (length batch) (+ queue-len (length batch)))))))))
+
+(defun on-shuffle-track-change (pipeline track-info)
+  "Called by cl-streamer when the shuffle stream changes tracks.
+   Updates the shuffle recently-played list and refills the queue."
+  (declare (ignore pipeline))
+  (let* ((display-title (getf track-info :display-title))
+         (artist (getf track-info :artist))
+         (title (getf track-info :title))
+         (file-path (getf track-info :file))
+         (track-id (or (find-track-by-title display-title)
+                       (find-track-by-file-path file-path))))
+    (when (and display-title (not (string= display-title "Unknown")))
+      (add-recently-played (list :title display-title
+                                 :artist artist
+                                 :song title
+                                 :timestamp (get-universal-time)
+                                 :track-id track-id)
+                           :shuffle)
+      (setf *last-known-track-shuffle* display-title))
+    (log:info "Shuffle track change: ~A" display-title))
+  (refill-shuffle-queue))
+
+(defun shuffle-now-playing (&optional (mount "shuffle.mp3"))
+  "Get now-playing information from the shuffle pipeline."
+  (when (and *shuffle-pipeline*
+             (cl-streamer/harmony:pipeline-current-track *shuffle-pipeline*))
+    (let* ((track-info (cl-streamer/harmony:pipeline-current-track *shuffle-pipeline*))
+           (display-title (or (getf track-info :display-title) "Unknown"))
+           (listeners (cl-streamer:pipeline-listener-count *shuffle-pipeline*)))
+      `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
+        (:title . ,display-title)
+        (:listeners . ,(or listeners 0))
+        (:track-id . nil)
+        (:favorite-count . 0)))))
+
+;;; ---- Shuffle Pipeline Lifecycle ----
+
+(defun start-shuffle-streaming (&key (mp3-bitrate 128) (aac-bitrate 128))
+  "Start the shuffle pipeline, sharing the curated pipeline's stream server.
+   Must be called after start-harmony-streaming."
+  (when *shuffle-pipeline*
+    (log:warn "Shuffle streaming already running")
+    (return-from start-shuffle-streaming *shuffle-pipeline*))
+  (unless *harmony-pipeline*
+    (error "Cannot start shuffle pipeline: curated pipeline not running"))
+  (let ((shared-server (cl-streamer/harmony:pipeline-server *harmony-pipeline*)))
+    (setf *shuffle-pipeline*
+          (cl-streamer/harmony:make-pipeline
+           :server shared-server
+           :outputs (list (list :format :mp3
+                                :mount "/shuffle.mp3"
+                                :bitrate mp3-bitrate
+                                :name "Asteroid Radio Shuffle MP3")
+                          (list :format :aac
+                                :mount "/shuffle.aac"
+                                :bitrate aac-bitrate
+                                :name "Asteroid Radio Shuffle AAC"))))
+    ;; Register hooks
+    (cl-streamer/harmony:pipeline-add-hook *shuffle-pipeline*
+                                           :track-change #'on-shuffle-track-change)
+    ;; Seed the queue before starting
+    (let ((batch (shuffle-random-batch)))
+      (when batch
+        (cl-streamer/harmony:pipeline-queue-files *shuffle-pipeline* batch)))
+    ;; Start the pipeline and begin playback
+    (cl-streamer/harmony:pipeline-start *shuffle-pipeline*)
+    ;; Start the play-list loop (plays queued tracks, refill hook keeps it going)
+    (let ((initial-files (mapcar (lambda (entry) (getf entry :file))
+                                 (cl-streamer/harmony:pipeline-get-queue *shuffle-pipeline*))))
+      (when initial-files
+        (cl-streamer/harmony:play-list *shuffle-pipeline* initial-files
+                                       :crossfade-duration 3.0
+                                       :loop-queue t)))
+    (log:info "Shuffle streaming started (MP3 + AAC, ~A tracks in pool)"
+              (length (get-shuffle-library)))
+    *shuffle-pipeline*))
+
+(defun stop-shuffle-streaming ()
+  "Stop the shuffle pipeline. Does not stop the shared server."
+  (when *shuffle-pipeline*
+    (cl-streamer/harmony:pipeline-stop *shuffle-pipeline*)
+    (setf *shuffle-pipeline* nil))
+  (log:info "Shuffle streaming stopped"))
