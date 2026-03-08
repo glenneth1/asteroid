@@ -960,7 +960,7 @@
            
            ;; Start now playing updates
            (set-timeout update-mini-now-playing 1000)
-           (set-interval update-mini-now-playing 5000))))
+           (set-interval update-mini-now-playing 15000))))
      
      ;; Initialize popout player
      (defun init-popout-player ()
@@ -996,7 +996,7 @@
            
            ;; Start now playing updates
            (update-popout-now-playing)
-           (set-interval update-popout-now-playing 5000)
+           (set-interval update-popout-now-playing 15000)
            
            ;; Notify parent window
            (notify-popout-opened)

@@ -6,10 +6,8 @@
   :serial t
   :depends-on (#:alexandria
                #:bordeaux-threads
-               #:usocket
+               #:iolib
                #:flexi-streams
-               #:chunga
-               #:trivial-gray-streams
                #:split-sequence
                #:log4cl)
   :components ((:file "package")
