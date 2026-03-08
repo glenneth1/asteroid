@@ -1,0 +1,4 @@
+[submodule "cl-streamer"]
+	path = cl-streamer
+	url = git@github.com:glenneth1/cl-streamer.git
+	branch = master
