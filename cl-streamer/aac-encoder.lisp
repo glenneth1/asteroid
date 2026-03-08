@@ -135,3 +135,11 @@
             (replace result chunk :start1 pos)
             (incf pos (length chunk)))
           result))))
+
+;;; ---- Protocol Methods ----
+
+(defmethod encoder-encode ((encoder aac-encoder) pcm-buffer num-samples)
+  (encode-aac-pcm encoder pcm-buffer num-samples))
+
+(defmethod encoder-close ((encoder aac-encoder))
+  (close-aac-encoder encoder))

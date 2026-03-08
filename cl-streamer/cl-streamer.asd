@@ -17,7 +17,8 @@
                (:file "buffer")
                (:file "icy-protocol")
                (:file "stream-server")
-               (:file "cl-streamer")))
+               (:file "cl-streamer")
+               (:file "protocol")))
 
 (asdf:defsystem #:cl-streamer/harmony
   :description "Harmony audio backend for cl-streamer"

@@ -55,4 +55,38 @@
    ;; AAC Encoder
    #:make-aac-encoder
    #:close-aac-encoder
-   #:encode-aac-pcm))
+   #:encode-aac-pcm
+   
+   ;; Protocol — Server
+   #:server-start
+   #:server-stop
+   #:server-running-p
+   #:server-add-mount
+   #:server-remove-mount
+   #:server-update-metadata
+   #:server-listener-count
+   #:server-write-audio
+   
+   ;; Protocol — Pipeline
+   #:pipeline-start
+   #:pipeline-stop
+   #:pipeline-running-p
+   #:pipeline-play-file
+   #:pipeline-play-list
+   #:pipeline-skip
+   #:pipeline-queue-files
+   #:pipeline-get-queue
+   #:pipeline-clear-queue
+   #:pipeline-current-track
+   #:pipeline-listener-count
+   #:pipeline-update-metadata
+   
+   ;; Protocol — Pipeline Hooks
+   #:pipeline-add-hook
+   #:pipeline-remove-hook
+   #:pipeline-fire-hook
+   
+   ;; Protocol — Encoder
+   #:encoder-encode
+   #:encoder-flush
+   #:encoder-close))

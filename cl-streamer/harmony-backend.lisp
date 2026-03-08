@@ -2,23 +2,51 @@
   (:use #:cl #:alexandria)
   (:local-nicknames (#:harmony #:org.shirakumo.fraf.harmony)
                     (#:mixed #:org.shirakumo.fraf.mixed))
+  ;; Import protocol generics — we define methods on these
+  (:import-from #:cl-streamer
+                #:pipeline-start
+                #:pipeline-stop
+                #:pipeline-running-p
+                #:pipeline-play-file
+                #:pipeline-play-list
+                #:pipeline-skip
+                #:pipeline-queue-files
+                #:pipeline-get-queue
+                #:pipeline-clear-queue
+                #:pipeline-current-track
+                #:pipeline-listener-count
+                #:pipeline-update-metadata
+                #:pipeline-add-hook
+                #:pipeline-remove-hook
+                #:pipeline-fire-hook)
   (:export #:audio-pipeline
            #:make-audio-pipeline
            #:add-pipeline-output
-           #:start-pipeline
-           #:stop-pipeline
-           #:play-file
-           #:play-list
-           #:pipeline-server
-           #:make-streaming-server
-           ;; Track state & control
-           #:pipeline-current-track
-           #:pipeline-on-track-change
+           ;; Re-export protocol generics so callers can use cl-streamer/harmony:X
+           #:pipeline-start
+           #:pipeline-stop
            #:pipeline-running-p
+           #:pipeline-play-file
+           #:pipeline-play-list
            #:pipeline-skip
            #:pipeline-queue-files
            #:pipeline-get-queue
            #:pipeline-clear-queue
+           #:pipeline-current-track
+           #:pipeline-listener-count
+           #:pipeline-update-metadata
+           #:pipeline-add-hook
+           #:pipeline-remove-hook
+           #:pipeline-fire-hook
+           ;; Backward-compatible aliases (delegate to protocol generics)
+           #:start-pipeline
+           #:stop-pipeline
+           #:play-file
+           #:play-list
+           ;; Harmony-specific (not in protocol)
+           #:pipeline-server
+           #:make-streaming-server
+           #:pipeline-on-track-change
            #:pipeline-pending-playlist-path
            #:pipeline-on-playlist-change
            ;; Metadata helpers
@@ -111,9 +139,9 @@
    (mount-path :initarg :mount-path :accessor pipeline-mount-path :initform "/stream.mp3")
    (sample-rate :initarg :sample-rate :accessor pipeline-sample-rate :initform 44100)
    (channels :initarg :channels :accessor pipeline-channels :initform 2)
-   (running :initform nil :accessor pipeline-running-p)
+   (running :initform nil :accessor %pipeline-running)
    ;; Track state
-   (current-track :initform nil :accessor pipeline-current-track
+   (current-track :initform nil :accessor %pipeline-current-track
                   :documentation "Plist of current track: (:title :artist :album :file :display-title)")
    (on-track-change :initarg :on-track-change :initform nil
                     :accessor pipeline-on-track-change
@@ -129,7 +157,10 @@
                           :documentation "Playlist path queued by scheduler, applied when tracks start playing")
    (on-playlist-change :initarg :on-playlist-change :initform nil
                        :accessor pipeline-on-playlist-change
-                       :documentation "Callback (lambda (pipeline playlist-path)) called when scheduler playlist starts")))
+                       :documentation "Callback (lambda (pipeline playlist-path)) called when scheduler playlist starts")
+   ;; Hook system
+   (hooks :initform (make-hash-table :test 'eq) :reader pipeline-hooks
+          :documentation "Hash table mapping event keywords to lists of hook functions")))
 
 (defun make-audio-pipeline (&key encoder stream-server (mount-path "/stream.mp3")
                                  (sample-rate 44100) (channels 2))
@@ -155,9 +186,9 @@
           (make-instance 'streaming-drain :channels (pipeline-channels pipeline))))
   (drain-add-output (pipeline-drain pipeline) encoder mount-path))
 
-(defun start-pipeline (pipeline)
+(defmethod pipeline-start ((pipeline audio-pipeline))
   "Start the audio pipeline - initializes Harmony with our streaming drain."
-  (when (pipeline-running-p pipeline)
+  (when (%pipeline-running pipeline)
     (error "Pipeline already running"))
   (mixed:init)
   (let* ((server (harmony:make-simple-server
@@ -187,14 +218,14 @@
       (mixed:add drain output))
     (setf (pipeline-harmony-server pipeline) server)
     (mixed:start server))
-  (setf (pipeline-running-p pipeline) t)
+  (setf (%pipeline-running pipeline) t)
   (log:info "Audio pipeline started with streaming drain (~A outputs)"
             (length (drain-outputs (pipeline-drain pipeline))))
   pipeline)
 
-(defun stop-pipeline (pipeline)
+(defmethod pipeline-stop ((pipeline audio-pipeline))
   "Stop the audio pipeline."
-  (setf (pipeline-running-p pipeline) nil)
+  (setf (%pipeline-running pipeline) nil)
   (when (pipeline-harmony-server pipeline)
     (mixed:end (pipeline-harmony-server pipeline))
     (setf (pipeline-harmony-server pipeline) nil))
@@ -203,12 +234,12 @@
 
 ;;; ---- Pipeline Control ----
 
-(defun pipeline-skip (pipeline)
+(defmethod pipeline-skip ((pipeline audio-pipeline))
   "Skip the current track. The play-list loop will detect this and advance."
   (setf (pipeline-skip-flag pipeline) t)
   (log:info "Skip requested"))
 
-(defun pipeline-queue-files (pipeline file-entries &key (position :end))
+(defmethod pipeline-queue-files ((pipeline audio-pipeline) file-entries &key (position :end))
   "Add file entries to the pipeline queue.
    Each entry is a string (path) or plist (:file path :title title).
    POSITION is :end (append) or :next (prepend)."
@@ -220,12 +251,12 @@
                (append (pipeline-file-queue pipeline) file-entries)))))
   (log:info "Queued ~A files (~A)" (length file-entries) position))
 
-(defun pipeline-get-queue (pipeline)
+(defmethod pipeline-get-queue ((pipeline audio-pipeline))
   "Get the current file queue (copy)."
   (bt:with-lock-held ((pipeline-queue-lock pipeline))
     (copy-list (pipeline-file-queue pipeline))))
 
-(defun pipeline-clear-queue (pipeline)
+(defmethod pipeline-clear-queue ((pipeline audio-pipeline))
   "Clear the file queue."
   (bt:with-lock-held ((pipeline-queue-lock pipeline))
     (setf (pipeline-file-queue pipeline) nil))
@@ -301,9 +332,13 @@
   (dolist (output (drain-outputs (pipeline-drain pipeline)))
     (cl-streamer:set-now-playing (cdr output) display-title)))
 
+(defmethod pipeline-update-metadata ((pipeline audio-pipeline) title)
+  "Update ICY metadata on all mount points (protocol method)."
+  (update-all-mounts-metadata pipeline title))
+
 (defun notify-track-change (pipeline track-info)
   "Update pipeline state and fire the on-track-change callback."
-  (setf (pipeline-current-track pipeline) track-info)
+  (setf (%pipeline-current-track pipeline) track-info)
   (when (pipeline-on-track-change pipeline)
     (handler-case
         (funcall (pipeline-on-track-change pipeline) pipeline track-info)
@@ -421,7 +456,7 @@
                (idx 0)
                (remaining-list (list (copy-list file-list)))
                (current-list (list (copy-list file-list))))
-           (loop while (pipeline-running-p pipeline)
+           (loop while (%pipeline-running pipeline)
                  for entry = (next-entry pipeline remaining-list current-list)
                  do (cond
                       ;; No entry and loop mode: re-queue current playlist
@@ -481,7 +516,7 @@
                                            (ignore-errors (mixed:frame-position voice))
                                            (ignore-errors (mixed:frame-count voice))
                                            (ignore-errors (mixed:samplerate voice))))
-                               (loop while (and (pipeline-running-p pipeline)
+                               (loop while (and (%pipeline-running pipeline)
                                                 (not (mixed:done-p voice))
                                                 (not (pipeline-skip-flag pipeline)))
                                      for remaining = (voice-remaining-seconds voice)
@@ -513,4 +548,52 @@
        (error (e)
          (log:error "play-list thread crashed: ~A" e))))
    :name "cl-streamer-playlist"))
+
+;;; ---- Backward-Compatible Aliases ----
+;;; These allow existing code using cl-streamer/harmony:start-pipeline etc.
+;;; to continue working while we transition to the protocol generics.
+
+(defun start-pipeline (pipeline)
+  "Start the audio pipeline. Alias for (pipeline-start pipeline)."
+  (pipeline-start pipeline))
+
+(defun stop-pipeline (pipeline)
+  "Stop the audio pipeline. Alias for (pipeline-stop pipeline)."
+  (pipeline-stop pipeline))
+
+;;; ---- Protocol Method Implementations ----
+
+(defmethod pipeline-running-p ((pipeline audio-pipeline))
+  "Return T if the pipeline is currently running."
+  (%pipeline-running pipeline))
+
+(defmethod pipeline-current-track ((pipeline audio-pipeline))
+  "Return the current track info plist, or NIL."
+  (%pipeline-current-track pipeline))
+
+(defmethod pipeline-listener-count ((pipeline audio-pipeline) &optional mount)
+  "Return the listener count from the stream server."
+  (cl-streamer:get-listener-count mount))
+
+;;; ---- Hook System ----
+
+(defmethod pipeline-add-hook ((pipeline audio-pipeline) event function)
+  "Register FUNCTION to be called when EVENT occurs.
+   Events: :track-change, :playlist-change"
+  (push function (gethash event (pipeline-hooks pipeline)))
+  (log:debug "Hook added for ~A" event))
+
+(defmethod pipeline-remove-hook ((pipeline audio-pipeline) event function)
+  "Remove FUNCTION from the hook list for EVENT."
+  (setf (gethash event (pipeline-hooks pipeline))
+        (remove function (gethash event (pipeline-hooks pipeline))))
+  (log:debug "Hook removed for ~A" event))
+
+(defmethod pipeline-fire-hook ((pipeline audio-pipeline) event &rest args)
+  "Fire all hooks registered for EVENT."
+  (dolist (fn (gethash event (pipeline-hooks pipeline)))
+    (handler-case
+        (apply fn pipeline args)
+      (error (e)
+        (log:warn "Hook error (~A): ~A" event e)))))
 

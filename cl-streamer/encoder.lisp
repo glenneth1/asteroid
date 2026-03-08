@@ -94,3 +94,14 @@
 (defun lame-version ()
   "Return the LAME library version string."
   (get-lame-version))
+
+;;; ---- Protocol Methods ----
+
+(defmethod encoder-encode ((encoder mp3-encoder) pcm-buffer num-samples)
+  (encode-pcm-interleaved encoder pcm-buffer num-samples))
+
+(defmethod encoder-flush ((encoder mp3-encoder))
+  (encode-flush encoder))
+
+(defmethod encoder-close ((encoder mp3-encoder))
+  (close-encoder encoder))
