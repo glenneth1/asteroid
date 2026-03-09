@@ -105,7 +105,7 @@
             (setf (header "Content-Type") "text/plain")
             "Stream Offline")))))
 
-(define-api-with-limit asteroid/partial/now-playing-json (&optional mount) (:limit 30 :timeout 60)
+(define-api-with-limit asteroid/partial/now-playing-json (&optional mount) (:limit 120 :timeout 60)
   "Get JSON with now playing info including track ID for favorites.
    Optional MOUNT parameter specifies which stream to get metadata from."
   ;; Register web listener for geo stats (keeps listener active during playback)
