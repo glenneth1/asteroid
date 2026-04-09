@@ -148,6 +148,11 @@
   (setf *current-playlist-path* playlist-path)
   (log:info "Playlist now active: ~A" (file-namestring playlist-path)))
 
+(defvar *pending-save-file* nil
+  "The file path that will be saved on the NEXT track change.
+   This one-track delay ensures we persist the track that was actually playing,
+   not the one being loaded during crossfade.")
+
 (defun on-harmony-track-change (pipeline track-info)
   "Called by cl-streamer when a track changes.
    Updates recently-played lists and finds the track in the database."
@@ -168,9 +173,10 @@
                                  :track-id track-id)
                            :curated)
       (setf *last-known-track-curated* display-title))
-    ;; Persist current track for resume-on-restart
-    (when file-path
-      (save-playback-state file-path))
+    ;; Save the PREVIOUS track (which was actually playing) and queue this one
+    (when *pending-save-file*
+      (save-playback-state *pending-save-file*))
+    (setf *pending-save-file* file-path)
     (log:info "Track change: ~A (track-id: ~A)" display-title track-id)))
 
 (defun find-track-by-file-path (file-path)
@@ -191,19 +197,38 @@
 
 (defun harmony-now-playing (&optional (mount "asteroid.mp3"))
   "Get now-playing information from cl-streamer pipeline.
-   Returns an alist with now-playing data, or NIL if the pipeline is not running."
+   Uses the metadata timeline to report what listeners are actually hearing,
+   accounting for ring buffer and browser decode buffering."
   (when (and *harmony-pipeline*
              (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
-    (let* ((track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
-           (display-title (or (getf track-info :display-title) "Unknown"))
+    (let* ((server (cl-streamer/harmony:pipeline-server *harmony-pipeline*))
+           (listener-title (when server
+                             (cl-streamer:get-listener-now-playing
+                              server (format nil "/~A" mount))))
+           (track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
+           (display-title (or listener-title
+                              (getf track-info :display-title)
+                              "Unknown"))
            (listeners (cl-streamer:pipeline-listener-count *harmony-pipeline*))
            (track-id (or (find-track-by-title display-title)
-                         (find-track-by-file-path (getf track-info :file)))))
+                         (find-track-by-file-path (getf track-info :file))))
+           (raw-remaining (cl-streamer/harmony:pipeline-track-remaining *harmony-pipeline*))
+           ;; Adjust for browser buffer delay - listener is further behind than pipeline
+           (remaining (when raw-remaining
+                        (let ((adjusted (+ raw-remaining cl-streamer::*browser-buffer-seconds*)))
+                          (max 0 (floor adjusted))))))
+      ;; Diagnostic: log when listener-title differs from pipeline title
+      (let ((pipeline-title (getf track-info :display-title)))
+        (when (and listener-title pipeline-title
+                   (not (string= listener-title pipeline-title)))
+          (log:info "[SYNC-DIAG] API returning ~S (pipeline has ~S, delay=~As)"
+                    listener-title pipeline-title cl-streamer::*browser-buffer-seconds*)))
       `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
         (:title . ,display-title)
         (:listeners . ,(or listeners 0))
         (:track-id . ,track-id)
-        (:favorite-count . ,(or (get-track-favorite-count display-title) 0))))))
+        (:favorite-count . ,(or (get-track-favorite-count display-title) 0))
+        ,@(when remaining `((:remaining . ,remaining)))))))
 
 ;;; ---- Pipeline Lifecycle ----
 

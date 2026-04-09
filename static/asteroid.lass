@@ -1108,6 +1108,13 @@
     :flex 1
     :min-width "300px")
 
+   (.track-countdown-mini
+    :color "#888"
+    :font-size "0.75em"
+    :font-family "monospace"
+    :margin-left "6px"
+    :white-space "nowrap")
+
    (.persistent-reconnect-btn
     :background transparent
     :color "#00ff00"
@@ -1287,6 +1294,12 @@
 
    (.craftering
     (a :margin "0 5px")))
+
+  (.track-countdown
+   :color "#888"
+   :font-size "0.8em"
+   :font-family "monospace"
+   :margin-left "8px")
 
   ;; Now playing favorite button
   (.now-playing-track

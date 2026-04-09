@@ -866,7 +866,52 @@
                      (ps:chain console (log "Could not load recent requests:" error))))))))
      
      ;; Load recent requests on page load
-     (load-recent-requests)))
+     (load-recent-requests)
+     
+     ;; Main page countdown timer
+     (defvar *main-remaining* nil)
+     
+     (defun format-countdown (seconds)
+       (let ((m (ps:chain -math (floor (/ seconds 60))))
+             (s (ps:chain -math (floor (mod seconds 60)))))
+         (+ (if (< m 10) (+ "0" m) m) ":" (if (< s 10) (+ "0" s) s))))
+     
+     (defun poll-now-playing ()
+       (let ((mount (or (ps:chain local-storage (get-item "stream-mount")) "asteroid.mp3")))
+         (ps:chain
+          (fetch (+ "/api/asteroid/partial/now-playing-json?mount=" mount))
+          (then (lambda (response)
+                  (if (ps:@ response ok)
+                      (ps:chain response (json))
+                      nil)))
+          (then (lambda (data)
+                  (when data
+                    (let ((title (or (ps:@ data data title) (ps:@ data title)))
+                          (remaining (or (ps:@ data data remaining) (ps:@ data remaining)))
+                          (listeners (or (ps:@ data data listeners) (ps:@ data listeners)))
+                          (title-el (ps:chain document (get-element-by-id "current-track-title")))
+                          (listener-el (ps:chain document (get-element-by-id "current-listeners"))))
+                      (when (and title-el title)
+                        (setf (ps:@ title-el text-content) title))
+                      (when (and listener-el listeners)
+                        (setf (ps:@ listener-el text-content) listeners))
+                      (when remaining
+                        (setf *main-remaining* remaining))))))
+          (catch (lambda (error) nil)))))
+     
+     ;; Start polling and countdown ticker on the main page
+     (set-timeout poll-now-playing 2000)
+     (set-interval poll-now-playing 15000)
+     (set-interval
+      (lambda ()
+        (let ((el (ps:chain document (get-element-by-id "track-countdown-main"))))
+          (when el
+            (if (and *main-remaining* (> *main-remaining* 0))
+                (progn
+                  (decf *main-remaining*)
+                  (setf (ps:@ el text-content) (+ "[" (format-countdown *main-remaining*) "]")))
+                (setf (ps:@ el text-content) "")))))
+      1000)))
   "Compiled JavaScript for front-page - generated at load time")
 
 (defun generate-front-page-js ()

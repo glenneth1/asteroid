@@ -336,6 +336,30 @@
     ;; Track last notified title to avoid duplicate notifications
     (defvar *last-notified-title* nil)
     
+    ;; Countdown timer state
+    (defvar *track-remaining-seconds* nil)
+    (defvar *countdown-interval* nil)
+    
+    (defun format-countdown (seconds)
+      (let ((m (ps:chain -math (floor (/ seconds 60))))
+            (s (ps:chain -math (floor (mod seconds 60)))))
+        (+ (if (< m 10) (+ "0" m) m) ":" (if (< s 10) (+ "0" s) s))))
+    
+    (defun start-countdown-ticker ()
+      (when *countdown-interval*
+        (clear-interval *countdown-interval*))
+      (setf *countdown-interval*
+            (set-interval
+             (lambda ()
+               (let ((el (ps:chain document (get-element-by-id "track-countdown"))))
+                 (when el
+                   (if (and *track-remaining-seconds* (> *track-remaining-seconds* 0))
+                       (progn
+                         (decf *track-remaining-seconds*)
+                         (setf (ps:@ el text-content) (+ "[" (format-countdown *track-remaining-seconds*) "]")))
+                       (setf (ps:@ el text-content) "")))))
+             1000)))
+    
     ;; Check if notifications are enabled in localStorage
     (defun notifications-enabled-p ()
       (= (ps:chain local-storage (get-item "notifications-enabled")) "true"))
@@ -410,6 +434,12 @@
     
     ;; Show a system notification for track change
     (defun show-track-notification (title body)
+      (ps:chain console (log "[NOTIFY] show-track-notification called:"
+                             "supported=" (notifications-supported-p)
+                             "permission=" (get-notification-permission)
+                             "enabled=" (notifications-enabled-p)
+                             "last=" *last-notified-title*
+                             "title=" title))
       (when (and (notifications-supported-p)
                  (= (get-notification-permission) "granted")
                  (notifications-enabled-p)
@@ -422,6 +452,7 @@
                                                   :tag "asteroid-track-change"
                                                   :renotify true
                                                   :silent false)))))
+           (ps:chain console (log "[NOTIFY] Notification created successfully"))
            ;; Auto-close after 5 seconds
            (set-timeout (lambda () (ps:chain notification (close))) 5000)
            ;; Click to focus the window
@@ -430,7 +461,7 @@
                    (ps:chain window (focus))
                    (ps:chain notification (close)))))
          (:catch (e)
-           (ps:chain console (log "Notification error:" e))))))
+           (ps:chain console (log "[NOTIFY] Notification error:" e))))))
     
     ;; Notify track change (called from update-mini-now-playing)
     (defun notify-track-change (title)
@@ -514,16 +545,15 @@
                       (when el
                         ;; Check if track changed and record to history + notify
                         (when (not (= (ps:@ el text-content) title))
+                          (ps:chain console (log "[STREAM-SYNC] Title changed:" title))
                           (record-track-listen title)
                           (notify-track-change title))
                         (setf (ps:@ el text-content) title)
-                        ;; Check if this track is in user's favorites
                         (check-favorite-status-mini))
                       (update-media-session title)
                       (when track-id-el
                         (let ((track-id (or (ps:@ data data track_id) (ps:@ data track_id))))
                           (setf (ps:@ track-id-el value) (or track-id ""))))
-                      ;; Update favorite count display
                       (let ((count-el (ps:chain document (get-element-by-id "favorite-count-mini")))
                             (fav-count (or (ps:@ data data favorite_count) (ps:@ data favorite_count) 0)))
                         (when count-el
@@ -531,7 +561,10 @@
                             ((= fav-count 0) (setf (ps:@ count-el text-content) ""))
                             ((= fav-count 1) (setf (ps:@ count-el text-content) "1 ❤️"))
                             (t (setf (ps:@ count-el text-content) (+ fav-count " ❤️"))))))
-                      ;; Update MusicBrainz search link
+                      ;; Sync countdown timer from server
+                      (let ((remaining (or (ps:@ data data remaining) (ps:@ data remaining))))
+                        (when remaining
+                          (setf *track-remaining-seconds* remaining)))
                       (let ((mb-link (ps:chain document (get-element-by-id "mini-musicbrainz-link")))
                             (search-url (or (ps:@ data data search_url) (ps:@ data search_url))))
                         (when mb-link
@@ -724,6 +757,35 @@
                  (catch (lambda (err)
                           (ps:chain console (log "Reconnect failed:" err))))))
      
+     ;; Buffer bloat detection and reset
+     (defvar *max-buffer-seconds* 15)
+     (defvar *buffer-check-interval* nil)
+     
+     (defun get-buffer-ahead (audio-element)
+       "Return seconds of audio buffered ahead of current playback position."
+       (ps:try
+        (when (and (ps:@ audio-element buffered)
+                   (> (ps:@ audio-element buffered length) 0))
+          (- (ps:chain audio-element buffered (end (- (ps:@ audio-element buffered length) 1)))
+             (ps:@ audio-element current-time)))
+        (:catch (e) 0)))
+     
+     (defun start-buffer-monitor (audio-element)
+       (when *buffer-check-interval*
+         (clear-interval *buffer-check-interval*))
+       (setf *buffer-check-interval*
+             (set-interval
+              (lambda ()
+                (when (and (not (ps:@ audio-element paused))
+                           (not *is-reconnecting*))
+                  (let ((ahead (get-buffer-ahead audio-element)))
+                    (when (and ahead (> ahead 0))
+                      (ps:chain console (log (+ "[BUFFER] " (ps:chain ahead (to-fixed 1)) "s ahead")))
+                      (when (> ahead *max-buffer-seconds*)
+                        (ps:chain console (log (+ "[BUFFER] Bloat detected (" (ps:chain ahead (to-fixed 1)) "s), resetting stream")))
+                        (reconnect-stream))))))
+              10000)))
+
      ;; Attach event listeners to audio element
      (defun attach-audio-listeners (audio-element)
        (ps:chain audio-element
@@ -907,8 +969,9 @@
                                       :artist "Asteroid Radio"
                                       :album "Live Broadcast")))))
            
-           ;; Attach event listeners
+           ;; Attach event listeners and buffer monitor
            (attach-audio-listeners audio-element)
+           (start-buffer-monitor audio-element)
            
            ;; Restore user channel preference
            (let ((channel-selector (ps:chain document (get-element-by-id "stream-channel")))
@@ -958,9 +1021,10 @@
                            (ps:chain console (log "Could not fetch channel name:" error))))))
                15000))  ;; Poll every 15 seconds
            
-           ;; Start now playing updates
+           ;; Start now playing updates and countdown ticker
            (set-timeout update-mini-now-playing 1000)
-           (set-interval update-mini-now-playing 15000))))
+           (set-interval update-mini-now-playing 15000)
+           (start-countdown-ticker))))
      
      ;; Initialize popout player
      (defun init-popout-player ()

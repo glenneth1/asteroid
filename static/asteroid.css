@@ -1372,6 +1372,14 @@ body.persistent-player-container .now-playing-mini{
     min-width: 300px;
 }
 
+body.persistent-player-container .track-countdown-mini{
+    color: #888;
+    font-size: 0.75em;
+    font-family: monospace;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
 body.persistent-player-container .persistent-reconnect-btn{
     background: transparent;
     color: #00ff00;
@@ -1593,6 +1601,13 @@ body.popout-body .status-mini{
 
 .site-footer .craftering a{
     margin: 0 5px;
+}
+
+.track-countdown{
+    color: #888;
+    font-size: 0.8em;
+    font-family: monospace;
+    margin-left: 8px;
 }
 
 .now-playing-track{

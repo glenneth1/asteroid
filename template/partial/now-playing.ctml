@@ -3,7 +3,8 @@
     <c:then>
         <c:using value="stats">
             <div class="now-playing-track">
-                <p>Track: <span lquery="(text title)" id="current-track-title">The Void - Silence</span></p>
+                <p>Track: <span lquery="(text title)" id="current-track-title">The Void - Silence</span>
+                    <span id="track-countdown-main" class="track-countdown"></span></p>
                 <button class="btn-favorite" id="favorite-btn" onclick="toggleFavorite()" title="Add to favorites">
                     <span class="star-icon">☆</span>
                 </button>
