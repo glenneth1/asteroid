@@ -779,12 +779,12 @@
                 (when (and (not (ps:@ audio-element paused))
                            (not *is-reconnecting*))
                   (let ((ahead (get-buffer-ahead audio-element)))
-                    (when (and ahead (> ahead 0))
-                      (ps:chain console (log (+ "[BUFFER] " (ps:chain ahead (to-fixed 1)) "s ahead")))
-                      (when (> ahead *max-buffer-seconds*)
-                        (ps:chain console (log (+ "[BUFFER] Bloat detected (" (ps:chain ahead (to-fixed 1)) "s), resetting stream")))
-                        (reconnect-stream))))))
-              10000)))
+                    (when (and ahead (> ahead 5))
+                      (ps:chain console (log (+ "[BUFFER] " (ps:chain ahead (to-fixed 1)) "s ahead"))))
+                    (when (and ahead (> ahead *max-buffer-seconds*))
+                      (ps:chain console (log (+ "[BUFFER] Bloat detected (" (ps:chain ahead (to-fixed 1)) "s), resetting stream")))
+                      (reconnect-stream)))))
+              30000)))
 
      ;; Attach event listeners to audio element
      (defun attach-audio-listeners (audio-element)

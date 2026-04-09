@@ -212,23 +212,26 @@
            (listeners (cl-streamer:pipeline-listener-count *harmony-pipeline*))
            (track-id (or (find-track-by-title display-title)
                          (find-track-by-file-path (getf track-info :file))))
+           (pipeline-title (getf track-info :display-title))
            (raw-remaining (cl-streamer/harmony:pipeline-track-remaining *harmony-pipeline*))
-           ;; Adjust for browser buffer delay - listener is further behind than pipeline
-           (remaining (when raw-remaining
-                        (let ((adjusted (+ raw-remaining cl-streamer::*browser-buffer-seconds*)))
-                          (max 0 (floor adjusted))))))
-      ;; Diagnostic: log when listener-title differs from pipeline title
-      (let ((pipeline-title (getf track-info :display-title)))
+           (titles-match (or (null listener-title)
+                             (null pipeline-title)
+                             (string= listener-title pipeline-title)))
+           ;; Only show remaining when titles match (delay has passed).
+           ;; During the transition window the countdown would be inaccurate.
+           (remaining (when (and raw-remaining titles-match)
+                        (max 0 (floor raw-remaining))))) 
+        ;; Diagnostic: log when listener-title differs from pipeline title
         (when (and listener-title pipeline-title
                    (not (string= listener-title pipeline-title)))
           (log:info "[SYNC-DIAG] API returning ~S (pipeline has ~S, delay=~As)"
-                    listener-title pipeline-title cl-streamer::*browser-buffer-seconds*)))
-      `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
-        (:title . ,display-title)
-        (:listeners . ,(or listeners 0))
-        (:track-id . ,track-id)
-        (:favorite-count . ,(or (get-track-favorite-count display-title) 0))
-        ,@(when remaining `((:remaining . ,remaining)))))))
+                    listener-title pipeline-title cl-streamer::*browser-buffer-seconds*))
+        `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
+          (:title . ,display-title)
+          (:listeners . ,(or listeners 0))
+          (:track-id . ,track-id)
+          (:favorite-count . ,(or (get-track-favorite-count display-title) 0))
+          ,@(when remaining `((:remaining . ,remaining)))))))
 
 ;;; ---- Pipeline Lifecycle ----
 
