@@ -776,7 +776,7 @@
                                  (setf (ps:@ curated-option text-content) (+ "🎧 " current-channel-name)))))))))))
            (catch (lambda (error)
                     (ps:chain console (log "Could not fetch channel name:" error))))))
-        10000))  ;; Poll every 10 seconds
+        15000))  ;; Poll every 15 seconds
     
     ;; Listen for messages from popout window
      (ps:chain window

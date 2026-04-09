@@ -1,4 +1,10 @@
 ;;;; limiter.lisp - Rate limiter definitions for the application
+;;;;
+;;;; Includes monkey-patches for r-simple-rate's sliding-window bug:
+;;;; upstream tax-rate updates the timestamp on EVERY request, which
+;;;; prevents the window from ever resetting while polling is active.
+;;;; Our overrides use a proper fixed window — the timestamp is only
+;;;; updated when the window expires and the counter resets.
 
 (in-package :asteroid)
 
@@ -14,6 +20,56 @@
           (l:info :rate-limiter "Cleaned up ~a corrupted rate limit entries" deleted)))
     (error (e)
       (l:warn :rate-limiter "Failed to cleanup rate limits: ~a" e))))
+
+;;; ——— r-simple-rate fixed-window overrides ———
+
+(defun simple-rate::tax-rate (limit &key (ip (remote *request*)))
+  "Fixed-window version of tax-rate.
+   Only updates the timestamp when the window resets, not on every request.
+   This prevents the sliding-window bug where continuous polling starves
+   the counter because the reset condition never triggers."
+  (let* ((limit (simple-rate::limit limit))
+         (tracking (dm:get-one 'simple-rate::tracking
+                               (db:query (:and (:= 'limit (simple-rate::name limit))
+                                               (:= 'ip ip))))))
+    (cond (tracking
+           ;; If the window has expired, reset counter AND timestamp
+           (when (<= (+ (dm:field tracking "time")
+                        (simple-rate::timeout limit))
+                     (get-universal-time))
+             (setf (dm:field tracking "amount") (simple-rate::amount limit))
+             (setf (dm:field tracking "time") (get-universal-time)))
+           ;; Tax it (do NOT touch timestamp here — fixed window)
+           (decf (dm:field tracking "amount"))
+           (dm:save tracking))
+          (t
+           (db:insert 'simple-rate::tracking
+                      `((limit . ,(simple-rate::name limit))
+                        (time . ,(get-universal-time))
+                        (amount . ,(simple-rate::amount limit))
+                        (ip . ,ip)))))))
+
+(defun rate:left (limit &key (ip (remote *request*)))
+  "Fixed-window version of rate:left.
+   Returns correct remaining amount even for expired windows, so that
+   with-limitation does not block on stale tracking entries."
+  (let* ((limit (simple-rate::limit limit))
+         (tracking (dm:get-one 'simple-rate::tracking
+                               (db:query (:and (:= 'limit (simple-rate::name limit))
+                                               (:= 'ip ip))))))
+    (if tracking
+        (let ((window-end (+ (dm:field tracking "time")
+                             (simple-rate::timeout limit)))
+              (now (get-universal-time)))
+          (if (<= window-end now)
+              ;; Window expired — report full budget
+              (values (simple-rate::amount limit) 0)
+              ;; Window still active
+              (values (dm:field tracking "amount")
+                      (- window-end now))))
+        ;; No tracking entry yet — full budget
+        (values (simple-rate::amount limit)
+                (simple-rate::timeout limit)))))
 
 (define-trigger db:connected ()
   "Clean up any corrupted rate limit entries on startup"

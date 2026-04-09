@@ -68,7 +68,7 @@
           (shuffle-now-playing mount)
           (harmony-now-playing mount))))
 
-(define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 30 :timeout 60)
+(define-api-with-limit asteroid/partial/now-playing (&optional mount) (:limit 120 :timeout 60)
   "Get Partial HTML with live now-playing status.
    Optional MOUNT parameter specifies which stream to get metadata from.
    Returns partial HTML with current track info."
@@ -91,7 +91,7 @@
              :connection-error t
              :stats nil))))))
 
-(define-api-with-limit asteroid/partial/now-playing-inline (&optional mount) (:limit 30 :timeout 60)
+(define-api-with-limit asteroid/partial/now-playing-inline (&optional mount) (:limit 120 :timeout 60)
   "Get inline text with now playing info (for admin dashboard and widgets).
    Optional MOUNT parameter specifies which stream to get metadata from."
   (with-error-handling
