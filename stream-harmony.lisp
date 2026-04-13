@@ -13,7 +13,7 @@
   "Port for the cl-streamer HTTP stream server.")
 
 (defvar *shuffle-pipeline* nil
-  "The shuffle stream pipeline — plays random tracks from the music library.")
+  "The shuffle stream pipeline  - plays random tracks from the music library.")
 
 ;; Encoder instances are now owned by the pipeline (Phase 2).
 ;; Kept as aliases for backward compatibility with any external references.
@@ -99,12 +99,12 @@
           (setf *current-playlist-path* playlist-path)
           (setf *resumed-from-saved-state* t)
           (if playlist-changed-p
-              ;; Different playlist should be active — start from beginning
+              ;; Different playlist should be active  - start from beginning
               (progn
                 (log:info "Scheduled playlist changed: ~A -> ~A, starting from beginning"
                           saved-playlist-name scheduled-name)
                 (values file-list playlist-path))
-              ;; Same playlist — resume from saved position
+              ;; Same playlist  - resume from saved position
               (let ((pos (when saved-file
                            (position saved-file file-list :test #'string=))))
                 (if pos
@@ -197,41 +197,30 @@
 
 (defun harmony-now-playing (&optional (mount "asteroid.mp3"))
   "Get now-playing information from cl-streamer pipeline.
-   Uses the metadata timeline to report what listeners are actually hearing,
-   accounting for ring buffer and browser decode buffering."
+   Returns the current pipeline title, remaining seconds, and a server
+   timestamp (epoch ms) of when the metadata last changed. The client
+   uses this timestamp plus its known buffer lag to schedule UI updates."
   (when (and *harmony-pipeline*
              (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
-    (let* ((server (cl-streamer/harmony:pipeline-server *harmony-pipeline*))
-           (listener-title (when server
-                             (cl-streamer:get-listener-now-playing
-                              server (format nil "/~A" mount))))
-           (track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
-           (display-title (or listener-title
-                              (getf track-info :display-title)
-                              "Unknown"))
+    (let* ((track-info (cl-streamer/harmony:pipeline-current-track *harmony-pipeline*))
+           (display-title (or (getf track-info :display-title) "Unknown"))
            (listeners (cl-streamer:pipeline-listener-count *harmony-pipeline*))
            (track-id (or (find-track-by-title display-title)
                          (find-track-by-file-path (getf track-info :file))))
-           (pipeline-title (getf track-info :display-title))
            (raw-remaining (cl-streamer/harmony:pipeline-track-remaining *harmony-pipeline*))
-           (titles-match (or (null listener-title)
-                             (null pipeline-title)
-                             (string= listener-title pipeline-title)))
-           ;; Only show remaining when titles match (delay has passed).
-           ;; During the transition window the countdown would be inaccurate.
-           (remaining (when (and raw-remaining titles-match)
-                        (max 0 (floor raw-remaining))))) 
-        ;; Diagnostic: log when listener-title differs from pipeline title
-        (when (and listener-title pipeline-title
-                   (not (string= listener-title pipeline-title)))
-          (log:info "[SYNC-DIAG] API returning ~S (pipeline has ~S, delay=~As)"
-                    listener-title pipeline-title cl-streamer::*browser-buffer-seconds*))
-        `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
-          (:title . ,display-title)
-          (:listeners . ,(or listeners 0))
-          (:track-id . ,track-id)
-          (:favorite-count . ,(or (get-track-favorite-count display-title) 0))
-          ,@(when remaining `((:remaining . ,remaining)))))))
+           (remaining (when raw-remaining (max 0 (floor raw-remaining))))
+           ;; Server epoch ms when metadata last changed
+           (server (cl-streamer/harmony:pipeline-server *harmony-pipeline*))
+           (changed-at (when server
+                         (cl-streamer:get-metadata-changed-at
+                          server (format nil "/~A" mount)))))
+      `((:listenurl . ,(format nil "~A/~A" *stream-base-url* mount))
+        (:title . ,display-title)
+        (:listeners . ,(or listeners 0))
+        (:track-id . ,track-id)
+        (:favorite-count . ,(or (get-track-favorite-count display-title) 0))
+        ,@(when remaining `((:remaining . ,remaining)))
+        ,@(when changed-at `((:changed-at . ,changed-at)))))))
 
 ;;; ---- Pipeline Lifecycle ----
 
@@ -245,7 +234,7 @@
     (log:warn "Harmony streaming already running")
     (return-from start-harmony-streaming *harmony-pipeline*))
 
-  ;; Create pipeline from declarative spec — server, mounts, encoders all handled
+  ;; Create pipeline from declarative spec  - server, mounts, encoders all handled
   (setf *harmony-pipeline*
         (cl-streamer/harmony:make-pipeline
          :port port
@@ -272,7 +261,7 @@
 
 (defun stop-harmony-streaming ()
   "Stop the cl-streamer pipeline and stream server.
-   Pipeline owns encoders and server — cleanup is automatic."
+   Pipeline owns encoders and server  - cleanup is automatic."
   (when *harmony-pipeline*
     (cl-streamer/harmony:pipeline-stop *harmony-pipeline*)
     (setf *harmony-pipeline* nil))
@@ -288,7 +277,7 @@
   (when *harmony-pipeline*
     (let ((file-list (m3u-to-file-list m3u-path)))
       (when file-list
-        ;; Store pending playlist path on pipeline — it will be applied
+        ;; Store pending playlist path on pipeline  - it will be applied
         ;; when drain-queue-into-remaining fires and the new tracks
         ;; actually start playing, not now at queue time.
         (setf (cl-streamer/harmony:pipeline-pending-playlist-path *harmony-pipeline*)
@@ -327,7 +316,7 @@
       (list :running nil)))
 
 ;;; ============================================================
-;;; Shuffle Stream — random tracks from the music library
+;;; Shuffle Stream  - random tracks from the music library
 ;;; ============================================================
 
 (defvar *shuffle-batch-size* 20

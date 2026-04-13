@@ -340,6 +340,12 @@
     (defvar *track-remaining-seconds* nil)
     (defvar *countdown-interval* nil)
     
+    ;; Client-side sync: schedule title/notification updates based on server timestamp
+    (defvar *pending-title-timer* nil)
+    (defvar *pending-title* nil)
+    (defvar *measured-buffer-lag-ms* 2300)
+    (defvar *mini-now-playing-in-flight* false)
+    
     (defun format-countdown (seconds)
       (let ((m (ps:chain -math (floor (/ seconds 60))))
             (s (ps:chain -math (floor (mod seconds 60)))))
@@ -528,53 +534,101 @@
                   (ps:@ response ok)))
           (catch (lambda (error) nil)))))
      
+     ;; Apply a title update to the UI immediately
+     (defun apply-title-update (title data)
+       (let ((el (ps:chain document (get-element-by-id "mini-now-playing")))
+             (track-id-el (ps:chain document (get-element-by-id "current-track-id-mini"))))
+         (when el
+           (ps:chain console (log "[STREAM-SYNC] Applying title:" title))
+           (record-track-listen title)
+           (notify-track-change title)
+           (setf (ps:@ el text-content) title)
+           (check-favorite-status-mini))
+         (update-media-session title)
+         (when track-id-el
+           (let ((track-id (or (ps:@ data data track_id) (ps:@ data track_id))))
+             (setf (ps:@ track-id-el value) (or track-id ""))))
+         (let ((count-el (ps:chain document (get-element-by-id "favorite-count-mini")))
+               (fav-count (or (ps:@ data data favorite_count) (ps:@ data favorite_count) 0)))
+           (when count-el
+             (cond
+               ((= fav-count 0) (setf (ps:@ count-el text-content) ""))
+               ((= fav-count 1) (setf (ps:@ count-el text-content) "1 ❤️"))
+               (t (setf (ps:@ count-el text-content) (+ fav-count " ❤️"))))))
+         ;; Sync countdown timer from server remaining
+         (let ((remaining (or (ps:@ data data remaining) (ps:@ data remaining))))
+           (when remaining
+             (setf *track-remaining-seconds* remaining)))
+         (let ((mb-link (ps:chain document (get-element-by-id "mini-musicbrainz-link")))
+               (search-url (or (ps:@ data data search_url) (ps:@ data search_url))))
+           (when mb-link
+             (if search-url
+                 (progn
+                   (setf (ps:@ mb-link href) search-url)
+                   (setf (ps:@ mb-link style display) "inline"))
+                 (setf (ps:@ mb-link style display) "none"))))))
+     
      ;; Update mini now playing display (for persistent player frame)
      (defun update-mini-now-playing ()
-       (let ((mount (get-current-mount)))
-         (ps:chain
-          (fetch (+ "/api/asteroid/partial/now-playing-json?mount=" mount))
-          (then (lambda (response)
-                  (if (ps:@ response ok)
-                      (ps:chain response (json))
-                      nil)))
-          (then (lambda (data)
-                  (when data
-                    (let ((el (ps:chain document (get-element-by-id "mini-now-playing")))
-                          (track-id-el (ps:chain document (get-element-by-id "current-track-id-mini")))
-                          (title (or (ps:@ data data title) (ps:@ data title) "Loading...")))
-                      (when el
-                        ;; Check if track changed and record to history + notify
-                        (when (not (= (ps:@ el text-content) title))
-                          (ps:chain console (log "[STREAM-SYNC] Title changed:" title))
-                          (record-track-listen title)
-                          (notify-track-change title))
-                        (setf (ps:@ el text-content) title)
-                        (check-favorite-status-mini))
-                      (update-media-session title)
-                      (when track-id-el
-                        (let ((track-id (or (ps:@ data data track_id) (ps:@ data track_id))))
-                          (setf (ps:@ track-id-el value) (or track-id ""))))
-                      (let ((count-el (ps:chain document (get-element-by-id "favorite-count-mini")))
-                            (fav-count (or (ps:@ data data favorite_count) (ps:@ data favorite_count) 0)))
-                        (when count-el
-                          (cond
-                            ((= fav-count 0) (setf (ps:@ count-el text-content) ""))
-                            ((= fav-count 1) (setf (ps:@ count-el text-content) "1 ❤️"))
-                            (t (setf (ps:@ count-el text-content) (+ fav-count " ❤️"))))))
-                      ;; Sync countdown timer from server
-                      (let ((remaining (or (ps:@ data data remaining) (ps:@ data remaining))))
-                        (when remaining
-                          (setf *track-remaining-seconds* remaining)))
-                      (let ((mb-link (ps:chain document (get-element-by-id "mini-musicbrainz-link")))
-                            (search-url (or (ps:@ data data search_url) (ps:@ data search_url))))
-                        (when mb-link
-                          (if search-url
+       (unless *mini-now-playing-in-flight*
+         (setf *mini-now-playing-in-flight* true)
+         (let ((mount (get-current-mount)))
+           (ps:chain
+            (fetch (+ "/api/asteroid/partial/now-playing-json?mount=" mount))
+            (then (lambda (response)
+                    (if (ps:@ response ok)
+                        (ps:chain response (json))
+                        nil)))
+            (then (lambda (data)
+                    (when data
+                      (let ((el (ps:chain document (get-element-by-id "mini-now-playing")))
+                            (title (or (ps:@ data data title) (ps:@ data title) "Loading..."))
+                            (changed-at (or (ps:@ data data changed_at) (ps:@ data changed_at))))
+                        ;; Update buffer lag measurement from audio element
+                        (let ((audio (ps:chain document (get-element-by-id "persistent-audio"))))
+                          (when audio
+                            (let ((ahead (get-buffer-ahead audio)))
+                              (when (and ahead (> ahead 0))
+                                (setf *measured-buffer-lag-ms*
+                                      (ps:chain -math (round (* ahead 1000))))))))
+                        ;; If title hasn't changed from what's displayed, just update remaining
+                        (when el
+                          (if (= (ps:@ el text-content) title)
+                              ;; Same title  - just sync countdown
+                              (let ((remaining (or (ps:@ data data remaining) (ps:@ data remaining))))
+                                (when remaining
+                                  (setf *track-remaining-seconds* remaining)))
+                              ;; New title detected  - schedule update based on changed_at
                               (progn
-                                (setf (ps:@ mb-link href) search-url)
-                                (setf (ps:@ mb-link style display) "inline"))
-                              (setf (ps:@ mb-link style display) "none"))))))))
-          (catch (lambda (error)
-                   (ps:chain console (log "Could not fetch now playing:" error)))))))
+                                ;; Cancel any pending scheduled update
+                                (when *pending-title-timer*
+                                  (clear-timeout *pending-title-timer*)
+                                  (setf *pending-title-timer* nil))
+                                (if changed-at
+                                    ;; Calculate when listener will hear this track
+                                    (let* ((now (ps:chain -date (now)))
+                                           (target-time (+ changed-at *measured-buffer-lag-ms*))
+                                           (delay (- target-time now)))
+                                      (ps:chain console (log "[STREAM-SYNC] New title:" title
+                                                            "changed_at:" changed-at
+                                                            "buffer_lag:" *measured-buffer-lag-ms*
+                                                            "delay:" delay "ms"))
+                                      (if (> delay 0)
+                                          ;; Schedule for when listener will hear it
+                                          (setf *pending-title-timer*
+                                                (set-timeout
+                                                 (lambda ()
+                                                   (setf *pending-title-timer* nil)
+                                                   (apply-title-update title data))
+                                                 delay))
+                                          ;; Delay already passed  - apply immediately
+                                          (apply-title-update title data)))
+                                    ;; No changed_at (first track)  - apply immediately
+                                    (apply-title-update title data)))))))))
+            (catch (lambda (error)
+                     (ps:chain console (log "Could not fetch now playing:" error))))
+            (then (lambda () (setf *mini-now-playing-in-flight* false)))
+            (catch (lambda () (setf *mini-now-playing-in-flight* false)))))))
      
      ;; Toggle favorite for mini player
      (defun toggle-favorite-mini ()
@@ -739,14 +793,14 @@
                (setf (ps:@ new-source type) (ps:@ config type))
                (ps:chain audio (append-child new-source))))
          
-         ;; Reload and play — keep *is-reconnecting* true until 'playing' fires
+         ;; Reload and play  - keep *is-reconnecting* true until 'playing' fires
          (ps:chain audio (load))
          (set-timeout
           (lambda ()
             (ps:chain audio (play)
                       (catch (lambda (error)
                                (ps:chain console (log "Reconnect play failed:" error))
-                               ;; play() rejected — reset so next stall/error can retry
+                               ;; play() rejected  - reset so next stall/error can retry
                                (setf *is-reconnecting* false)))))
           500)))
      
@@ -829,7 +883,7 @@
                                         ;; Exponential backoff: 5s, 10s, 20s, max 60s
                                         (let ((delay (ps:chain -math (min (* 5000 (ps:chain -math (pow 2 (- *stall-count* 1)))) 60000))))
                                           (if (> *stall-count* 10)
-                                              ;; Give up after 10 stall attempts — show manual retry
+                                              ;; Give up after 10 stall attempts  - show manual retry
                                               (progn
                                                 (ps:chain console (log "Too many stall retries, giving up auto-reconnect"))
                                                 (show-status "⚠️ Stream unavailable - click play to retry" true))
@@ -1023,7 +1077,7 @@
            
            ;; Start now playing updates and countdown ticker
            (set-timeout update-mini-now-playing 1000)
-           (set-interval update-mini-now-playing 15000)
+           (set-interval update-mini-now-playing 10000)
            (start-countdown-ticker))))
      
      ;; Initialize popout player
