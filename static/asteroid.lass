@@ -1907,4 +1907,50 @@
   
   (.status-rejected
    :border-left "3px solid #cc0000")
+  
+  ;; Button feedback states for admin controls
+  ((:and .btn .btn-loading)
+   :opacity "0.7"
+   :cursor "wait"
+   :position "relative"
+   :pointer-events "none"
+   :animation "btn-pulse 1s ease-in-out infinite")
+  
+  ((:and .btn .btn-success-flash)
+   :background "#00cc00 !important"
+   :border-color "#00ff00 !important"
+   :color "#000 !important"
+   :transition "all 0.3s ease")
+  
+  ((:and .btn .btn-error-flash)
+   :background "#cc0000 !important"
+   :border-color "#ff0000 !important"
+   :color "#fff !important"
+   :transition "all 0.3s ease")
+  
+  (:keyframes btn-pulse
+   ("0%" :opacity "0.7")
+   ("50%" :opacity "0.4")
+   ("100%" :opacity "0.7"))
+  
+  ;; Toast notification
+  (.toast-notification
+   :position "fixed"
+   :bottom "20px"
+   :right "20px"
+   :background "#00ff00"
+   :color "#000"
+   :padding "12px 20px"
+   :border-radius "4px"
+   :font-weight "bold"
+   :z-index "10000"
+   :animation "toast-slide-in 0.3s ease-out"
+   :transition "opacity 0.3s")
+  
+  ((:and .toast-notification .toast-fading)
+   :opacity "0")
+  
+  (:keyframes toast-slide-in
+   ("0%" :transform "translateX(100%)" :opacity "0")
+   ("100%" :transform "translateX(0)" :opacity "1"))
 ) ;; End of let block
