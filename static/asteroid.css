@@ -2353,3 +2353,86 @@ body.popout-body .status-mini{
 .status-rejected{
     border-left: 3px solid #cc0000;
 }
+
+.btn.btn-loading{
+    opacity: 0.7;
+    cursor: wait;
+    position: relative;
+    pointer-events: none;
+    animation: btn-pulse 1s ease-in-out infinite;
+}
+
+.btn.btn-success-flash{
+    background: #00cc00 !important;
+    border-color: #00ff00 !important;
+    color: #000 !important;
+    -moz-transition: all 0.3s ease;
+    -o-transition: all 0.3s ease;
+    -webkit-transition: all 0.3s ease;
+    -ms-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+}
+
+.btn.btn-error-flash{
+    background: #cc0000 !important;
+    border-color: #ff0000 !important;
+    color: #fff !important;
+    -moz-transition: all 0.3s ease;
+    -o-transition: all 0.3s ease;
+    -webkit-transition: all 0.3s ease;
+    -ms-transition: all 0.3s ease;
+    transition: all 0.3s ease;
+}
+
+@keyframes btn-pulse{
+    0%{
+        opacity: 0.7;
+    }
+    50%{
+        opacity: 0.4;
+    }
+    100%{
+        opacity: 0.7;
+    }
+}
+
+.toast-notification{
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #00ff00;
+    color: #000;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-weight: bold;
+    z-index: 10000;
+    animation: toast-slide-in 0.3s ease-out;
+    -moz-transition: opacity 0.3s;
+    -o-transition: opacity 0.3s;
+    -webkit-transition: opacity 0.3s;
+    -ms-transition: opacity 0.3s;
+    transition: opacity 0.3s;
+}
+
+.toast-notification.toast-fading{
+    opacity: 0;
+}
+
+@keyframes toast-slide-in{
+    0%{
+        -moz-transform: translateX(100%);
+        -o-transform: translateX(100%);
+        -webkit-transform: translateX(100%);
+        -ms-transform: translateX(100%);
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    100%{
+        -moz-transform: translateX(0);
+        -o-transform: translateX(0);
+        -webkit-transform: translateX(0);
+        -ms-transform: translateX(0);
+        transform: translateX(0);
+        opacity: 1;
+    }
+}

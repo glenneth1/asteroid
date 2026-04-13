@@ -533,15 +533,40 @@
     (defun show-toast (message)
       (let ((toast (ps:chain document (create-element "div"))))
         (setf (ps:@ toast text-content) message)
-        (setf (ps:@ toast style css-text)
-              "position: fixed; bottom: 20px; right: 20px; background: #00ff00; color: #000; padding: 12px 20px; border-radius: 4px; font-weight: bold; z-index: 10000; animation: slideIn 0.3s ease-out;")
+        (ps:chain toast class-list (add "toast-notification"))
         (ps:chain document body (append-child toast))
-        
         (set-timeout (lambda ()
-                       (setf (ps:@ toast style opacity) "0")
-                       (setf (ps:@ toast style transition) "opacity 0.3s")
+                       (ps:chain toast class-list (add "toast-fading"))
                        (set-timeout (lambda () (ps:chain toast (remove))) 300))
                      2000)))
+    
+    ;; Button feedback helper - shows loading state during async operations
+    ;; btn-id: the DOM id of the button
+    ;; promise-fn: a function that returns a promise (the actual async work)
+    (defun with-button-feedback (btn-id promise-fn)
+      (let ((btn (ps:chain document (get-element-by-id btn-id))))
+        (if btn
+            (progn
+              (ps:chain btn class-list (add "btn-loading"))
+              (setf (ps:@ btn disabled) t)
+              (ps:chain
+               (promise-fn)
+               (then (lambda (result)
+                       (ps:chain btn class-list (remove "btn-loading"))
+                       (ps:chain btn class-list (add "btn-success-flash"))
+                       (set-timeout (lambda ()
+                                      (ps:chain btn class-list (remove "btn-success-flash"))
+                                      (setf (ps:@ btn disabled) nil))
+                                   800)
+                       result))
+               (catch (lambda (error)
+                        (ps:chain btn class-list (remove "btn-loading"))
+                        (ps:chain btn class-list (add "btn-error-flash"))
+                        (set-timeout (lambda ()
+                                       (ps:chain btn class-list (remove "btn-error-flash"))
+                                       (setf (ps:@ btn disabled) nil))
+                                     800)))))
+            (promise-fn))))
     
     ;; Add random tracks to queue
     (defun add-random-tracks ()
@@ -648,25 +673,25 @@
         (unless (confirm (+ "Load playlist '" name "'? This will replace the current stream queue."))
           (return))
         
-        (ps:chain
-         (fetch (+ "/api/asteroid/stream/playlists/load?name=" (encode-u-r-i-component name))
-                (ps:create :method "POST"))
-         (then (lambda (response) (ps:chain response (json))))
-         (then (lambda (result)
-                 (let ((data (or (ps:@ result data) result)))
-                   (if (= (ps:@ data status) "success")
-                       (progn
-                         (show-toast (+ "✓ Loaded " (ps:@ data count) " tracks from " name))
-                         (load-current-queue)
-                         ;; Update channel name in all channel selectors
-                         ;; Use bracket notation because API returns "channel-name" with hyphen
-                         (let ((channel-name (aref data "channel-name")))
-                           (when channel-name
-                             (update-channel-selector-name channel-name))))
-                       (alert (+ "Error loading playlist: " (or (ps:@ data message) "Unknown error")))))))
-         (catch (lambda (error)
-                  (ps:chain console (error "Error loading playlist:" error))
-                  (alert "Error loading playlist"))))))
+        (with-button-feedback "load-playlist-btn"
+          (lambda ()
+            (ps:chain
+             (fetch (+ "/api/asteroid/stream/playlists/load?name=" (encode-u-r-i-component name))
+                    (ps:create :method "POST"))
+             (then (lambda (response) (ps:chain response (json))))
+             (then (lambda (result)
+                     (let ((data (or (ps:@ result data) result)))
+                       (if (= (ps:@ data status) "success")
+                           (progn
+                             (show-toast (+ "✓ Loaded " (ps:@ data count) " tracks from " name))
+                             (load-current-queue)
+                             (let ((channel-name (aref data "channel-name")))
+                               (when channel-name
+                                 (update-channel-selector-name channel-name))))
+                           (alert (+ "Error loading playlist: " (or (ps:@ data message) "Unknown error")))))))
+             (catch (lambda (error)
+                      (ps:chain console (error "Error loading playlist:" error))
+                      (alert "Error loading playlist"))))))))
     
     ;; Load current queue contents (from stream-queue.m3u)
     (defun load-current-queue ()
@@ -737,17 +762,19 @@
     
     ;; Save current queue to stream-queue.m3u
     (defun save-stream-queue ()
-      (ps:chain
-       (fetch "/api/asteroid/stream/playlists/save" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (show-toast "✓ Queue saved")
-                     (alert (+ "Error saving queue: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error saving queue:" error))
-                (alert "Error saving queue")))))
+      (with-button-feedback "save-queue-btn"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/stream/playlists/save" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (show-toast "✓ Queue saved")
+                         (alert (+ "Error saving queue: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error saving queue:" error))
+                    (alert "Error saving queue")))))))
     
     ;; Save queue as new playlist
     (defun save-queue-as-new ()
@@ -757,40 +784,44 @@
           (alert "Please enter a name for the new playlist")
           (return))
         
-        (ps:chain
-         (fetch (+ "/api/asteroid/stream/playlists/save-as?name=" (encode-u-r-i-component name))
-                (ps:create :method "POST"))
-         (then (lambda (response) (ps:chain response (json))))
-         (then (lambda (result)
-                 (let ((data (or (ps:@ result data) result)))
-                   (if (= (ps:@ data status) "success")
-                       (progn
-                         (show-toast (+ "✓ Saved as " name))
-                         (setf (ps:@ input value) "")
-                         (load-playlist-list))
-                       (alert (+ "Error saving playlist: " (or (ps:@ data message) "Unknown error")))))))
-         (catch (lambda (error)
-                  (ps:chain console (error "Error saving playlist:" error))
-                  (alert "Error saving playlist"))))))
+        (with-button-feedback "save-as-btn"
+          (lambda ()
+            (ps:chain
+             (fetch (+ "/api/asteroid/stream/playlists/save-as?name=" (encode-u-r-i-component name))
+                    (ps:create :method "POST"))
+             (then (lambda (response) (ps:chain response (json))))
+             (then (lambda (result)
+                     (let ((data (or (ps:@ result data) result)))
+                       (if (= (ps:@ data status) "success")
+                           (progn
+                             (show-toast (+ "✓ Saved as " name))
+                             (setf (ps:@ input value) "")
+                             (load-playlist-list))
+                           (alert (+ "Error saving playlist: " (or (ps:@ data message) "Unknown error")))))))
+             (catch (lambda (error)
+                      (ps:chain console (error "Error saving playlist:" error))
+                      (alert "Error saving playlist"))))))))
     
     ;; Clear stream queue (updated to use new API)
     (defun clear-stream-queue ()
       (unless (confirm "Clear the stream queue? Liquidsoap will fall back to random playback from the music library.")
         (return))
       
-      (ps:chain
-       (fetch "/api/asteroid/stream/playlists/clear" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (show-toast "✓ Queue cleared")
-                       (load-current-queue))
-                     (alert (+ "Error clearing queue: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error clearing queue:" error))
-                (alert "Error clearing queue")))))
+      (with-button-feedback "clear-queue-btn"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/stream/playlists/clear" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (progn
+                           (show-toast "✓ Queue cleared")
+                           (load-current-queue))
+                         (alert (+ "Error clearing queue: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error clearing queue:" error))
+                    (alert "Error clearing queue")))))))
     
     ;; ========================================
     ;; Liquidsoap Control Functions
@@ -798,92 +829,99 @@
     
     ;; Refresh Liquidsoap status
     (defun refresh-liquidsoap-status ()
-      (ps:chain
-       (fetch "/api/asteroid/liquidsoap/status")
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (when (= (ps:@ data status) "success")
-                   (let ((uptime-el (ps:chain document (get-element-by-id "ls-uptime")))
-                         (remaining-el (ps:chain document (get-element-by-id "ls-remaining")))
-                         (metadata-el (ps:chain document (get-element-by-id "ls-metadata"))))
-                     (when uptime-el
-                       (setf (ps:@ uptime-el text-content) (or (ps:@ data uptime) "--")))
-                     (when remaining-el
-                       (setf (ps:@ remaining-el text-content) (or (ps:@ data remaining) "--")))
-                     (when metadata-el
-                       (setf (ps:@ metadata-el text-content) (or (ps:@ data metadata) "--"))))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error fetching Liquidsoap status:" error))))))
+      (with-button-feedback "ls-refresh-status"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/liquidsoap/status")
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (when (= (ps:@ data status) "success")
+                       (let ((uptime-el (ps:chain document (get-element-by-id "ls-uptime")))
+                             (remaining-el (ps:chain document (get-element-by-id "ls-remaining")))
+                             (metadata-el (ps:chain document (get-element-by-id "ls-metadata"))))
+                         (when uptime-el
+                           (setf (ps:@ uptime-el text-content) (or (ps:@ data uptime) "--")))
+                         (when remaining-el
+                           (setf (ps:@ remaining-el text-content) (or (ps:@ data remaining) "--")))
+                         (when metadata-el
+                           (setf (ps:@ metadata-el text-content) (or (ps:@ data metadata) "--"))))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error fetching Liquidsoap status:" error))))))))
     
     ;; Skip current track
     (defun liquidsoap-skip ()
-      (ps:chain
-       (fetch "/api/asteroid/liquidsoap/skip" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (show-toast "⏭️ Track skipped")
-                       (set-timeout refresh-liquidsoap-status 1000))
-                     (alert (+ "Error skipping track: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error skipping track:" error))
-                (alert "Error skipping track")))))
+      (with-button-feedback "ls-skip"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/liquidsoap/skip" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (progn
+                           (show-toast "⏭️ Track skipped")
+                           (set-timeout refresh-liquidsoap-status 1000))
+                         (alert (+ "Error skipping track: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error skipping track:" error))
+                    (alert "Error skipping track")))))))
     
     ;; Reload playlist
     (defun liquidsoap-reload ()
-      (ps:chain
-       (fetch "/api/asteroid/liquidsoap/reload" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (show-toast "📂 Playlist reloaded")
-                     (alert (+ "Error reloading playlist: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error reloading playlist:" error))
-                (alert "Error reloading playlist")))))
+      (with-button-feedback "ls-reload"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/liquidsoap/reload" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (show-toast "📂 Playlist reloaded")
+                         (alert (+ "Error reloading playlist: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error reloading playlist:" error))
+                    (alert "Error reloading playlist")))))))
     
     ;; Restart Liquidsoap container
     (defun liquidsoap-restart ()
       (unless (confirm "Restart Liquidsoap container? This will cause a brief interruption to the stream.")
         (return))
       
-      (show-toast "🔄 Restarting Liquidsoap...")
-      (ps:chain
-       (fetch "/api/asteroid/liquidsoap/restart" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (show-toast "✓ Liquidsoap restarting")
-                       ;; Refresh status after a delay to let container restart
-                       (set-timeout refresh-liquidsoap-status 5000))
-                     (alert (+ "Error restarting Liquidsoap: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error restarting Liquidsoap:" error))
-                (alert "Error restarting Liquidsoap")))))
+      (with-button-feedback "ls-restart"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/liquidsoap/restart" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (progn
+                           (show-toast "✓ Liquidsoap restarting")
+                           (set-timeout refresh-liquidsoap-status 5000))
+                         (alert (+ "Error restarting Liquidsoap: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error restarting Liquidsoap:" error))
+                    (alert "Error restarting Liquidsoap")))))))
     
     ;; Restart Icecast container
     (defun icecast-restart ()
       (unless (confirm "Restart Icecast container? This will disconnect all listeners temporarily.")
         (return))
       
-      (show-toast "🔄 Restarting Icecast...")
-      (ps:chain
-       (fetch "/api/asteroid/icecast/restart" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (show-toast "✓ Icecast restarting - listeners will reconnect automatically")
-                     (alert (+ "Error restarting Icecast: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error restarting Icecast:" error))
-                (alert "Error restarting Icecast")))))
+      (with-button-feedback "icecast-restart"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/icecast/restart" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (show-toast "✓ Icecast restarting - listeners will reconnect automatically")
+                         (alert (+ "Error restarting Icecast: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error restarting Icecast:" error))
+                    (alert "Error restarting Icecast")))))))
     
     ;; ========================================
     ;; Listener Statistics
@@ -1135,10 +1173,12 @@
     
     ;; Refresh scheduler status
     (defun refresh-scheduler-status ()
-      (ps:chain
-       (fetch "/api/asteroid/scheduler/status")
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
+      (with-button-feedback "scheduler-refresh"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/scheduler/status")
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
                (let ((data (or (ps:@ result data) result)))
                  (when (= (ps:@ data status) "success")
                    ;; Update server time
@@ -1194,8 +1234,8 @@
                                                           "<td><button class=\"btn btn-danger btn-sm\" onclick=\"removeScheduleEntry(" hour ")\">🗑️</button></td>"
                                                           "</tr>"))))))
                          (setf (ps:@ table-body inner-h-t-m-l) html))))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error loading scheduler status:" error))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error loading scheduler status:" error))))))))
     
     ;; Add or update schedule entry
     (defun add-schedule-entry ()
@@ -1245,52 +1285,58 @@
     
     ;; Enable scheduler
     (defun enable-scheduler ()
-      (ps:chain
-       (fetch "/api/asteroid/scheduler/enable" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (show-toast "✓ Scheduler enabled")
-                       (refresh-scheduler-status))
-                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error enabling scheduler:" error))
-                (alert "Error enabling scheduler")))))
+      (with-button-feedback "scheduler-enable"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/scheduler/enable" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (progn
+                           (show-toast "✓ Scheduler enabled")
+                           (refresh-scheduler-status))
+                         (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error enabling scheduler:" error))
+                    (alert "Error enabling scheduler")))))))
     
     ;; Disable scheduler
     (defun disable-scheduler ()
-      (ps:chain
-       (fetch "/api/asteroid/scheduler/disable" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (show-toast "⏸️ Scheduler disabled")
-                       (refresh-scheduler-status))
-                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error disabling scheduler:" error))
-                (alert "Error disabling scheduler")))))
+      (with-button-feedback "scheduler-disable"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/scheduler/disable" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (progn
+                           (show-toast "⏸️ Scheduler disabled")
+                           (refresh-scheduler-status))
+                         (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error disabling scheduler:" error))
+                    (alert "Error disabling scheduler")))))))
     
     ;; Load current scheduled playlist
     (defun load-current-scheduled-playlist ()
-      (ps:chain
-       (fetch "/api/asteroid/scheduler/load-current" (ps:create :method "POST"))
-       (then (lambda (response) (ps:chain response (json))))
-       (then (lambda (result)
-               (let ((data (or (ps:@ result data) result)))
-                 (if (= (ps:@ data status) "success")
-                     (progn
-                       (show-toast (+ "✓ Loaded " (ps:@ data playlist)))
-                       (refresh-scheduler-status)
-                       (load-current-queue))
-                     (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
-       (catch (lambda (error)
-                (ps:chain console (error "Error loading scheduled playlist:" error))
-                (alert "Error loading scheduled playlist")))))
+      (with-button-feedback "scheduler-load-current"
+        (lambda ()
+          (ps:chain
+           (fetch "/api/asteroid/scheduler/load-current" (ps:create :method "POST"))
+           (then (lambda (response) (ps:chain response (json))))
+           (then (lambda (result)
+                   (let ((data (or (ps:@ result data) result)))
+                     (if (= (ps:@ data status) "success")
+                         (progn
+                           (show-toast (+ "✓ Loaded " (ps:@ data playlist)))
+                           (refresh-scheduler-status)
+                           (load-current-queue))
+                         (alert (+ "Error: " (or (ps:@ data message) "Unknown error")))))))
+           (catch (lambda (error)
+                    (ps:chain console (error "Error loading scheduled playlist:" error))
+                    (alert "Error loading scheduled playlist")))))))
     
     ;; ========================================
     ;; Track Requests Management
