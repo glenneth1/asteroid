@@ -251,7 +251,12 @@
                               (check-favorite-status)
                               ;; Update favorite count display
                               (update-favorite-information)
-                              (update-media-session new-title)))))))))
+                              (update-media-session new-title))
+                            ;; Re-populate countdown after innerHTML replacement wiped it
+                            (let ((countdown-el (ps:chain now-playing-el (query-selector "#track-countdown-main"))))
+                              (when (and countdown-el *main-remaining* (> *main-remaining* 0))
+                                (setf (ps:@ countdown-el text-content)
+                                      (+ "[" (format-countdown *main-remaining*) "]")))))))))))
           (catch (lambda (error)
                    (ps:chain console (log "Could not fetch stream status:" error)))))))
 
@@ -871,11 +876,23 @@
      ;; Main page countdown timer
      (defvar *main-remaining* nil)
      (defvar *poll-now-playing-in-flight* false)
+     (defvar *main-pending-title-timer* nil)
+     (defvar *main-buffer-lag-ms* 2300)
      
      (defun format-countdown (seconds)
        (let ((m (ps:chain -math (floor (/ seconds 60))))
              (s (ps:chain -math (floor (mod seconds 60)))))
          (+ (if (< m 10) (+ "0" m) m) ":" (if (< s 10) (+ "0" s) s))))
+     
+     (defun apply-main-title-update (title data)
+       (let ((title-el (ps:chain document (get-element-by-id "current-track-title")))
+             (listener-el (ps:chain document (get-element-by-id "current-listeners"))))
+         (when (and title-el title)
+           (setf (ps:@ title-el text-content) title))
+         (when listener-el
+           (let ((listeners (or (ps:@ data data listeners) (ps:@ data listeners))))
+             (when listeners
+               (setf (ps:@ listener-el text-content) listeners))))))
      
      (defun poll-now-playing ()
        (unless *poll-now-playing-in-flight*
@@ -891,15 +908,39 @@
                     (when data
                       (let ((title (or (ps:@ data data title) (ps:@ data title)))
                             (remaining (or (ps:@ data data remaining) (ps:@ data remaining)))
-                            (listeners (or (ps:@ data data listeners) (ps:@ data listeners)))
-                            (title-el (ps:chain document (get-element-by-id "current-track-title")))
-                            (listener-el (ps:chain document (get-element-by-id "current-listeners"))))
-                        (when (and title-el title)
-                          (setf (ps:@ title-el text-content) title))
-                        (when (and listener-el listeners)
-                          (setf (ps:@ listener-el text-content) listeners))
+                            (changed-at (or (ps:@ data data changed_at) (ps:@ data changed_at)))
+                            (title-el (ps:chain document (get-element-by-id "current-track-title"))))
                         (when remaining
-                          (setf *main-remaining* remaining))))))
+                          (setf *main-remaining* remaining))
+                        (when (and title title-el)
+                          (if (= (ps:@ title-el text-content) title)
+                              ;; Same title — just update listeners
+                              (let ((listener-el (ps:chain document (get-element-by-id "current-listeners"))))
+                                (when listener-el
+                                  (let ((listeners (or (ps:@ data data listeners) (ps:@ data listeners))))
+                                    (when listeners
+                                      (setf (ps:@ listener-el text-content) listeners)))))
+                              ;; New title — schedule delayed update
+                              (progn
+                                (when *main-pending-title-timer*
+                                  (clear-timeout *main-pending-title-timer*)
+                                  (setf *main-pending-title-timer* nil))
+                                (if changed-at
+                                    (let* ((now (ps:chain -date (now)))
+                                           (target-time (+ changed-at *main-buffer-lag-ms*))
+                                           (delay (- target-time now)))
+                                      (ps:chain console (log "[STREAM-SYNC] Front page new title:" title
+                                                             "changed_at:" changed-at
+                                                             "delay:" delay "ms"))
+                                      (if (> delay 0)
+                                          (setf *main-pending-title-timer*
+                                                (set-timeout
+                                                 (lambda ()
+                                                   (setf *main-pending-title-timer* nil)
+                                                   (apply-main-title-update title data))
+                                                 delay))
+                                          (apply-main-title-update title data)))
+                                    (apply-main-title-update title data)))))))))
             (catch (lambda (error) nil))
             (then (lambda () (setf *poll-now-playing-in-flight* false)))
             (catch (lambda () (setf *poll-now-playing-in-flight* false)))))))
