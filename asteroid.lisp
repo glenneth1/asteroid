@@ -22,7 +22,9 @@
           (merge-pathnames "music/library/" (asdf:system-source-directory :asteroid))
           "/app/music/")))
 (defparameter *supported-formats* '("mp3" "flac" "ogg" "wav"))
-(defparameter *stream-base-url* "http://localhost:8000")
+(defparameter *stream-base-url*
+  (or (uiop:getenv "STREAM_BASE_URL")
+      "http://localhost:8000"))
 
 ;; Recently played tracks storage (in-memory) - separate lists per stream type
 (defparameter *recently-played-curated* nil
@@ -1053,6 +1055,16 @@
          (format t "ERROR generating dj-console.js: ~a~%" e)
          (format nil "// Error generating JavaScript: ~a~%" e))))
     
+    ;; Serve ParenScript-compiled runtime-stats.js
+    ((string= path "js/runtime-stats.js")
+     (setf (content-type *response*) "application/javascript")
+     (handler-case
+         (let ((js (generate-runtime-stats-js)))
+           (if js js "// Error: No JavaScript generated"))
+       (error (e)
+         (format t "ERROR generating runtime-stats.js: ~a~%" e)
+         (format nil "// Error generating JavaScript: ~a~%" e))))
+    
     ;; Serve regular static file
     (t
      (let ((file-path (merge-pathnames (format nil "static/~a" path)
@@ -1089,6 +1101,15 @@
      :library-path "/home/glenn/Projects/Code/asteroid/music/library/"
      :stream-base-url *stream-base-url*
      :default-stream-url (format nil "~a/asteroid.aac" *stream-base-url*))))
+
+;; Runtime Stats page (admin only)
+(define-page runtime-stats #@"/admin/runtime" ()
+  "Runtime monitoring dashboard - SBCL memory, GC, and thread stats"
+  (require-role :admin)
+  (clip:process-to-string
+   (load-template "runtime-stats")
+   :navbar-exclude '("admin")
+   :title "📊 ASTEROID RADIO - Runtime Monitor"))
 
 ;; DJ Console page (requires DJ or admin role)
 (define-page dj-console #@"/dj" ()
@@ -1520,6 +1541,14 @@
 
   (radiance:startup)
   
+  ;; Start runtime stats collection
+  (handler-case
+      (progn
+        (format t "Starting runtime stats collection...~%")
+        (start-runtime-stats-collection))
+    (error (e)
+      (format t "Warning: Could not start runtime stats: ~a~%" e)))
+  
   ;; Start listener statistics polling
   (handler-case
       (progn
@@ -1531,6 +1560,11 @@
 (defun stop-server ()
   "Stop the Asteroid Radio RADIANCE server"
   (format t "Stopping Asteroid Radio server...~%")
+  ;; Stop runtime stats collection
+  (handler-case
+      (stop-runtime-stats-collection)
+    (error (e)
+      (format t "Warning: Error stopping runtime stats: ~a~%" e)))
   ;; Stop listener statistics polling
   (handler-case
       (stop-stats-polling)

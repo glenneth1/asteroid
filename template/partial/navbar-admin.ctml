@@ -33,6 +33,12 @@
         Admin
       </a>
     </c:unless>
+    <c:unless test='(asteroid::member-string "runtime" (** :navbar-exclude))'>
+      <a href="/asteroid/admin/runtime"
+         lquery='(attr :target (when framesetp "_self"))'>
+        📊 Monitor
+      </a>
+    </c:unless>
     <c:unless test='(asteroid::member-string "users" (** :navbar-exclude))'>
       <a href="/asteroid/admin/users"
          lquery='(attr :target (when framesetp "_self"))'>

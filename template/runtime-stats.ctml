@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title data-text="title">Asteroid Radio - Runtime Monitor</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="/asteroid/static/asteroid.css">
+  <script lquery='(text (asteroid::get-auth-state-js-var))'></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/asteroid/static/js/runtime-stats.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 RUNTIME MONITOR</h1>
+    <c:h>(asteroid::load-template "partial/navbar-admin")</c:h>
+
+    <!-- Current Stats Cards -->
+    <div class="admin-section">
+      <h2>Current Status</h2>
+      <div class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div class="status-card">
+          <h3>Heap Memory</h3>
+          <p class="stat-number" id="rs-heap-memory" style="font-size: 1.5em;">--</p>
+        </div>
+        <div class="status-card">
+          <h3>Total Bytes Consed</h3>
+          <p class="stat-number" id="rs-bytes-consed" style="font-size: 1.5em;">--</p>
+        </div>
+        <div class="status-card">
+          <h3>GC Cycles</h3>
+          <p class="stat-number" id="rs-gc-count" style="font-size: 1.5em;">--</p>
+        </div>
+        <div class="status-card">
+          <h3>Threads</h3>
+          <p class="stat-number" id="rs-thread-count" style="font-size: 1.5em;">--</p>
+        </div>
+        <div class="status-card">
+          <h3>Uptime</h3>
+          <p class="stat-number" id="rs-uptime" style="font-size: 1.2em;">--</p>
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <button class="btn btn-secondary" onclick="rsRefresh()">🔄 Refresh Now</button>
+        <label style="margin-left: 15px;">
+          Auto-refresh:
+          <select id="rs-autorefresh" onchange="rsToggleAutorefresh(this.value)">
+            <option value="0">Off</option>
+            <option value="10" selected>Every 10s</option>
+            <option value="30">Every 30s</option>
+            <option value="60">Every 60s</option>
+          </select>
+        </label>
+        <span id="rs-last-update" style="margin-left: 15px; color: #888;"></span>
+      </div>
+    </div>
+
+    <!-- Memory Chart -->
+    <div class="admin-section">
+      <h2>Heap Memory Over Time</h2>
+      <div style="position: relative; height: 300px;">
+        <canvas id="rs-memory-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Allocation Rate Chart -->
+    <div class="admin-section">
+      <h2>Allocation Rate (bytes/sec)</h2>
+      <div style="position: relative; height: 300px;">
+        <canvas id="rs-alloc-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Thread Count Chart -->
+    <div class="admin-section">
+      <h2>Thread Count Over Time</h2>
+      <div style="position: relative; height: 200px;">
+        <canvas id="rs-threads-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Thread Table -->
+    <div class="admin-section">
+      <h2>Active Threads</h2>
+      <table class="listener-stats-table" style="width: 100%;">
+        <thead>
+          <tr>
+            <th>Thread Name</th>
+            <th>Alive</th>
+            <th>OS TID</th>
+          </tr>
+        </thead>
+        <tbody id="rs-threads-table">
+          <tr><td colspan="3" style="color: #888;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>
