@@ -226,10 +226,11 @@
 
 (defun start-harmony-streaming (&key (port *harmony-stream-port*)
                                      (mp3-bitrate 128)
-                                     (aac-bitrate 128))
-  "Start the cl-streamer pipeline with MP3 and AAC outputs.
+                                     (aac-bitrate 128)
+                                     (low-bitrate 64))
+  "Start the cl-streamer pipeline with MP3, AAC, and low-bitrate MP3 outputs.
    Should be called once during application startup.
-   MP3-BITRATE and AAC-BITRATE are in kbps (e.g. 128)."
+   MP3-BITRATE, AAC-BITRATE, and LOW-BITRATE are in kbps (e.g. 128, 128, 64)."
   (when *harmony-pipeline*
     (log:warn "Harmony streaming already running")
     (return-from start-harmony-streaming *harmony-pipeline*))
@@ -245,7 +246,11 @@
                         (list :format :aac
                               :mount "/asteroid.aac"
                               :bitrate aac-bitrate
-                              :name "Asteroid Radio AAC"))))
+                              :name "Asteroid Radio AAC")
+                        (list :format :mp3
+                              :mount "/asteroid-low.mp3"
+                              :bitrate low-bitrate
+                              :name "Asteroid Radio Low MP3"))))
 
   ;; Register hooks
   (cl-streamer/harmony:pipeline-add-hook *harmony-pipeline*
@@ -256,7 +261,7 @@
   ;; Start the audio pipeline
   (cl-streamer/harmony:pipeline-start *harmony-pipeline*)
 
-  (log:info "Harmony streaming started on port ~A (MP3 + AAC)" port)
+  (log:info "Harmony streaming started on port ~A (MP3 + AAC + Low MP3)" port)
   *harmony-pipeline*)
 
 (defun stop-harmony-streaming ()
@@ -413,7 +418,7 @@
     (log:info "Shuffle track change: ~A" display-title))
   (refill-shuffle-queue))
 
-(defun shuffle-now-playing (&optional (mount "shuffle.mp3"))
+(defun shuffle-now-playing (&optional (mount "asteroid-shuffle.mp3"))
   "Get now-playing information from the shuffle pipeline."
   (when (and *shuffle-pipeline*
              (cl-streamer/harmony:pipeline-current-track *shuffle-pipeline*))
@@ -441,11 +446,11 @@
           (cl-streamer/harmony:make-pipeline
            :server shared-server
            :outputs (list (list :format :mp3
-                                :mount "/shuffle.mp3"
+                                :mount "/asteroid-shuffle.mp3"
                                 :bitrate mp3-bitrate
                                 :name "Asteroid Radio Shuffle MP3")
                           (list :format :aac
-                                :mount "/shuffle.aac"
+                                :mount "/asteroid-shuffle.aac"
                                 :bitrate aac-bitrate
                                 :name "Asteroid Radio Shuffle AAC"))))
     ;; Register hooks

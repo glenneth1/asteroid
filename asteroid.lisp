@@ -1625,12 +1625,13 @@
                     (if playlist-path (file-namestring playlist-path) "stream-queue.m3u"))))
         (format t "📡 Stream: ~a/asteroid.mp3~%" *stream-base-url*)
         (format t "📡 Stream: ~a/asteroid.aac~%" *stream-base-url*)
+        (format t "📡 Stream: ~a/asteroid-low.mp3~%" *stream-base-url*)
         ;; Start shuffle stream (shares the same HTTP server)
         (handler-case
             (progn
               (start-shuffle-streaming)
-              (format t "📡 Shuffle: ~a/shuffle.mp3~%" *stream-base-url*)
-              (format t "📡 Shuffle: ~a/shuffle.aac~%" *stream-base-url*))
+              (format t "📡 Shuffle: ~a/asteroid-shuffle.mp3~%" *stream-base-url*)
+              (format t "📡 Shuffle: ~a/asteroid-shuffle.aac~%" *stream-base-url*))
           (error (e)
             (format t "⚠️  Could not start shuffle stream: ~a~%" e))))
     (error (e)

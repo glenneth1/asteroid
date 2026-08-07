@@ -149,23 +149,32 @@
      ;; ========================================
      
      ;; Get stream configuration for a given channel and quality
-     ;; Curated channel uses /asteroid.* mounts, shuffle uses /shuffle.* mounts
+     ;; Curated channel has multiple quality options, shuffle has only one
      (defun get-stream-config (stream-base-url channel quality)
-       (let ((prefix (if (= channel "shuffle") "/shuffle" "/asteroid")))
-         (let ((config (ps:create
-                        :aac (ps:create :url (+ stream-base-url prefix ".aac")
-                                        :type "audio/aac"
-                                        :format "AAC 96kbps Stereo"
-                                        :mount (+ (ps:chain prefix (substring 1)) ".aac"))
-                        :mp3 (ps:create :url (+ stream-base-url prefix ".mp3")
-                                        :type "audio/mpeg"
-                                        :format "MP3 128kbps Stereo"
-                                        :mount (+ (ps:chain prefix (substring 1)) ".mp3"))
-                        :low (ps:create :url (+ stream-base-url prefix ".mp3")
-                                        :type "audio/mpeg"
-                                        :format "MP3 128kbps Stereo"
-                                        :mount (+ (ps:chain prefix (substring 1)) ".mp3")))))
-           (ps:getprop config quality))))
+       (let ((curated-config (ps:create
+                              :aac (ps:create
+                                    :url (+ stream-base-url "/asteroid.aac")
+                                    :format "AAC 96kbps Stereo"
+                                    :type "audio/aac"
+                                    :mount "asteroid.aac")
+                              :mp3 (ps:create
+                                    :url (+ stream-base-url "/asteroid.mp3")
+                                    :format "MP3 128kbps Stereo"
+                                    :type "audio/mpeg"
+                                    :mount "asteroid.mp3")
+                              :low (ps:create
+                                    :url (+ stream-base-url "/asteroid-low.mp3")
+                                    :format "MP3 64kbps Stereo"
+                                    :type "audio/mpeg"
+                                    :mount "asteroid-low.mp3")))
+             (shuffle-config (ps:create
+                              :url (+ stream-base-url "/asteroid-shuffle.mp3")
+                              :format "Shuffle MP3 128kbps"
+                              :type "audio/mpeg"
+                              :mount "asteroid-shuffle.mp3")))
+         (if (= channel "shuffle")
+             shuffle-config
+             (ps:getprop curated-config quality))))
      
      ;; Get current channel from selector or localStorage
      (defun get-current-channel ()
