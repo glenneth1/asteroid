@@ -1,10 +1,12 @@
 #+TITLE: Asteroid Radio - Installation Guide
 #+AUTHOR: Asteroid Radio Development Team
-#+DATE: 2026-01-26
+#+DATE: 2026-08-07
 
 * Installation Overview
 
-This guide covers the complete installation and deployment of Asteroid Radio. The **recommended approach** is Docker-based installation for easy deployment and consistency. Native installation is also available for development or custom deployments.
+Asteroid Radio runs entirely as a single SBCL process. The audio streaming server (CL-Streamer) is built into the application — no external Icecast or Liquidsoap services are required. The only external dependency is PostgreSQL for persistent data.
+
+This guide covers both native (local) and Docker-based installation.
 
 #+BEGIN_QUOTE
 *Note on Package Managers*: Examples in this guide use =apt= (Debian/Ubuntu). Replace with your distribution's package manager:
@@ -14,105 +16,99 @@ This guide covers the complete installation and deployment of Asteroid Radio. Th
 - Alpine: =apk=
 #+END_QUOTE
 
-* Quick Start (Docker - Recommended)
+* Quick Start (Native)
 
-** Prerequisites Check
+** Prerequisites
+- *SBCL* — Steel Bank Common Lisp (2.2+)
+- *Quicklisp* — with Shirakumo distribution (for Harmony, cl-mixed, Radiance)
+- *PostgreSQL* — running instance (native or Docker)
+- *GCC* — for compiling the FDK-AAC C shim
+- *System libraries* (see below)
+
+** Install System Dependencies (Ubuntu/Debian)
 #+BEGIN_SRC bash
-# Check if Docker is installed and running
-docker --version
-docker compose version
-docker info
+# Core build tools
+sudo apt install -y sbcl git curl gcc make
+
+# PostgreSQL
+sudo apt install -y postgresql postgresql-client
+
+# Audio encoding/decoding libraries (runtime + dev headers)
+sudo apt install -y \
+  libmp3lame-dev libfdk-aac-dev \
+  libflac-dev libmpg123-dev \
+  libtag1-dev libfixposix-dev
 #+END_SRC
+
+** Build and Run
+#+BEGIN_SRC bash
+# Clone repository
+git clone https://github.com/fade/asteroid.git asteroid-radio
+cd asteroid-radio
+
+# Initialize the database (first time only)
+sudo -u postgres psql -d asteroid -f docker/init-db.sql
+
+# Build the SBCL image
+make
+
+# Run
+./asteroid
+#+END_SRC
+
+** Verify Installation
+#+BEGIN_SRC bash
+# Web interface
+curl -I http://localhost:8080/
+
+# MP3 stream (served by CL-Streamer on port 8000)
+curl -I http://localhost:8000/asteroid.mp3
+
+# AAC stream
+curl -I http://localhost:8000/asteroid.aac
+#+END_SRC
+
+* Quick Start (Docker)
+
+** Prerequisites
+- *Docker* — Docker Engine 20.10+ and Docker Compose 2.0+
 
 ** One-Command Setup
 #+BEGIN_SRC bash
 # Clone and setup
 git clone https://github.com/fade/asteroid.git asteroid-radio
 cd asteroid-radio/docker
-docker compose up -d
+
+# Start PostgreSQL + Asteroid
+docker compose -f docker-compose.asteroid.yml up -d
 #+END_SRC
 
 ** Verify Installation
 #+BEGIN_SRC bash
-# Check all three streams are working
-curl -I http://localhost:8000/asteroid.mp3     # 128kbps MP3
-curl -I http://localhost:8000/asteroid.aac     # 96kbps AAC
-curl -I http://localhost:8000/asteroid-low.mp3 # 64kbps MP3
+curl -I http://localhost:8080/                    # Web interface
+curl -I http://localhost:8000/asteroid.mp3        # MP3 stream
+curl -I http://localhost:8000/asteroid.aac        # AAC stream
 #+END_SRC
 
 * Detailed Installation
 
 ** System Requirements
 
-*** Docker Installation Requirements
+*** Native Installation
+- *OS*: Ubuntu 22.04+ / Debian 12+ (or any Linux with SBCL support)
+- *RAM*: 1GB minimum, 2GB recommended
+- *Storage*: 10GB minimum, 100GB+ for music library
+- *CPU*: 1 core minimum, 2+ cores recommended
+- *Network*: Stable internet connection for streaming
+
+*** Docker Installation
 - *OS*: Any OS with Docker support (Linux, macOS, Windows)
 - *Docker*: Docker Engine 20.10+ and Docker Compose 2.0+
 - *RAM*: 2GB minimum, 4GB recommended
 - *Storage*: 20GB minimum, 500GB+ for music library
 - *CPU*: 2 cores minimum, 4+ cores recommended
-- *Network*: Stable internet connection for streaming
 
-*** Native Installation Requirements (Advanced)
-- *OS*: Ubuntu 20.04+ / Debian 11+ (for native installation)
-- *RAM*: 1GB minimum, 2GB recommended
-- *Storage*: 10GB minimum, 100GB+ for music library
-- *CPU*: 1 core minimum, 2+ cores recommended
-- *Dependencies*: SBCL, Icecast2, Liquidsoap, TagLib
-
-** Docker Installation (Recommended)
-
-*** Step 1: Install Docker
-#+BEGIN_SRC bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install -y docker.io docker compose
-sudo usermod -a -G docker $USER
-# Log out and back in for group changes
-
-# CentOS/RHEL
-sudo dnf install -y docker docker compose
-sudo systemctl enable --now docker
-sudo usermod -a -G docker $USER
-
-# macOS
-brew install docker docker compose
-# Or install Docker Desktop
-
-# Windows
-# Install Docker Desktop from docker.com
-#+END_SRC
-
-*** Step 2: Clone and Setup
-#+BEGIN_SRC bash
-# Clone repository
-git clone <repository-url> asteroid-radio
-cd asteroid-radio/docker
-
-# Start services
-docker compose up -d
-
-# Check status
-docker compose ps
-#+END_SRC
-
-*** Step 3: Add Music
-#+BEGIN_SRC bash
-# Copy music files to the docker music directory
-cp ~/path/to/music/*.mp3 music/
-cp ~/path/to/music/*.flac music/
-
-# Set proper permissions
-sudo chown -R $USER:$USER music/
-#+END_SRC
-
-*** Step 4: Access Streams
-- **High Quality MP3**: http://localhost:8000/asteroid.mp3 (128kbps)
-- **High Quality AAC**: http://localhost:8000/asteroid.aac (96kbps)
-- **Low Quality MP3**: http://localhost:8000/asteroid-low.mp3 (64kbps)
-- **Icecast Admin**: http://localhost:8000/admin/ (admin/asteroid_admin_2024)
-- **Telnet Control**: =telnet localhost 1234=
-
-** Native Installation (Advanced Users)
+** Native Installation
 
 *** Step 1: System Updates
 #+BEGIN_SRC bash
@@ -121,171 +117,134 @@ sudo apt update && sudo apt upgrade -y
 
 *** Step 2: Install System Dependencies
 #+BEGIN_SRC bash
-# Core dependencies
-sudo apt install -y sbcl git curl wget build-essential
+# Core build tools
+sudo apt install -y sbcl git curl wget gcc make build-essential
 
-# Streaming dependencies
-sudo apt install -y icecast2 liquidsoap
+# PostgreSQL
+sudo apt install -y postgresql postgresql-client
 
-# Audio processing dependencies
-sudo apt install -y libtag1-dev libtagc0-dev
+# Audio encoding libraries (MP3 via LAME, AAC via FDK-AAC)
+sudo apt install -y libmp3lame-dev libfdk-aac-dev
 
-# Optional: Development tools
-sudo apt install -y emacs vim htop tree
+# Audio decoding libraries (FLAC, MP3 via cl-mixed backends)
+sudo apt install -y libflac-dev libmpg123-dev
+
+# Audio metadata extraction (taglib)
+sudo apt install -y libtag1-dev
+
+# Networking (required by iolib for socket operations)
+sudo apt install -y libfixposix-dev
 #+END_SRC
 
-*** Step 3: Configure Icecast2
-#+BEGIN_SRC bash
-# Configure Icecast2 during installation
-sudo dpkg-reconfigure icecast2
-
-# Or manually edit configuration
-sudo nano /etc/icecast2/icecast.xml
-#+END_SRC
-
-*Icecast2 Configuration*:
-#+BEGIN_SRC xml
-<icecast>
-    <location>Asteroid Radio Station</location>
-    <admin>admin@asteroid-radio.local</admin>
-    
-    <limits>
-        <clients>100</clients>
-        <sources>2</sources>
-        <queue-size>524288</queue-size>
-        <client-timeout>30</client-timeout>
-        <header-timeout>15</header-timeout>
-        <source-timeout>10</source-timeout>
-    </limits>
-    
-    <authentication>
-        <source-password>b3l0wz3r0</source-password>
-        <relay-password>asteroid_relay_2024</relay-password>
-        <admin-user>admin</admin-user>
-        <admin-password>asteroid_admin_2024</admin-password>
-    </authentication>
-    
-    <hostname>localhost</hostname>
-    <listen-socket>
-        <port>8000</port>
-    </listen-socket>
-    
-    <mount type="normal">
-        <mount-name>/asteroid.mp3</mount-name>
-        <username>source</username>
-        <password>b3l0wz3r0</password>
-        <max-listeners>50</max-listeners>
-        <dump-file>/var/log/icecast2/asteroid.dump</dump-file>
-        <burst-on-connect>1</burst-on-connect>
-        <fallback-mount>/silence.mp3</fallback-mount>
-        <fallback-override>1</fallback-override>
-    </mount>
-    
-    <fileserve>1</fileserve>
-    <paths>
-        <basedir>/usr/share/icecast2</basedir>
-        <logdir>/var/log/icecast2</logdir>
-        <webroot>/usr/share/icecast2/web</webroot>
-        <adminroot>/usr/share/icecast2/admin</adminroot>
-        <alias source="/" destination="/status.xsl"/>
-    </paths>
-    
-    <logging>
-        <accesslog>access.log</accesslog>
-        <errorlog>error.log</errorlog>
-        <loglevel>3</loglevel>
-        <logsize>10000</logsize>
-    </logging>
-</icecast>
-#+END_SRC
-
-*** Step 4: Install Quicklisp
+*** Step 3: Install Quicklisp
 #+BEGIN_SRC bash
 # Download and install Quicklisp
 cd /tmp
 curl -O https://beta.quicklisp.org/quicklisp.lisp
-sbcl --load quicklisp.lisp --eval "(quicklisp-quickstart:install)" --eval "(ql:add-to-init-file)" --quit
+sbcl --load quicklisp.lisp \
+  --eval "(quicklisp-quickstart:install)" \
+  --eval "(ql-dist:install-dist \"http://dist.shirakumo.org/shirakumo.txt\" :prompt nil)" \
+  --eval "(ql:add-to-init-file)" \
+  --quit
 #+END_SRC
 
-*** Step 5: Clone and Setup Project
+*** Step 4: Clone and Setup Project
 #+BEGIN_SRC bash
 # Clone repository
 git clone https://github.com/fade/asteroid /opt/asteroid-radio
 cd /opt/asteroid-radio
 
+# Initialize submodules
+git submodule update --init
+
 # Create required directories
-sudo mkdir -p music/incoming music/library static template
-sudo chown -R $USER:$USER music/
+mkdir -p music/library playlists
 
-# Set permissions
-chmod 755 music/incoming music/library
-chmod +x *.sh
+# Symlink your music collection (optional)
+ln -s /path/to/your/music music/library
 #+END_SRC
 
-*** Step 6: Install Lisp Dependencies
+*** Step 5: Configure PostgreSQL
 #+BEGIN_SRC bash
-# Start SBCL and install dependencies
-sbcl --eval "(ql:quickload :asteroid)" --quit
+# Create database and user
+sudo -u postgres createuser asteroid
+sudo -u postgres createdb asteroid
+sudo -u postgres psql -c "ALTER USER asteroid WITH PASSWORD 'asteroid_db_2025';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE asteroid TO asteroid;"
+
+# Initialize schema
+sudo -u postgres psql -d asteroid -f docker/init-db.sql
+
+# Run migrations
+for f in migrations/*.sql; do
+  sudo -u postgres psql -d asteroid -f "$f"
+done
+
+# Grant permissions
+sudo -u postgres psql -d asteroid -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO asteroid;"
+sudo -u postgres psql -d asteroid -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO asteroid;"
 #+END_SRC
 
-** CentOS/RHEL Installation
-
-*** Step 1: Enable EPEL Repository
+*** Step 6: Build the FDK-AAC Shim
+The C shim for FDK-AAC must be compiled before building Asteroid. This avoids SBCL signal handler conflicts when calling FDK-AAC directly via CFFI.
 #+BEGIN_SRC bash
-sudo dnf install -y epel-release
-sudo dnf update -y
+cd cl-streamer
+gcc -shared -fPIC -o libfdkaac-shim.so fdkaac-shim.c -lfdk-aac
+cd ..
 #+END_SRC
 
-*** Step 2: Install Dependencies
+Note: The compiled =libfdkaac-shim.so= is included in the repository. You only need to rebuild it if you update =libfdk-aac=.
+
+*** Step 7: Build and Run
 #+BEGIN_SRC bash
-# Core dependencies
-sudo dnf install -y sbcl git curl wget gcc make
+# Build the SBCL image
+make
 
-# Streaming dependencies (may require additional repositories)
-sudo dnf install -y icecast liquidsoap
-
-# Audio processing
-sudo dnf install -y taglib-devel
+# Run
+./asteroid
 #+END_SRC
 
-*** Step 3: Follow Ubuntu Steps 3-6
-The remaining steps are similar to Ubuntu installation.
+On startup, Asteroid will:
+1. Start the Radiance web server on port 8080
+2. Start the CL-Streamer HTTP server on port 8000
+3. Initialise the Harmony audio pipeline with MP3 + AAC encoders
+4. Connect to PostgreSQL and load the playlist schedule
+5. Resume playback from saved state (if =.playback-state.lisp= exists)
+6. Begin streaming audio on =/asteroid.mp3= and =/asteroid.aac=
 
-** macOS Installation (Development Only)
+** Docker Installation
 
-*** Step 1: Install Homebrew
+*** Step 1: Install Docker
 #+BEGIN_SRC bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y docker.io docker compose
+sudo usermod -a -G docker $USER
+# Log out and back in for group changes to take effect
 #+END_SRC
 
-*** Step 2: Install Dependencies
+*** Step 2: Clone and Build
 #+BEGIN_SRC bash
-# Core dependencies
-brew install sbcl git
+git clone https://github.com/fade/asteroid.git asteroid-radio
+cd asteroid-radio/docker
 
-# Streaming dependencies
-brew install icecast2 liquidsoap
-
-# Audio processing
-brew install taglib
+# Build and start (PostgreSQL + Asteroid)
+docker compose -f docker-compose.asteroid.yml up -d --build
 #+END_SRC
 
-*** Step 3: Follow Similar Setup Steps
-Adapt the Linux steps for macOS paths and conventions.
+*** Step 3: Add Music
+Mount your music library via the =MUSIC_LIBRARY= environment variable or volume mount in =docker-compose.asteroid.yml=.
+
+*** Step 4: Access
+- *Web Interface*: http://localhost:8080/
+- *Admin Panel*: http://localhost:8080/admin (admin/asteroid123)
+- *MP3 Stream*: http://localhost:8000/asteroid.mp3
+- *AAC Stream*: http://localhost:8000/asteroid.aac
 
 * Service Configuration
 
 ** Systemd Service Setup (Linux)
 
-*** Icecast2 Service
-#+BEGIN_SRC bash
-# Enable and start Icecast2
-sudo systemctl enable icecast2
-sudo systemctl start icecast2
-sudo systemctl status icecast2
-#+END_SRC
-
-*** Asteroid Radio Service
 Create systemd service file:
 #+BEGIN_SRC bash
 sudo nano /etc/systemd/system/asteroid-radio.service
@@ -295,16 +254,15 @@ sudo nano /etc/systemd/system/asteroid-radio.service
 #+BEGIN_SRC ini
 [Unit]
 Description=Asteroid Radio Streaming Service
-After=network.target icecast2.service
-Requires=icecast2.service
+After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
-Type=forking
+Type=simple
 User=asteroid
 Group=asteroid
 WorkingDirectory=/opt/asteroid-radio
-ExecStart=/opt/asteroid-radio/start-asteroid-radio.sh
-ExecStop=/opt/asteroid-radio/stop-asteroid-radio.sh
+ExecStart=/opt/asteroid-radio/asteroid
 Restart=always
 RestartSec=10
 
@@ -332,16 +290,15 @@ sudo systemctl status asteroid-radio
 *** Ubuntu/Debian (ufw)
 #+BEGIN_SRC bash
 # Allow required ports
-sudo ufw allow 8000/tcp  # Icecast2 streaming and admin
-sudo ufw allow 1234/tcp  # Liquidsoap telnet control (optional)
+sudo ufw allow 8080/tcp  # Web interface
+sudo ufw allow 8000/tcp  # Audio streaming (CL-Streamer)
 sudo ufw enable
 #+END_SRC
 
 *** CentOS/RHEL (firewalld)
 #+BEGIN_SRC bash
-# Allow required ports
-sudo firewall-cmd --permanent --add-port=8000/tcp  # Icecast2
-sudo firewall-cmd --permanent --add-port=1234/tcp  # Liquidsoap telnet (optional)
+sudo firewall-cmd --permanent --add-port=8080/tcp  # Web interface
+sudo firewall-cmd --permanent --add-port=8000/tcp  # Audio streaming
 sudo firewall-cmd --reload
 #+END_SRC
 
@@ -349,10 +306,7 @@ sudo firewall-cmd --reload
 
 *** Nginx Configuration
 #+BEGIN_SRC bash
-# Install Nginx
 sudo apt install nginx
-
-# Create configuration
 sudo nano /etc/nginx/sites-available/asteroid-radio
 #+END_SRC
 
@@ -361,7 +315,7 @@ sudo nano /etc/nginx/sites-available/asteroid-radio
 server {
     listen 80;
     server_name your-domain.com;
-    
+
     # Web interface
     location / {
         proxy_pass http://localhost:8080;
@@ -369,8 +323,8 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
-    
-    # Streaming endpoint
+
+    # Streaming endpoint (CL-Streamer)
     location /stream {
         proxy_pass http://localhost:8000/asteroid.mp3;
         proxy_set_header Host $host;
@@ -386,123 +340,51 @@ sudo nginx -t
 sudo systemctl reload nginx
 #+END_SRC
 
-* Docker Management
-
-** Stream Services
-
-The stream services can be managed using docker from inside the =docker= folder on this repository.
-
-*** Container Management
-#+BEGIN_SRC bash
-# Start services
-docker compose up -d
-
-# Stop services
-docker compose down
-
-# View logs
-docker compose logs -f
-
-# Restart services
-docker compose restart
-#+END_SRC
-
-*** Docker Configuration
-See =docker/docker-compose.yml= for complete Docker setup with Icecast2 and Liquidsoap containers. The setup includes:
-- **Icecast2**: Streaming server with three output formats
-- **Liquidsoap**: Audio processing and stream generation
-- **Music Volume**: Mounted to the =./music/library= directory (can also be set with the =MUSIC_LIBRARY= environment variable)
-- *Queue Playlist*: Mounted to the =./stream-queue.m3u= file (can also be set with the =QUEUE_PLAYLIST= environment variable)
-
-** Asteroid Radio Application
-
-The asteroid radio application can also be served and managed using docker from inside the =docker= folder on this repository.
-
-*** Container Management
-#+BEGIN_SRC bash
-# Build service
-docker compose -f docker-compose.asteroid.yml build
-
-# Start service
-docker compose -f docker-compose.asteroid.yml up -d
-
-# Stop service
-docker compose -f docker-compose.asteroid.yml down
-
-# View logs
-docker compose -f docker-compose.asteroid.yml logs -f
-
-# Restart service
-docker compose -f docker-compose.asteroid.yml restart
-#+END_SRC
-
-*** Docker Configuration
-See =docker/docker-compose.asteroid.yml= for complete Docker setup, which includes:
-- Buils the application using the current cloned branch for the repository
-- Uses the host network for easy access to the stream endpoint
-- *Stream endpoint* mapped to =http://localhost:8000= (can also be set with the =ASTEROID_STREAM_URL= environment variable)
-- **Music Volume**: Mounted to the =./music/library= directory (can also be set with the =MUSIC_LIBRARY= environment variable)
-- *Queue Playlist*: Mounted to the =./stream-queue.m3u= file (can also be set with the =QUEUE_PLAYLIST= environment variable)
-
 * Initial Configuration
 
 ** First-Time Setup
 
-*** Access Streaming Services
-1. **Icecast Admin**: http://localhost:8000/admin/ (admin/asteroid_admin_2024)
+*** Access the Web Interface
+1. **Admin Panel**: http://localhost:8080/admin (admin/asteroid123)
 2. **Stream URLs**:
-   - High Quality MP3: http://localhost:8000/asteroid.mp3 (128kbps)
-   - High Quality AAC: http://localhost:8000/asteroid.aac (96kbps)
-   - Low Quality MP3: http://localhost:8000/asteroid-low.mp3 (64kbps)
-3. **Telnet Control**: =telnet localhost 1234= (for Liquidsoap management)
+   - MP3: http://localhost:8000/asteroid.mp3 (128kbps)
+   - AAC: http://localhost:8000/asteroid.aac (128kbps)
 
-*** Add Music Library
-#+BEGIN_SRC bash
-# Copy music files to music directory
-cp ~/path/to/music/*.mp3 ~/asteroid-radio/music/
-
-# Files are automatically detected by Liquidsoap
-# No additional processing needed - just add files to the music directory
-#+END_SRC
+*** Scan Music Library
+1. Navigate to http://localhost:8080/admin
+2. Log in with =admin= / =asteroid123=
+3. Click "Scan Library" to index your music files
+4. Metadata (artist, title, album) is extracted automatically via taglib
 
 *** Test Streaming
 #+BEGIN_SRC bash
-# Test all streams with curl
-curl -I http://localhost:8000/asteroid.mp3     # 128kbps MP3
-curl -I http://localhost:8000/asteroid.aac     # 96kbps AAC
-curl -I http://localhost:8000/asteroid-low.mp3 # 64kbps MP3
+# Test streams
+curl -I http://localhost:8000/asteroid.mp3
+curl -I http://localhost:8000/asteroid.aac
 
-# Test with media player
-vlc http://localhost:8000/asteroid.mp3         # High quality MP3
-vlc http://localhost:8000/asteroid.aac         # High quality AAC
+# Play with media player
+vlc http://localhost:8000/asteroid.mp3
 #+END_SRC
 
 ** Configuration Files
-
-*** Key Configuration Locations
-*Docker Setup:*
-- =docker/asteroid-radio-docker.liq= - Liquidsoap streaming configuration
-- =docker/icecast.xml= - Icecast2 server settings
-- =docker/docker-compose.yml= - Container orchestration
-
-*Native Setup:*
-- =asteroid-radio.liq= - Liquidsoap streaming configuration
-- =/etc/icecast2/icecast.xml= - Icecast2 server settings
-- =radiance-core.conf.lisp= - RADIANCE framework configuration
-
+- =config/radiance-postgres.lisp= - PostgreSQL connection settings
+- =docker/radiance-default.conf.lisp= - Radiance configuration (Docker)
+- =docker/init-db.sql= - Database schema initialization
+- =migrations/*.sql= - Database migrations
+- =playlists/= - M3U playlist files
+- =.playback-state.lisp= - Saved playback state (auto-generated)
 
 * Production Deployment
 
 ** Security Considerations
 
 *** Change Default Passwords
-- Update Icecast2 admin password
-- Change streaming source password
-- Secure database access if using external DB
+- Change the admin password after first login (admin/asteroid123)
+- Secure PostgreSQL access
+- Update Radiance configuration for production
 
 *** File Permissions
 #+BEGIN_SRC bash
-# Secure file permissions
 sudo chown -R asteroid:asteroid /opt/asteroid-radio
 sudo chmod 750 /opt/asteroid-radio
 sudo chmod 640 /opt/asteroid-radio/config/*
@@ -510,81 +392,85 @@ sudo chmod 640 /opt/asteroid-radio/config/*
 
 *** Network Security
 - Use HTTPS with SSL certificates
-- Implement rate limiting
+- Implement rate limiting (built into Radiance)
 - Configure fail2ban for brute force protection
 
 ** Performance Tuning
 
 *** System Limits
 #+BEGIN_SRC bash
-# Increase file descriptor limits
+# Increase file descriptor limits (for many concurrent listeners)
 echo "asteroid soft nofile 65536" | sudo tee -a /etc/security/limits.conf
 echo "asteroid hard nofile 65536" | sudo tee -a /etc/security/limits.conf
 #+END_SRC
-
-*** Icecast2 Optimization
-- Adjust client limits based on server capacity
-- Configure appropriate buffer sizes
-- Enable burst-on-connect for better user experience
 
 ** Monitoring Setup
 
 *** Log Monitoring
 #+BEGIN_SRC bash
-# Docker setup - monitor container logs
-docker compose logs -f icecast
-docker compose logs -f liquidsoap
-
-# Native setup - monitor system logs  
-sudo tail -f /var/log/icecast2/error.log
-sudo tail -f /var/log/asteroid-radio/asteroid.log
+# Native setup — application logs to stdout
+# If running as systemd service:
+journalctl -u asteroid-radio -f
 #+END_SRC
 
 *** Health Checks
 #+BEGIN_SRC bash
-# Create health check script
-cat > ~/asteroid-radio/health-check.sh << 'EOF'
+cat > /opt/asteroid-radio/health-check.sh << 'EOF'
 #!/bin/bash
-# Check all three streams
-curl -I http://localhost:8000/asteroid.mp3 | grep -q "200 OK" || exit 1
-curl -I http://localhost:8000/asteroid.aac | grep -q "200 OK" || exit 1
-curl -I http://localhost:8000/asteroid-low.mp3 | grep -q "200 OK" || exit 1
-# Check Icecast admin interface
-curl -f http://localhost:8000/admin/ || exit 1
+# Check web interface
+curl -f http://localhost:8080/ || exit 1
+# Check streams
+curl -I http://localhost:8000/asteroid.mp3 | grep -q "200" || exit 1
+curl -I http://localhost:8000/asteroid.aac | grep -q "200" || exit 1
 EOF
-chmod +x ~/asteroid-radio/health-check.sh
+chmod +x /opt/asteroid-radio/health-check.sh
 #+END_SRC
 
 * Troubleshooting
 
 ** Common Installation Issues
 
-*** Dependency Problems
-- Ensure all system packages are installed
-- Check Quicklisp installation
-- Verify SBCL can load all required libraries
+*** Missing System Libraries
+If the build fails with CFFI errors, ensure all dev packages are installed:
+#+BEGIN_SRC bash
+sudo apt install -y \
+  libmp3lame-dev libfdk-aac-dev \
+  libflac-dev libmpg123-dev \
+  libtag1-dev libfixposix-dev
+#+END_SRC
+
+*** FDK-AAC Shim Not Found
+If you see "libfdkaac-shim.so not found" during startup:
+#+BEGIN_SRC bash
+cd cl-streamer
+gcc -shared -fPIC -o libfdkaac-shim.so fdkaac-shim.c -lfdk-aac
+#+END_SRC
+
+*** Database Connection Errors
+- Verify PostgreSQL is running: =sudo systemctl status postgresql=
+- Check connection settings in =config/radiance-postgres.lisp=
+- Ensure the =asteroid= database exists and the user has permissions
+- Run =docker/init-db.sql= and migrations if tables are missing
 
 *** Permission Issues
 - Check file ownership and permissions
 - Verify service user has access to required directories
-- Ensure music directories are writable
+- Ensure music directories are readable
 
-*** Network Issues
-- Confirm firewall allows required ports
-- Check service binding addresses
-- Verify no port conflicts with other services
+*** Stream Not Playing
+- Check that the process is running and CL-Streamer started (look for "CL-Streamer started on port 8000" in logs)
+- Test stream URLs: =curl -I http://localhost:8000/asteroid.mp3=
+- Check for audio file errors in the log (missing files, unsupported formats)
+- Verify music library symlink: =ls -la music/library/=
 
-*** Streaming Issues
-- Check Icecast2 configuration and logs
-- Verify Liquidsoap can access music files
-- Test stream connectivity from different networks
+*** SBCL Pathname Issues
+File paths containing square brackets (e.g. =[WEB FLAC]=) can cause errors because SBCL's =pathname= function interprets brackets as wildcard patterns. CL-Streamer uses =sb-ext:parse-native-namestring= to avoid this.
 
 ** Getting Support
-- Check project documentation
+- Check project documentation in =docs/= directory
 - Review system logs for error messages
 - Submit issues with detailed system information
 - Join our IRC chat room: **#asteroid.music** on **irc.libera.chat**
-- Join community discussions for help
 
 * Maintenance
 
@@ -592,7 +478,7 @@ chmod +x ~/asteroid-radio/health-check.sh
 - Update system packages monthly
 - Monitor disk space for music library
 - Review and rotate log files
-- Backup configuration files
+- Backup configuration files and database
 - Test streaming functionality
 
 ** Updates and Upgrades
@@ -601,4 +487,4 @@ chmod +x ~/asteroid-radio/health-check.sh
 - Backup before major upgrades
 - Monitor service status after updates
 
-This installation guide provides comprehensive setup instructions for Asteroid Radio. For development-specific setup, see the Development Guide.
+This installation guide covers Asteroid Radio with CL-Streamer, which replaces Icecast and Liquidsoap with a pure Common Lisp streaming server.

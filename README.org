@@ -320,15 +320,26 @@ See =docs/API-ENDPOINTS.org= for complete API documentation.
 - =slynk= - Sly/SLIME interactive development
 
 ** System Libraries
-- =libmp3lame= - MP3 encoding (LAME)
-- =libfdk-aac= - AAC encoding (FDK-AAC, accessed via C shim)
-- =libflac= - FLAC decoding
-- =libmpg123= - MP3 decoding
+- =libmp3lame= - MP3 encoding (LAME, via CFFI)
+- =libfdk-aac= - AAC encoding (FDK-AAC, via C shim + CFFI)
+- =libflac= - FLAC decoding (via cl-mixed-flac)
+- =libmpg123= - MP3 decoding (via cl-mixed-mpg123)
 - =libtagc= - Audio metadata reading (taglib C bindings)
+- =libfixposix= - POSIX compatibility (required by iolib for socket networking)
+- =gcc= - C compiler (for building the FDK-AAC shim)
+
+Install on Ubuntu/Debian:
+#+BEGIN_SRC bash
+sudo apt install -y gcc \
+  libmp3lame-dev libfdk-aac-dev \
+  libflac-dev libmpg123-dev \
+  libtag1-dev libfixposix-dev
+#+END_SRC
 
 ** Infrastructure
 - *PostgreSQL* - only external service required
-- *Docker* - optional, for running PostgreSQL
+- *Docker* - optional, for running PostgreSQL in a container
+- No Icecast or Liquidsoap required — CL-Streamer replaces both
 
 * Resource Usage
 

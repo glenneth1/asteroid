@@ -11,12 +11,28 @@
 ** Prerequisites
 
 *** System Dependencies
-- SBCL (Steel Bank Common Lisp)
-- Quicklisp package manager
+- SBCL (Steel Bank Common Lisp 2.2+)
+- Quicklisp package manager (with Shirakumo distribution)
 - Git version control
-- Docker and Docker Compose
-- PostgreSQL (for production database)
-- taglib for metadata extraction
+- GCC (for compiling the FDK-AAC C shim)
+- PostgreSQL (native or Docker)
+- System audio libraries (see below)
+
+**** Audio Libraries (Ubuntu/Debian)
+#+BEGIN_SRC bash
+sudo apt install -y \
+  libmp3lame-dev libfdk-aac-dev \
+  libflac-dev libmpg123-dev \
+  libtag1-dev libfixposix-dev
+#+END_SRC
+
+These provide:
+- =libmp3lame= — MP3 encoding (via LAME, CFFI bindings in cl-streamer)
+- =libfdk-aac= — AAC encoding (via FDK-AAC, C shim in cl-streamer)
+- =libflac= — FLAC decoding (via cl-mixed-flac)
+- =libmpg123= — MP3 decoding (via cl-mixed-mpg123)
+- =libtagc= — audio metadata extraction (via taglib)
+- =libfixposix= — required by iolib (socket networking for CL-Streamer)
 
 *** Lisp Dependencies (via Quicklisp)
 
@@ -31,19 +47,32 @@ All Lisp dependencies are automatically installed via Quicklisp when you run =(q
 - =r-simple-profile= - User profiles (Radiance)
 - =r-data-model= - Data modeling (Radiance)
 
+**** Audio Pipeline (CL-Streamer)
+- =cl-streamer= — custom HTTP audio streaming server (replaces Icecast)
+- =cl-streamer/harmony= — Harmony audio backend (replaces Liquidsoap)
+- =cl-streamer/encoder= — MP3 encoding via LAME (CFFI)
+- =cl-streamer/aac-encoder= — AAC encoding via FDK-AAC (C shim + CFFI)
+- =harmony= — audio framework (decode, mix, crossfade)
+- =cl-mixed= / =cl-mixed-flac= / =cl-mixed-mpg123= — low-level audio mixing and decoding
+- =cffi= — C foreign function interface (LAME, FDK-AAC bindings)
+- =iolib= — I/O library (sockets with TCP_NODELAY, SO_KEEPALIVE for CL-Streamer)
+- =taglib= — audio metadata extraction
+
 **** Utilities & Libraries
 - =lass= - CSS preprocessing in Lisp
 - =cl-json= - JSON encoding/decoding
 - =alexandria= - Common Lisp utilities
 - =local-time= - Time and date handling
-- =taglib= - Audio metadata extraction
 - =ironclad= - Cryptographic functions
 - =babel= - Character encoding conversion
 - =cl-fad= - File and directory operations
 - =bordeaux-threads= - Portable threading
 - =drakma= - HTTP client
-- =usocket= - Universal socket library
 - =cl-ppcre= - Perl-compatible regular expressions
+- =cl-cron= - Cron-style playlist scheduling
+- =lparallel= - Parallel computation
+- =flexi-streams= - Flexible stream types
+- =split-sequence= - Sequence splitting
 
 **** Radiance Interfaces
 - =:auth= - Authentication interface
@@ -54,17 +83,23 @@ All Lisp dependencies are automatically installed via Quicklisp when you run =(q
 #+BEGIN_SRC bash
 # Install system packages
 sudo apt update
-sudo apt install sbcl git docker.io docker-compose postgresql libtagc0-dev
+sudo apt install -y sbcl git curl gcc make postgresql postgresql-client
 
-# Add user to docker group
-sudo usermod -a -G docker $USER
-# Log out and back in for group changes to take effect
+# Install audio library dev packages (required for building cl-streamer)
+sudo apt install -y \
+  libmp3lame-dev libfdk-aac-dev \
+  libflac-dev libmpg123-dev \
+  libtag1-dev libfixposix-dev
 
 # Install Quicklisp (if not already installed)
 curl -O https://beta.quicklisp.org/quicklisp.lisp
-sbcl --load quicklisp.lisp --eval "(quicklisp-quickstart:install)" --quit
+sbcl --load quicklisp.lisp \
+  --eval "(quicklisp-quickstart:install)" \
+  --eval "(ql-dist:install-dist \"http://dist.shirakumo.org/shirakumo.txt\" :prompt nil)" \
+  --eval "(ql:add-to-init-file)" \
+  --quit
 
-# Note: PostgreSQL runs in Docker for development
+# Note: PostgreSQL can run natively or in Docker
 # See docs/POSTGRESQL-SETUP.org for database configuration
 #+END_SRC
 
@@ -103,28 +138,28 @@ This allows you to load the asteroid system from any directory without changing 
 
 *** Starting Development Environment
 #+BEGIN_SRC bash
-# Start Docker streaming services
-cd docker/
-docker compose up -d
+# Ensure PostgreSQL is running
+sudo systemctl start postgresql
 
-# Verify containers are running
-docker compose ps
+# Build the FDK-AAC shim (first time only, or after updating libfdk-aac)
+cd cl-streamer && gcc -shared -fPIC -o libfdkaac-shim.so fdkaac-shim.c -lfdk-aac && cd ..
 
-# View logs
-docker compose logs -f
+# Build the SBCL image
+make
 
-# Start RADIANCE web server (local development)
-sbcl --eval "(ql:quickload :asteroid)" --eval "(asteroid:start-server)"
+# Run
+./asteroid
 #+END_SRC
 
 *** Development URLs
 - *Web Interface*: http://localhost:8080/
-- *Admin Panel*: http://localhost:8080/admin
+- *Admin Panel*: http://localhost:8080/admin (admin/asteroid123)
 - *User Management*: http://localhost:8080/admin/user
 - *Web Player*: http://localhost:8080/player
 - *API Base*: http://localhost:8080/api/asteroid/
-- *Live Stream*: http://localhost:8000/asteroid.mp3
-- *Icecast Admin*: http://localhost:8000/admin/ (admin/asteroid_admin_2024)
+- *MP3 Stream*: http://localhost:8000/asteroid.mp3 (CL-Streamer)
+- *AAC Stream*: http://localhost:8000/asteroid.aac (CL-Streamer)
+- *Slynk REPL*: port 4009 (connect with Sly/SLIME for live development)
 
 ** Music Library Management
 
